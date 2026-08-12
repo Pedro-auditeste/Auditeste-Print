@@ -59,6 +59,16 @@
   .cabecalho-tela h1{font-size:1.6rem;color:var(--navy);line-height:1.2;}
   .cabecalho-tela p{color:var(--muted);font-size:.95rem;}
   h2.bloco{font-size:1.15rem;color:var(--navy);margin:28px 0 12px;}
+  .cabecalho-passos{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin:28px 0 12px;flex-wrap:wrap;
+  }
+  .cabecalho-passos h2.bloco{margin:0;}
+  .cabecalho-passos .btn.perigo-suave{
+    border-color:#d98a8a;color:#b33a3a;background:#fff;
+  }
+  .cabecalho-passos .btn.perigo-suave:hover{background:#fdeeee;border-color:#c44;}
+  .cabecalho-passos .btn.perigo-suave:disabled{opacity:.45;cursor:not-allowed;}
 
   /* ============ BOTOES ============ */
   .btn{
@@ -181,7 +191,7 @@
   .passo.passo-a11y-nota{border-left-color:var(--green-dark);}
   .passo.passo-a11y .carimbo{font-weight:600;}
   .passo.passo-a11y .detalhe-tecnico{font-size:.78rem;color:#8a9aa0;margin-top:6px;font-family:Consolas,monospace;}
-  @media print{.ferramentas-scan,.linha-scan,.estado-ponte{display:none;}.bloco-a11y-wrap{break-inside:avoid;}.bloco-a11y-dica,.bloco-a11y-excluir{display:none;}}
+  @media print{.ferramentas-scan,.linha-scan,.estado-ponte,.cabecalho-passos .btn{display:none;}.bloco-a11y-wrap{break-inside:avoid;}.bloco-a11y-dica,.bloco-a11y-excluir{display:none;}}
   .caixa-cenarios{
     background:var(--card);border-radius:12px;box-shadow:var(--sombra);
     margin-top:16px;overflow:hidden;
@@ -1023,7 +1033,10 @@
       </div>
     </details>
 
-    <h2 class="bloco">Passos capturados</h2>
+    <div class="cabecalho-passos">
+      <h2 class="bloco">Passos capturados</h2>
+      <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
+    </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
     <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Inicie a gravação para capturar a tela automaticamente.</div>
@@ -2251,6 +2264,8 @@
       + ' · nota ' + (ok('nota') ? 'OK' : 'FALHA') + '.';
   }
 
+  let statusPonte = null;
+
   async function pingPonte(){
     const el = document.getElementById('estadoPonte');
     if(!el) return false;
@@ -2258,14 +2273,19 @@
       const r = await fetch(ponteUrl() + '/ping', { signal: AbortSignal.timeout(8000) });
       if(!r.ok) throw new Error('sem resposta');
       const info = await r.json();
+      statusPonte = info;
       let msg = 'Ponte ativa em ' + ponteUrl() + '.' + textoMotores(info);
       if(info.exigeToken && !ponteToken()) msg += ' Informe o token em Endereço da ponte.';
       else if(info.modo === 'mesma-origem') msg += ' Scans liberados nesta URL (sem token).';
+      msg += info.cenarios
+        ? ' IA de cenários: ligada' + (info.modelo ? ' (' + info.modelo + ')' : '') + '.'
+        : ' IA de cenários: desligada (falta ANTHROPIC_API_KEY na ponte).';
       if(info.aviso) msg += ' ' + info.aviso;
       el.textContent = msg;
       el.className = 'estado-ponte ok';
       return true;
     }catch(err){
+      statusPonte = null;
       el.textContent = ponteUrl() === PONTE_PADRAO
         ? 'Sem ponte. Estes três botões precisam dela porque uma página não lê o DOM de outro site. '
           + 'Escaneie com a extensão audi-print-scanner e traga o JSON em "+ Importar acessibilidade", '
@@ -2345,12 +2365,30 @@
 
   function atualizar(){
     const passos = [...lista.querySelectorAll('.passo')];
+    const blocos = [...lista.querySelectorAll('.bloco-a11y-wrap')];
     passos.forEach((p,i)=> p.querySelector('.num').textContent = i+1);
     if(qtd.textContent !== String(passos.length)){
       qtd.textContent = passos.length;
       qtd.classList.remove('pop'); void qtd.offsetWidth; qtd.classList.add('pop');
     }
-    vazio.style.display = passos.length ? 'none' : '';
+    vazio.style.display = (passos.length || blocos.length) ? 'none' : '';
+    const btnExcluir = document.getElementById('btnExcluirPassos');
+    if(btnExcluir) btnExcluir.disabled = !(passos.length || blocos.length);
+  }
+
+  async function excluirPassosCapturados(){
+    const tem = lista.querySelectorAll('.passo, .bloco-a11y-wrap').length;
+    if(!tem){ avisar('Não há passos para excluir.'); return; }
+    const ok = await perguntar({
+      titulo: 'Excluir passos capturados',
+      subtitulo: 'Esta ação não pode ser desfeita',
+      texto: 'Todos os passos e blocos de acessibilidade desta gravação serão removidos. A ficha e o vídeo permanecem.',
+      botao: 'Excluir tudo'
+    });
+    if(!ok) return;
+    lista.innerHTML = '';
+    atualizar();
+    avisar('Passos capturados excluídos.');
   }
 
   function clarao(){
@@ -2804,10 +2842,23 @@
     const el = document.getElementById('estadoCenarios');
     const dizer = (txt, ruim) => { if(el){ el.textContent = txt; el.className = 'estado-cenarios' + (ruim ? ' off' : ''); el.hidden = false; } };
     if(!(r.passos || []).length){ dizer('Este registro não tem passos.', true); return; }
+
+    dizer('Verificando a ponte e a IA...');
+    const ponteOk = await pingPonte();
+    if(!ponteOk){
+      dizer('Não alcancei a ponte em ' + ponteUrl() + '. A IA precisa dela; use "Montar cenários" para a versão offline.', true);
+      return;
+    }
+    if(statusPonte && statusPonte.cenarios === false){
+      dizer('A ponte está no ar, mas a IA está desligada: falta ANTHROPIC_API_KEY. Defina na Railway ou em auditeste-a11y/.env e reinicie a ponte. Enquanto isso, use "Montar cenários".', true);
+      avisar('IA desligada: falta ANTHROPIC_API_KEY na ponte.');
+      return;
+    }
+
     if(botao) botao.disabled = true;
 
     try{
-      dizer('Preparando as evidências...');
+      dizer('Preparando as evidências do Print...');
       const passos = [];
       for(const p of (r.passos || [])){
         const imagens = [];
@@ -2824,7 +2875,7 @@
         quadros = await amostrarVideo(r.video, 4);
       }
 
-      dizer('Gerando com IA. Leva de 30s a 2 minutos, aguarde.');
+      dizer('Gerando cenários com IA a partir das evidências do Print. Pode levar de 30s a 2 minutos...');
       const resp = await fetch(ponteUrl() + '/cenarios', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
@@ -2836,8 +2887,8 @@
       r.cenarios = { texto: dados.cenarios, modelo: dados.modelo, gerado: new Date().toISOString() };
       await gravarRegistroDB(r);
       mostrarCenarios(r.cenarios);
-      dizer(dados.imagens + ' imagem(ns) analisada(s) · ' + dados.uso.saida + ' tokens. Salvo no registro.');
-      avisar('Cenários gerados por IA.');
+      dizer((dados.imagens || 0) + ' imagem(ns) analisada(s) · modelo ' + (dados.modelo || '') + ' · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
+      avisar('Cenários gerados por IA a partir do Print.');
     }catch(err){
       const rede = err instanceof TypeError || /fetch/i.test(err.message);
       dizer(rede
@@ -2946,6 +2997,7 @@
       const bloco = a.closest('.bloco-a11y-wrap');
       if(bloco){ bloco.remove(); atualizar(); avisar('Bloco removido.'); }
     }
+    if(acao === 'excluirPassos') excluirPassosCapturados();
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }

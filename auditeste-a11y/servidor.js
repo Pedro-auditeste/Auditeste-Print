@@ -9,15 +9,20 @@
  * Motores:
  *   /scan?tipo=axe|pa11y|nota|lighthouse&url=https://...
  *   /ping  — healthcheck + status dos motores
+ *   /cenarios — Gherkin por IA (precisa ANTHROPIC_API_KEY)
  *
  * Variáveis:
- *   PONTE_TOKEN      obrigatório quando HOST não é loopback (para scans)
- *   PONTE_DOMINIOS   allowlist de domínios (o controle mais forte)
- *   PONTE_PRIVADO=1  libera IP privado (só para uso local)
- *   PONTE_MAX        scans simultâneos, padrão 2
- *   PONTE_ORIGENS    origens de CORS, padrão *
- *   CHROME_PATH      caminho explícito do Chrome (opcional)
+ *   PONTE_TOKEN         obrigatório quando HOST não é loopback (para scans)
+ *   ANTHROPIC_API_KEY   habilita Gerar com IA
+ *   PONTE_DOMINIOS      allowlist de domínios (o controle mais forte)
+ *   PONTE_PRIVADO=1     libera IP privado (só para uso local)
+ *   PONTE_MAX           scans simultâneos, padrão 2
+ *   PONTE_ORIGENS       origens de CORS, padrão *
+ *   CHROME_PATH         caminho explícito do Chrome (opcional)
  */
+const { carregarEnvs } = require('./carregar-env.js');
+const envs = carregarEnvs();
+
 const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
@@ -305,10 +310,12 @@ servidor.timeout = 180000;
 servidor.listen(PORTA, HOST, () => {
   const st = statusMotores();
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
+  if (envs.length) console.log('env: ' + envs.join(', '));
   console.log(`token: ${TOKEN ? 'exigido' : 'não'} · máx ${MAX} simultâneos`
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);
   console.log(`motores: axe=${st.axe.ok ? 'ok' : 'FALHA'} · pa11y=${st.pa11y.ok ? 'ok' : 'FALHA'} · lighthouse=${st.nota.ok ? 'ok' : 'FALHA'}`);
+  console.log(`cenários IA: ${process.env.ANTHROPIC_API_KEY ? 'ligado (' + MODELO + ')' : 'desligado — defina ANTHROPIC_API_KEY'}`);
   if (st.chrome) console.log(`chrome: ${st.chrome}`);
   if (ehLoopback) console.log('deixe aberto e use os botões de scan no Audi Print.\n');
 });

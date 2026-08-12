@@ -2,7 +2,8 @@
 #
 # Variáveis no painel:
 #   PONTE_TOKEN        obrigatório para habilitar scans
-#   ANTHROPIC_API_KEY  opcional — cenários por IA
+#   ANTHROPIC_API_KEY  obrigatória para "Gerar com IA" (cenários Gherkin do Print)
+#   CENARIOS_MODELO    opcional — padrão claude-sonnet-4-6
 #   PONTE_DOMINIOS     opcional — allowlist (ex: cliente.com.br)
 #   PONTE_MAX          opcional — scans simultâneos (padrão 2)
 

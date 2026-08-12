@@ -48,33 +48,39 @@ continua funcionando — a importação manual de arquivo segue disponível.
 
 ## Cenários de teste
 
-> **O Print não usa mais esta rota.** O botão **Gerar cenários de teste** monta o
-> Gherkin dentro do próprio arquivo, sem chave e sem rede. `cenarios.js` e a rota
-> `/cenarios` continuam aqui para quem quiser a versão por IA com o Print
-> hospedado — se não for o caso, dá para apagar os dois.
+Dois caminhos no Print (registro aberto):
 
-A rota manda as evidências para a API da Anthropic e devolve Gherkin em
-português.
+| Botão | Precisa de chave? | O que faz |
+|---|---|---|
+| **Montar cenários** | Não | Monta Gherkin offline a partir da ficha e dos passos |
+| **Gerar com IA** | Sim (`ANTHROPIC_API_KEY`) | Envia ficha, passos, capturas e quadros do vídeo à Claude e devolve Gherkin |
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-... npm run servidor
-```
+A chave fica **na ponte, nunca no Print**.
 
-A chave fica **na ponte, nunca no Print** — o Print é um arquivo único feito
-para ser copiado e entregue ao cliente; chave dentro dele é chave em toda cópia.
+### Local
+
+1. Copie `auditeste-a11y/.env.example` para `auditeste-a11y/.env`
+2. Cole a chave Anthropic (`sk-ant-...`) em `ANTHROPIC_API_KEY=`
+3. Reinicie: `npm run servidor`
+
+### Railway
+
+No painel do serviço → Variables → adicione:
+
+- `ANTHROPIC_API_KEY` = sua chave
+- opcional: `CENARIOS_MODELO` = `claude-sonnet-4-6` (padrão)
+
+Depois do redeploy, `/ping` deve mostrar `"cenarios": true`.
 
 | Variável | Padrão |
 |---|---|
-| `ANTHROPIC_API_KEY` | obrigatória para esta rota; sem ela a ponte responde 503 explicando |
-| `CENARIOS_MODELO` | `claude-opus-5` |
-| `CENARIOS_MAX_IMAGENS` | `20` — teto de imagens por geração, para limitar custo |
-| `PONTE_LIMITE_MB` | `25` — teto do corpo do POST |
+| `ANTHROPIC_API_KEY` | obrigatória para Gerar com IA |
+| `CENARIOS_MODELO` | `claude-sonnet-4-6` |
+| `CENARIOS_MAX_IMAGENS` | `20` |
+| `PONTE_LIMITE_MB` | `25` |
 
-**O que sobe:** a ficha, o título e a observação de cada passo, e as capturas
-reduzidas para 1200px em JPEG no próprio navegador. O vídeo não sobe como vídeo
-— a API recebe imagem, então o Print amostra 4 quadros dele. Um `webm` de
-`MediaRecorder` às vezes vem sem duração legível; nesse caso a geração segue
-apenas com as capturas.
+**O que sobe para a IA:** a ficha, o título e a observação de cada passo, e as capturas
+reduzidas para 1200px em JPEG. O vídeo não sobe como vídeo — o Print amostra 4 quadros.
 
 ## Subir na Railway (ou qualquer host com Docker)
 

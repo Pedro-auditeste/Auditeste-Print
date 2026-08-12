@@ -17,7 +17,7 @@ ENV HOST=0.0.0.0
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npx puppeteer browsers install chrome
 
-COPY a11y.js cenarios.js servidor.js traducoes-pa11y.js ./
+COPY a11y.js cenarios.js servidor.js traducoes-pa11y.js carregar-env.js ./
 COPY publico ./publico
 
 EXPOSE 8900

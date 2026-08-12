@@ -6,20 +6,26 @@
  * Vídeo não é enviado como vídeo — a API recebe imagem. O Print amostra
  * quadros do webm no navegador e manda os quadros.
  */
-const MODELO = process.env.CENARIOS_MODELO || 'claude-opus-5';
+const MODELO = process.env.CENARIOS_MODELO || 'claude-sonnet-4-6';
 const MAX_IMAGENS = Number(process.env.CENARIOS_MAX_IMAGENS) || 20;
 
-const SISTEMA = `Você é analista de testes sênior. A partir de evidências de execução — capturas de tela, anotações do analista e a ficha de identificação — você escreve cenários de teste em Gherkin, em português do Brasil.
+const SISTEMA = `Você é analista de testes sênior da Auditeste. A partir das evidências capturadas no Audi Print — ficha de identificação, passos anotados, capturas de tela, quadros de vídeo e achados de acessibilidade (axe-core, Pa11y, Lighthouse) — você escreve cenários de teste em Gherkin, em português do Brasil.
+
+Contexto do Audi Print:
+- Cada "passo" é uma evidência de execução (ação + observação + captura).
+- Passos de acessibilidade vêm com gravidade (Grave, Importante, Moderado, Leve) e referência técnica da regra.
+- Blocos "Verificação automática" = axe-core; "Segunda opinião" = Pa11y; "Nota de acessibilidade" = Lighthouse.
 
 Regras:
-- Descreva apenas o que as evidências mostram. Não invente telas, campos, mensagens de erro ou dados que não aparecem nas imagens ou nas anotações.
+- Descreva apenas o que as evidências mostram. Não invente telas, campos, mensagens ou dados que não aparecem nas imagens ou nas anotações.
 - Um Cenário por comportamento verificável. Poucos cenários corretos valem mais que muitos especulativos.
-- Escreva os passos no nível do que a pessoa faz e vê, não em detalhe de implementação.
-- Use os dados concretos que aparecem nas evidências (valores digitados, mensagens exibidas, rótulos de botão).
-- Se algum passo trouxer violação de acessibilidade importada de scan, gere também cenários de acessibilidade citando a regra e o elemento.
-- Quando a evidência for insuficiente para afirmar um comportamento, não suponha: registre a dúvida numa seção "# A confirmar" no final.
+- Escreva os passos no nível do que a pessoa faz e vê (Quando/Então), não em detalhe de implementação.
+- Use os dados concretos das evidências (valores digitados, mensagens, rótulos de botão, URLs).
+- Para achados de acessibilidade: gere cenários de acessibilidade citando o problema em linguagem clara e, se houver, a regra/técnica.
+- Se o resultado da ficha for Reprovado/Bloqueado, priorize cenários que reproduzam o defeito observado.
+- Quando a evidência for insuficiente, não invente: registre a dúvida em uma seção "# A confirmar" no final.
 
-Formato da resposta: apenas o Gherkin, começando por "Funcionalidade:". Sem introdução, sem comentário sobre o que você fez.`;
+Formato da resposta: apenas o Gherkin, começando por "Funcionalidade:". Sem introdução, sem markdown fora do Gherkin, sem comentário sobre o que você fez.`;
 
 function blocoImagem(dataUrl) {
   const m = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(dataUrl || '');
@@ -36,19 +42,47 @@ function descreverFicha(ficha) {
     .map(([chave, rot]) => [rot, (ficha && ficha[chave] || '').trim()])
     .filter(([, valor]) => valor)
     .map(([rot, valor]) => `${rot}: ${valor}`);
-  return 'Ficha de identificação da evidência:\n' + (linhas.join('\n') || '(não preenchida)');
+  return 'Ficha de identificação da evidência (Audi Print):\n' + (linhas.join('\n') || '(não preenchida)');
+}
+
+function extrairTexto(r) {
+  return (r.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+}
+
+async function chamarClaude(cliente, conteudo) {
+  try {
+    return await cliente.messages.create({
+      model: MODELO,
+      max_tokens: 8000,
+      system: SISTEMA,
+      messages: [{ role: 'user', content: conteudo }]
+    });
+  } catch (err) {
+    if (!cliente.beta || !cliente.beta.messages) throw err;
+    return cliente.beta.messages.create({
+      model: MODELO,
+      max_tokens: 8000,
+      system: SISTEMA,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      messages: [{ role: 'user', content: conteudo }]
+    });
+  }
 }
 
 async function gerarCenarios({ ficha, passos, quadros }) {
   if (!process.env.ANTHROPIC_API_KEY) {
-    const e = new Error('ANTHROPIC_API_KEY não está definida na ponte. Defina a variável e reinicie: npm run servidor');
+    const e = new Error(
+      'ANTHROPIC_API_KEY não está definida na ponte. '
+      + 'Crie auditeste-a11y/.env com a chave (veja .env.example) ou defina a variável na Railway, depois reinicie a ponte.'
+    );
     e.semChave = true;
     throw e;
   }
   if (!Array.isArray(passos) || !passos.length) throw new Error('nenhum passo enviado');
 
   const Anthropic = require('@anthropic-ai/sdk');
-  const cliente = new Anthropic();
+  const cliente = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const conteudo = [{ type: 'text', text: descreverFicha(ficha) }];
   let imagens = 0;
@@ -73,19 +107,27 @@ async function gerarCenarios({ ficha, passos, quadros }) {
     }
   }
 
-  conteudo.push({ type: 'text', text: 'Escreva agora os cenários de teste em Gherkin a partir dessas evidências.' });
-
-  const r = await cliente.beta.messages.create({
-    model: MODELO,
-    max_tokens: 16000,
-    system: SISTEMA,
-    /* classificadores podem recusar; o fallback re-serve na mesma chamada */
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    messages: [{ role: 'user', content: conteudo }]
+  conteudo.push({
+    type: 'text',
+    text: 'Com base nessas evidências do Audi Print, escreva agora os cenários de teste em Gherkin (Funcionalidade / Cenário / Dado / Quando / Então).'
   });
 
-  /* checar antes de ler content: numa recusa ele vem vazio ou parcial */
+  let r;
+  try {
+    r = await chamarClaude(cliente, conteudo);
+  } catch (err) {
+    const msg = (err && err.message) || String(err);
+    if (/invalid.?api.?key|authentication|401/i.test(msg)) {
+      const e = new Error('Chave Anthropic inválida ou sem permissão. Confira ANTHROPIC_API_KEY.');
+      e.semChave = true;
+      throw e;
+    }
+    if (/not.?found|model/i.test(msg)) {
+      throw new Error('Modelo não disponível (' + MODELO + '). Defina CENARIOS_MODELO com um modelo válido da sua conta.');
+    }
+    throw err;
+  }
+
   if (r.stop_reason === 'refusal') {
     const cat = r.stop_details && r.stop_details.category;
     const e = new Error('O modelo recusou gerar a partir dessas evidências' + (cat ? ` (${cat})` : '') + '.');
@@ -93,17 +135,17 @@ async function gerarCenarios({ ficha, passos, quadros }) {
     throw e;
   }
 
-  const texto = r.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  const texto = extrairTexto(r);
   if (!texto) throw new Error('a resposta veio sem texto');
 
   return {
     cenarios: texto,
-    modelo: r.model,
+    modelo: r.model || MODELO,
     imagens,
     uso: {
-      entrada: r.usage.input_tokens,
-      saida: r.usage.output_tokens,
-      cache_leitura: r.usage.cache_read_input_tokens
+      entrada: (r.usage && r.usage.input_tokens) || 0,
+      saida: (r.usage && r.usage.output_tokens) || 0,
+      cache_leitura: (r.usage && r.usage.cache_read_input_tokens) || 0
     }
   };
 }
