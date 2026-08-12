@@ -20,7 +20,7 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
    - `PONTE_DOMINIOS` — opcional (allowlist de domínios para scan)
 4. A Railway injeta `PORT` automaticamente; o servidor já lê.
 
-Depois do deploy, abra a URL gerada — o Print é servido em `/` pela própria ponte.
+Depois do deploy, abra a URL gerada — o Audi Print fica em `/`. A landing page fica em `/inicio.html`.
 
 ## Uso local (ponte)
 

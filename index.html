@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditeste Print · Acessibilidade e evidências</title>
+  <meta name="description" content="Gravador de evidências, extensão de scan e ponte de ferramentas axe-core, Pa11y e Lighthouse.">
+  <style>
+    :root {
+      --navy: #0d3446;
+      --navy-deep: #092838;
+      --green: #76c043;
+      --green-dark: #5ea32f;
+      --bg: #f3f4f3;
+      --card: #ffffff;
+      --ink: #1e2a30;
+      --muted: #5b6b73;
+      --line: #e3e7e5;
+      --sombra: 0 4px 24px rgba(13, 52, 70, .08);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    a { color: var(--navy); }
+    .topo {
+      background: linear-gradient(135deg, var(--navy-deep), var(--navy));
+      color: #fff;
+      padding: 3.5rem 1.5rem 4rem;
+    }
+    .topo-inner, .conteudo { max-width: 960px; margin: 0 auto; }
+    .marca {
+      font-size: .72rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #9fb9c5;
+      margin-bottom: .75rem;
+    }
+    .topo h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      line-height: 1.15;
+      max-width: 18ch;
+      margin-bottom: 1rem;
+    }
+    .topo p.lead {
+      font-size: 1.05rem;
+      color: #c8d8df;
+      max-width: 52ch;
+      margin-bottom: 2rem;
+    }
+    .acoes { display: flex; flex-wrap: wrap; gap: .75rem; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .75rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: .95rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-prim {
+      background: var(--green);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(118, 192, 67, .35);
+    }
+    .btn-prim:hover { background: var(--green-dark); }
+    .btn-sec {
+      background: rgba(255,255,255,.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .btn-sec:hover { background: rgba(255,255,255,.16); }
+    .conteudo { padding: 2.5rem 1.5rem 3rem; }
+    .grade {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--sombra);
+    }
+    .card .num {
+      display: inline-block;
+      width: 2rem;
+      height: 2rem;
+      line-height: 2rem;
+      text-align: center;
+      border-radius: 50%;
+      background: var(--navy);
+      color: #fff;
+      font-size: .85rem;
+      font-weight: 700;
+      margin-bottom: .85rem;
+    }
+    .card h2 { font-size: 1.15rem; color: var(--navy); margin-bottom: .5rem; }
+    .card p { font-size: .92rem; color: var(--muted); margin-bottom: 1rem; }
+    .card a.link {
+      font-size: .88rem;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--green-dark);
+    }
+    .card a.link:hover { text-decoration: underline; }
+    .fluxo {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.5rem 1.75rem;
+      box-shadow: var(--sombra);
+      margin-bottom: 2rem;
+    }
+    .fluxo h2 { font-size: 1.1rem; color: var(--navy); margin-bottom: 1rem; }
+    .fluxo ol { padding-left: 1.25rem; color: var(--muted); font-size: .92rem; }
+    .fluxo li { margin-bottom: .45rem; }
+    .fluxo code {
+      background: #eef2f0;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      font-size: .85rem;
+      color: var(--navy);
+    }
+    .rodape {
+      text-align: center;
+      font-size: .82rem;
+      color: var(--muted);
+      padding: 1rem 1.5rem 2rem;
+      border-top: 1px solid var(--line);
+    }
+    .rodape a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <div class="topo-inner">
+      <div class="marca">Auditeste</div>
+      <h1>Print · Acessibilidade e evidências</h1>
+      <p class="lead">
+        Três peças que se encaixam: o scan acontece fora, a evidência se consolida no Print.
+        axe-core, Pa11y e Lighthouse prontos para importar.
+      </p>
+      <div class="acoes">
+        <a class="btn btn-prim" id="link-print" href="audi-print/evidencias-auditeste.html">Abrir Audi Print</a>
+        <a class="btn btn-sec" href="https://github.com/Pedro-auditeste/Auditeste-Print" target="_blank" rel="noopener">Ver no GitHub</a>
+        <a class="btn btn-sec" href="LEIA-ME.md">Documentação</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div class="grade">
+      <article class="card">
+        <span class="num">1</span>
+        <h2>Audi Print</h2>
+        <p>Gravador de evidências em arquivo único. Importa JSON de acessibilidade, gera cenários Gherkin, exporta HTML e PDF.</p>
+        <a class="link" id="link-print-card" href="audi-print/evidencias-auditeste.html">Abrir gravador →</a>
+      </article>
+      <article class="card">
+        <span class="num">2</span>
+        <h2>Scanner (extensão)</h2>
+        <p>Escaneia o estado que está na tela — depois do login, com modal aberto, formulário em erro. O que scan por URL não alcança.</p>
+        <a class="link" href="audi-print-scanner/">Ver extensão →</a>
+      </article>
+      <article class="card">
+        <span class="num">3</span>
+        <h2>auditeste-a11y</h2>
+        <p>Scans por linha de comando e ponte hospedável. axe-core, Pa11y, Lighthouse e fluxo autenticado com Playwright.</p>
+        <a class="link" href="auditeste-a11y/README.md">Ver toolkit →</a>
+      </article>
+    </div>
+
+    <section class="fluxo">
+      <h2>Deploy na Railway</h2>
+      <ol>
+        <li>Conecte o repositório <code>Pedro-auditeste/Auditeste-Print</code> na Railway.</li>
+        <li>Defina <code>PONTE_TOKEN</code> (obrigatório) e, se quiser IA, <code>ANTHROPIC_API_KEY</code>.</li>
+        <li>Abra a URL gerada — o Print é servido na raiz pela ponte (<code>/</code>).</li>
+        <li>Informe o token em <em>Endereço da ponte</em> dentro do Print.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <p>Auditeste Consultoria · <a href="https://github.com/Pedro-auditeste/Auditeste-Print">Auditeste-Print</a></p>
+  </footer>
+
+  <script>
+    /* Hospedado na ponte (Railway): o Print fica em /. Localmente, abre o arquivo. */
+    (function () {
+      var hospedado = location.protocol.startsWith('http') &&
+        !location.pathname.endsWith('/index.html') &&
+        !location.pathname.includes('/audi-print/');
+      var alvo = hospedado ? '/' : 'audi-print/evidencias-auditeste.html';
+      document.getElementById('link-print').href = alvo;
+      document.getElementById('link-print-card').href = alvo;
+    })();
+  </script>
+</body>
+</html>
