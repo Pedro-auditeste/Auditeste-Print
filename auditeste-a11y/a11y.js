@@ -1,18 +1,17 @@
 /* CLI de acessibilidade da Auditeste.
  *
- *   node a11y.js axe   <url> [url...]    axe-core via Playwright
- *   node a11y.js pa11y <url> [url...]    Pa11y (Puppeteer/Chrome)
- *   node a11y.js nota  <url> [url...]    Lighthouse (nota + relatorio)
+ *   node a11y.js axe   <url> [url...]    axe-core via Puppeteer/Chrome
+ *   node a11y.js pa11y <url> [url...]    Pa11y (Chrome)
+ *   node a11y.js nota  <url> [url...]    Lighthouse (Chrome)
  *
- * Cada comando grava um JSON em saida/, no formato nativo da ferramenta —
- * que e exatamente o que o Audi Print importa, sem conversao.
+ * Os tres motores usam o MESMO Chrome (Puppeteer) — evita conflito de
+ * versao Playwright/Chromium no Docker/Railway.
  */
 const fs = require('fs');
 const path = require('path');
 
 const SAIDA = path.join(__dirname, 'saida');
 
-/* Flags obrigatorias em Docker/Railway (sem sandbox de usuario). */
 const FLAGS_DOCKER = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
@@ -21,10 +20,8 @@ const FLAGS_DOCKER = [
   '--disable-software-rasterizer'
 ];
 
-/**
- * Resolve o Chrome/Chromium usado por Pa11y e Lighthouse.
- * Ordem: CHROME_PATH → Chrome do Puppeteer → Chromium do Playwright.
- */
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Auditeste-A11y/1.0';
+
 function caminhoChrome() {
   if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
     return process.env.CHROME_PATH;
@@ -33,18 +30,26 @@ function caminhoChrome() {
     const puppeteer = require('puppeteer');
     const p = puppeteer.executablePath();
     if (p && fs.existsSync(p)) return p;
-  } catch (e) { /* puppeteer opcional em alguns ambientes */ }
-  try {
-    const { chromium } = require('playwright');
-    const p = chromium.executablePath();
-    if (p && fs.existsSync(p)) return p;
-  } catch (e) { /* playwright obrigatorio para axe */ }
+  } catch (e) { /* ok */ }
   return null;
 }
 
-function lancarPlaywright() {
-  const { chromium } = require('playwright');
-  return chromium.launch({
+function exigirChrome(motor) {
+  const chrome = caminhoChrome();
+  if (!chrome) {
+    const err = new Error(
+      motor + ': Chrome nao encontrado. Rode: npx puppeteer browsers install chrome'
+    );
+    err.codigo = 'SEM_CHROME';
+    throw err;
+  }
+  return chrome;
+}
+
+async function lancarChrome() {
+  const puppeteer = require('puppeteer');
+  return puppeteer.launch({
+    executablePath: exigirChrome('ponte'),
     headless: true,
     args: FLAGS_DOCKER
   });
@@ -67,27 +72,16 @@ function contar(violations) {
   return violations.reduce((n, v) => n + (v.nodes ? v.nodes.length : 1), 0);
 }
 
-function exigirChrome(motor) {
-  const chrome = caminhoChrome();
-  if (!chrome) {
-    const err = new Error(
-      motor + ': nenhum Chrome/Chromium encontrado. '
-      + 'Defina CHROME_PATH ou rode: npx puppeteer browsers install chrome'
-    );
-    err.codigo = 'SEM_CHROME';
-    throw err;
-  }
-  return chrome;
+async function abrirPagina(navegador, url) {
+  const pagina = await navegador.newPage();
+  await pagina.setUserAgent(USER_AGENT);
+  await pagina.goto(url, { waitUntil: 'load', timeout: 60000 });
+  await pagina.waitForNetworkIdle({ idleTime: 500, timeout: 15000 }).catch(() => {});
+  await new Promise(r => setTimeout(r, 1000));
+  return pagina;
 }
 
-/* Espera a pagina assentar antes de medir.
-   Em SPA o evento 'load' dispara com o esqueleto vazio. */
-async function assentar(pagina) {
-  await pagina.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-  await pagina.waitForTimeout(1000);
-}
-
-async function diagnosticar(pagina) {
+async function diagnosticarPuppeteer(pagina) {
   const info = await pagina.evaluate(() => ({
     titulo: document.title || '',
     texto: ((document.body && document.body.innerText) || '').trim().length
@@ -101,94 +95,31 @@ async function diagnosticar(pagina) {
   return null;
 }
 
-/* ---------- scanners ---------- */
-
-async function scanAxePlaywright(url) {
-  const mod = require('@axe-core/playwright');
-  const AxeBuilder = mod.default || mod.AxeBuilder || mod;
-
-  const navegador = await lancarPlaywright();
-  try {
-    const contexto = await navegador.newContext({
-      ignoreHTTPSErrors: true,
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Auditeste-A11y/1.0'
-    });
-    const pagina = await contexto.newPage();
-    await pagina.goto(url, { waitUntil: 'load', timeout: 60000 });
-    await assentar(pagina);
-    const aviso = await diagnosticar(pagina);
-    const r = await new AxeBuilder({ page: pagina }).analyze();
-    return {
-      url,
-      ferramenta: 'axe-core',
-      via: 'playwright',
-      gerado: new Date().toISOString(),
-      aviso,
-      violations: r.violations
-    };
-  } finally {
-    await navegador.close();
-  }
-}
-
-/** Fallback: mesmo Chrome do Pa11y/Lighthouse + axe-core injetado na pagina. */
-async function scanAxePuppeteer(url) {
-  const puppeteer = require('puppeteer');
-  const axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
-  const chrome = exigirChrome('axe-core');
-
-  const navegador = await puppeteer.launch({
-    executablePath: chrome,
-    headless: true,
-    args: FLAGS_DOCKER
-  });
-  try {
-    const pagina = await navegador.newPage();
-    await pagina.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Auditeste-A11y/1.0'
-    );
-    await pagina.goto(url, { waitUntil: 'load', timeout: 60000 });
-    await pagina.waitForNetworkIdle({ idleTime: 500, timeout: 15000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 1000));
-
-    const aviso = await pagina.evaluate(() => {
-      const titulo = document.title || '';
-      const texto = ((document.body && document.body.innerText) || '').trim().length;
-      if (!titulo && texto < 1500) {
-        return 'ATENCAO: a pagina veio sem <title> e com pouquissimo conteudo. '
-          + 'O site provavelmente bloqueou o navegador automatizado.';
-      }
-      return null;
-    });
-
-    await pagina.evaluate(axeSource);
-    const r = await pagina.evaluate(async () => {
-      // eslint-disable-next-line no-undef
-      return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } });
-    });
-
-    return {
-      url,
-      ferramenta: 'axe-core',
-      via: 'puppeteer',
-      gerado: new Date().toISOString(),
-      aviso,
-      violations: r.violations
-    };
-  } finally {
-    await navegador.close();
-  }
-}
+/* ---------- scanners (todos via Puppeteer/Chrome) ---------- */
 
 async function scanAxe(url) {
+  const navegador = await lancarChrome();
   try {
-    return await scanAxePlaywright(url);
-  } catch (err) {
-    const msg = err.message || '';
-    const playwrightQuebrou = /Executable doesn't exist|browserType\.launch|playwright/i.test(msg);
-    if (!playwrightQuebrou) throw err;
-    console.warn('axe: Playwright indisponível, usando Chrome do Puppeteer');
-    return await scanAxePuppeteer(url);
+    const pagina = await abrirPagina(navegador, url);
+    const aviso = await diagnosticarPuppeteer(pagina);
+
+    await pagina.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
+    const r = await pagina.evaluate(async () => {
+      return await axe.run(document, {
+        runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }
+      });
+    });
+
+    return {
+      url,
+      ferramenta: 'axe-core',
+      via: 'puppeteer-chrome',
+      gerado: new Date().toISOString(),
+      aviso,
+      violations: r.violations
+    };
+  } finally {
+    await navegador.close();
   }
 }
 
@@ -238,26 +169,16 @@ async function scanLighthouse(url) {
     lhr.gerado = new Date().toISOString();
     return lhr;
   } finally {
-    try { await chrome.kill(); } catch (e) { /* Windows EPERM no temp — ok */ }
+    try { await chrome.kill(); } catch (e) { /* ok */ }
   }
 }
 
-/** Status dos motores para /ping — ajuda a diagnosticar a ponte. */
 function statusMotores() {
   const chrome = caminhoChrome();
-  let playwrightOk = false;
-  try {
-    const { chromium } = require('playwright');
-    playwrightOk = !!(chromium.executablePath() && fs.existsSync(chromium.executablePath()));
-  } catch (e) { playwrightOk = false; }
-
   return {
-    axe: {
-      ok: playwrightOk || !!chrome,
-      via: playwrightOk ? 'playwright-chromium' : (chrome ? 'puppeteer-chrome (fallback)' : null)
-    },
-    pa11y: { ok: !!chrome, via: chrome ? 'chrome' : null },
-    nota: { ok: !!chrome, via: chrome ? 'chrome' : null, alias: 'lighthouse' },
+    axe: { ok: !!chrome, via: 'puppeteer-chrome' },
+    pa11y: { ok: !!chrome, via: 'puppeteer-chrome' },
+    nota: { ok: !!chrome, via: 'puppeteer-chrome', alias: 'lighthouse' },
     chrome: chrome || null
   };
 }
