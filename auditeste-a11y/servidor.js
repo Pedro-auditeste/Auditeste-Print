@@ -59,9 +59,8 @@ const PRIVADO_OK = process.env.PONTE_PRIVADO === '1' ? true
   : ehLoopback;
 
 if (EXPOSTO_SEM_TOKEN) {
-  console.error('AVISO: HOST=' + HOST + ' expõe a ponte, mas PONTE_TOKEN não foi definido.');
-  console.error('O servidor sobe (healthcheck OK), porém /scan e /cenarios ficam bloqueados.');
-  console.error('Defina PONTE_TOKEN nas variáveis de ambiente da Railway.');
+  console.warn('PONTE_TOKEN não definido — scans liberados só pela mesma origem (Print nesta URL).');
+  console.warn('Defina PONTE_TOKEN na Railway para exigir token em todas as chamadas.');
 }
 
 function cabecalho(origem) {
@@ -149,18 +148,44 @@ function lerCorpo(req) {
   });
 }
 
+function hostPublico(req) {
+  const bruto = req.headers['x-forwarded-host'] || req.headers.host || '';
+  return bruto.split(',')[0].split(':')[0].trim().toLowerCase();
+}
+
+/** Sem PONTE_TOKEN, libera scans só do Print hospedado na mesma URL. */
+function mesmaOrigem(req) {
+  const host = hostPublico(req);
+  if (!host) return false;
+
+  const origem = req.headers.origin;
+  if (origem) {
+    try { return new URL(origem).hostname.toLowerCase() === host; } catch (e) { return false; }
+  }
+
+  const ref = req.headers.referer;
+  if (ref) {
+    try { return new URL(ref).hostname.toLowerCase() === host; } catch (e) { return false; }
+  }
+
+  return false;
+}
+
 function tokenInvalido(req, u) {
-  if (!ehLoopback && !TOKEN) return true;
-  if (!TOKEN) return false;
+  if (!TOKEN) {
+    if (ehLoopback) return false;
+    return !mesmaOrigem(req);
+  }
   const enviado = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
     || u.searchParams.get('token') || '';
   return enviado !== TOKEN;
 }
 
-function msgToken() {
-  return EXPOSTO_SEM_TOKEN
-    ? 'PONTE_TOKEN não configurado no servidor'
-    : 'token inválido ou ausente';
+function msgToken(req) {
+  if (!TOKEN && !ehLoopback && !mesmaOrigem(req)) {
+    return 'Acesso negado. Abra o Print nesta mesma URL ou configure PONTE_TOKEN.';
+  }
+  return 'token inválido ou ausente';
 }
 
 let rodando = 0;
@@ -181,18 +206,21 @@ const servidor = http.createServer(async (req, res) => {
       motores: ['axe', 'pa11y', 'nota'],
       aliases: { lighthouse: 'nota' },
       status: motores,
-      exigeToken: !!TOKEN || !ehLoopback,
+      exigeToken: !!TOKEN,
+      modo: TOKEN ? 'token' : (ehLoopback ? 'local' : 'mesma-origem'),
       ocupado: rodando,
       limite: MAX,
       cenarios: !!process.env.ANTHROPIC_API_KEY,
       modelo: MODELO,
-      aviso: EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado — scans bloqueados' : undefined
+      aviso: EXPOSTO_SEM_TOKEN
+        ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
+        : undefined
     }, origem);
   }
 
   if (u.pathname === '/cenarios') {
     if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
-    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken() }, origem);
+    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
     if (rodando >= MAX) {
       return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
     }
@@ -221,7 +249,7 @@ const servidor = http.createServer(async (req, res) => {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return responder(res, 405, { erro: 'use GET ou POST' }, origem);
   }
-  if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken() }, origem);
+  if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
 
   let tipo = (u.searchParams.get('tipo') || '').toLowerCase().trim();
   let alvo = (u.searchParams.get('url') || '').trim();

@@ -1899,7 +1899,7 @@
     ct.addEventListener('change', ()=>{ localStorage.setItem('ponte_token', ct.value.trim()); pingPonte(); });
     const dica = document.querySelector('.dica-ponte');
     if(dica && /^https?:$/.test(location.protocol)){
-      dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). Informe o <b>PONTE_TOKEN</b> da Railway se a ponte exigir.';
+      dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). Token só é necessário se a Railway tiver <b>PONTE_TOKEN</b> configurado.';
     }
   }
 
@@ -1920,7 +1920,8 @@
       if(!r.ok) throw new Error('sem resposta');
       const info = await r.json();
       let msg = 'Ponte ativa em ' + ponteUrl() + '.' + textoMotores(info);
-      if(info.exigeToken && !ponteToken()) msg += ' Esta ponte exige token — preencha em Endereço da ponte.';
+      if(info.exigeToken && !ponteToken()) msg += ' Informe o token em Endereço da ponte.';
+      else if(info.modo === 'mesma-origem') msg += ' Scans liberados nesta URL (sem token).';
       if(info.aviso) msg += ' ' + info.aviso;
       el.textContent = msg;
       el.className = 'estado-ponte ok';
