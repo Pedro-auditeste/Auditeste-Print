@@ -22,6 +22,8 @@ const FLAGS_DOCKER = [
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Auditeste-A11y/1.0';
 
+const AXE_SOURCE = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+
 function caminhoChrome() {
   if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
     return process.env.CHROME_PATH;
@@ -100,15 +102,33 @@ async function diagnosticarPuppeteer(pagina) {
 async function scanAxe(url) {
   const navegador = await lancarChrome();
   try {
-    const pagina = await abrirPagina(navegador, url);
+    const pagina = await navegador.newPage();
+    await pagina.setUserAgent(USER_AGENT);
+    /* Injeta axe antes de qualquer script da pagina — garante window.axe */
+    await pagina.evaluateOnNewDocument(AXE_SOURCE);
+    await pagina.goto(url, { waitUntil: 'load', timeout: 60000 });
+    await pagina.waitForNetworkIdle({ idleTime: 500, timeout: 15000 }).catch(() => {});
+    await new Promise(r => setTimeout(r, 1000));
+
     const aviso = await diagnosticarPuppeteer(pagina);
 
-    await pagina.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
-    const r = await pagina.evaluate(async () => {
-      return await axe.run(document, {
+    const r = await pagina.evaluate(async (source) => {
+      let axeApi = window.axe;
+      if (!axeApi) {
+        await new Promise((resolve, reject) => {
+          const el = document.createElement('script');
+          el.textContent = source;
+          el.onload = resolve;
+          el.onerror = () => reject(new Error('falha ao injetar axe-core'));
+          (document.head || document.documentElement).appendChild(el);
+        });
+        axeApi = window.axe;
+      }
+      if (!axeApi) throw new Error('axe-core nao carregou na pagina');
+      return await axeApi.run(document, {
         runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }
       });
-    });
+    }, AXE_SOURCE);
 
     return {
       url,
