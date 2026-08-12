@@ -2846,11 +2846,11 @@
     dizer('Verificando a ponte e a IA...');
     const ponteOk = await pingPonte();
     if(!ponteOk){
-      dizer('Não alcancei a ponte em ' + ponteUrl() + '. A IA precisa dela; use "Montar cenários" para a versão offline.', true);
+      dizer('Não alcancei a ponte em ' + ponteUrl() + '. A IA precisa dela para gerar cenários.', true);
       return;
     }
     if(statusPonte && statusPonte.cenarios === false){
-      dizer('A ponte está no ar, mas a IA está desligada: falta ANTHROPIC_API_KEY. Defina na Railway ou em auditeste-a11y/.env e reinicie a ponte. Enquanto isso, use "Montar cenários".', true);
+      dizer('A ponte está no ar, mas a IA está desligada: falta ANTHROPIC_API_KEY. Defina na Railway ou em auditeste-a11y/.env e reinicie a ponte.', true);
       avisar('IA desligada: falta ANTHROPIC_API_KEY na ponte.');
       return;
     }
@@ -2892,7 +2892,7 @@
     }catch(err){
       const rede = err instanceof TypeError || /fetch/i.test(err.message);
       dizer(rede
-        ? 'Não alcancei a ponte em ' + ponteUrl() + '. A IA precisa dela; use "Montar cenários" para a versão offline.'
+        ? 'Não alcancei a ponte em ' + ponteUrl() + '. A IA precisa dela para gerar cenários.'
         : 'Falhou: ' + err.message, true);
       avisar('Não consegui gerar por IA: ' + err.message);
     }finally{
