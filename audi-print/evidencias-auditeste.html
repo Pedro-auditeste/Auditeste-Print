@@ -145,21 +145,36 @@
   .ferramenta-scan-lista{margin:0;padding-left:1.1rem;font-size:.8rem;color:var(--muted);line-height:1.4;}
   .ferramenta-scan-lista li{margin-bottom:3px;}
   .ferramenta-scan .btn{align-self:flex-start;margin-top:4px;}
-  .bloco-a11y{
-    margin:18px 0 10px;padding:14px 18px;border-radius:12px;
+  .bloco-a11y-wrap{margin:18px 0 6px;border-radius:12px;overflow:hidden;}
+  .bloco-a11y-wrap:first-child{margin-top:0;}
+  .bloco-a11y-wrap summary.bloco-a11y{
+    margin:0;list-style:none;cursor:pointer;display:flex;align-items:flex-start;gap:10px;
+    padding:14px 18px;border-radius:12px;
     background:linear-gradient(135deg,var(--navy-deep),var(--navy));color:#fff;
   }
-  .bloco-a11y:first-child{margin-top:0;}
+  .bloco-a11y-wrap summary.bloco-a11y::-webkit-details-marker{display:none;}
+  .bloco-a11y-wrap summary.bloco-a11y:hover{filter:brightness(1.06);}
+  .bloco-a11y-seta{
+    width:0;height:0;margin-top:7px;flex-shrink:0;
+    border-left:6px solid transparent;border-right:6px solid transparent;
+    border-top:7px solid var(--green);transition:transform .2s ease;
+  }
+  .bloco-a11y-wrap:not([open]) .bloco-a11y-seta{transform:rotate(-90deg);}
+  .bloco-a11y-texto{flex:1;min-width:0;}
   .bloco-a11y-titulo{font-size:1rem;font-weight:700;margin-bottom:4px;}
-  .bloco-a11y-sub{font-size:.82rem;color:#b8d0db;}
+  .bloco-a11y-sub{font-size:.82rem;color:#b8d0db;word-break:break-word;}
   .bloco-a11y-nota{font-size:1.4rem;font-weight:700;color:var(--green);margin-top:6px;}
+  .bloco-a11y-dica{font-size:.72rem;color:#8fb3c0;margin-top:6px;}
+  .bloco-a11y-corpo{padding:8px 0 2px;}
+  .bloco-a11y-corpo .passo{margin-top:8px;}
+  .bloco-a11y-corpo .passo:first-child{margin-top:4px;}
   .passo.passo-a11y{border-left:4px solid var(--line);}
   .passo.passo-a11y-axe{border-left-color:#0d3446;}
   .passo.passo-a11y-pa11y{border-left-color:#1a6b8a;}
   .passo.passo-a11y-nota{border-left-color:var(--green-dark);}
   .passo.passo-a11y .carimbo{font-weight:600;}
   .passo.passo-a11y .detalhe-tecnico{font-size:.78rem;color:#8a9aa0;margin-top:6px;font-family:Consolas,monospace;}
-  @media print{.ferramentas-scan,.linha-scan,.estado-ponte{display:none;}.bloco-a11y{break-inside:avoid;}}
+  @media print{.ferramentas-scan,.linha-scan,.estado-ponte{display:none;}.bloco-a11y-wrap{break-inside:avoid;}.bloco-a11y-wrap[open] summary{margin-bottom:8px;}}
   .caixa-cenarios{
     background:var(--card);border-radius:12px;box-shadow:var(--sombra);
     margin-top:16px;overflow:hidden;
@@ -1792,6 +1807,131 @@
     error:'Importante', warning:'Moderado', notice:'Leve'
   };
 
+  /* Traducoes das regras mais comuns — titulo e explicacao em portugues claro */
+  const REGRAS_AXE_PT = {
+    'scrollable-region-focusable': {
+      titulo: 'Área rolável sem acesso pelo teclado',
+      obs: 'Uma parte da página que rola não funciona com teclado. Quem não usa mouse pode não ver todo o conteúdo.'
+    },
+    'color-contrast': {
+      titulo: 'Contraste fraco entre texto e fundo',
+      obs: 'O texto pode ficar difícil de ler para quem tem baixa visão ou está em ambiente claro.'
+    },
+    'document-title': {
+      titulo: 'Página sem título',
+      obs: 'A aba do navegador não identifica do que a página trata.'
+    },
+    'html-has-lang': {
+      titulo: 'Idioma da página não informado',
+      obs: 'Leitores de tela não sabem em qual idioma ler o conteúdo.'
+    },
+    'image-alt': {
+      titulo: 'Imagem sem descrição',
+      obs: 'Quem não enxerga a imagem não sabe o que ela representa.'
+    },
+    'button-name': {
+      titulo: 'Botão sem nome',
+      obs: 'O botão não tem texto ou rótulo que diga o que ele faz.'
+    },
+    'link-name': {
+      titulo: 'Link sem texto identificável',
+      obs: 'O link não explica claramente para onde leva.'
+    },
+    'label': {
+      titulo: 'Campo de formulário sem rótulo',
+      obs: 'O campo não informa o que deve ser preenchido.'
+    },
+    'aria-valid-attr': {
+      titulo: 'Atributo de acessibilidade inválido',
+      obs: 'A página usa um atributo que o navegador não reconhece corretamente.'
+    },
+    'aria-required-attr': {
+      titulo: 'Informação de acessibilidade faltando',
+      obs: 'Falta um detalhe que leitores de tela precisam para entender o elemento.'
+    },
+    'duplicate-id': {
+      titulo: 'Identificador duplicado na página',
+      obs: 'Dois elementos usam o mesmo id, o que confunde leitores de tela.'
+    },
+    'heading-order': {
+      titulo: 'Ordem dos títulos incorreta',
+      obs: 'Os títulos não seguem uma sequência lógica (por exemplo, H1, H2, H3).'
+    },
+    'region': {
+      titulo: 'Conteúdo fora de uma região identificável',
+      obs: 'Parte da página não está organizada em uma área reconhecível.'
+    },
+    'landmark-one-main': {
+      titulo: 'Página sem área principal',
+      obs: 'Não há uma região que identifique o conteúdo central da página.'
+    },
+    'frame-title': {
+      titulo: 'Quadro interno sem título',
+      obs: 'Um conteúdo embutido (iframe) não tem nome para quem usa leitor de tela.'
+    },
+    'meta-viewport': {
+      titulo: 'Configuração de zoom bloqueada',
+      obs: 'A página impede aumentar o texto, dificultando a leitura em telas pequenas.'
+    }
+  };
+
+  const REGRAS_PA11Y_PT = {
+    'align attributes': {
+      titulo: 'Alinhamento incorreto no HTML',
+      obs: 'Um elemento usa atributo de alinhamento de forma inadequada ou obsoleta.'
+    },
+    'alt text': {
+      titulo: 'Imagem sem texto alternativo',
+      obs: 'A imagem precisa de uma descrição para quem não consegue vê-la.'
+    },
+    'duplicate id': {
+      titulo: 'Identificador repetido',
+      obs: 'Dois elementos compartilham o mesmo id, o que gera confusão.'
+    },
+    'heading order': {
+      titulo: 'Sequência de títulos incorreta',
+      obs: 'A hierarquia de títulos da página está fora de ordem.'
+    }
+  };
+
+  function paraPortugues(texto) {
+    if(!texto) return texto;
+    return String(texto)
+      .replace(/scrollable region must have keyboard access/gi, 'Área rolável precisa ser acessível pelo teclado')
+      .replace(/ensure elements that have scrollable content are accessible by keyboard in safari/gi, 'Partes da página que rolam devem funcionar com teclado no Safari')
+      .replace(/ensure elements that have scrollable content are accessible by keyboard/gi, 'Partes da página que rolam devem funcionar com teclado')
+      .replace(/align attributes/gi, 'Atributos de alinhamento incorretos')
+      .replace(/must have keyboard access/gi, 'precisa ser acessível pelo teclado')
+      .replace(/must have/gi, 'precisa ter')
+      .replace(/must be/gi, 'precisa ser')
+      .replace(/ensure/gi, 'Verifique se')
+      .replace(/elements/gi, 'elementos')
+      .replace(/accessible/gi, 'acessível')
+      .replace(/keyboard/gi, 'teclado')
+      .replace(/contrast/gi, 'contraste')
+      .replace(/sufficient/gi, 'suficiente')
+      .trim();
+  }
+
+  function traduzirRegra(id, help, description, mapa) {
+    const chave = (id || '').toLowerCase().trim();
+    if(mapa[chave]) return { ...mapa[chave] };
+    const helpChave = (help || '').toLowerCase().trim();
+    if(mapa[helpChave]) return { ...mapa[helpChave] };
+    return {
+      titulo: paraPortugues(help || description || id || 'Problema de acessibilidade'),
+      obs: paraPortugues(description || help || 'Foi encontrado um ponto que pode dificultar o uso da página.')
+    };
+  }
+
+  function simplificarCodigoPa11y(code) {
+    if(!code) return '';
+    return code
+      .replace(/WCAG2AA\.Principle(\d)\.Guideline[\d.]+\.([^\.]+)\.(\d+)/i, 'Princípio $1 · $2 ($3)')
+      .replace(/WCAG2AA\./g, '')
+      .replace(/Principle(\d)/g, 'Princípio $1');
+  }
+
   function simplificarSeletor(sel) {
     if(!sel) return '';
     const limpo = String(sel).replace(/\s+/g, ' ').trim();
@@ -1806,10 +1946,10 @@
 
   function humanizarAxe(v, n) {
     const gravidade = GRAVIDADE[v.impact] || 'A verificar';
-    const titulo = (v.help || v.description || v.id || 'Problema de acessibilidade')
-      .replace(/\s*\(.*?\)\s*$/, '').trim();
+    const trad = traduzirRegra(v.id, v.help, v.description, REGRAS_AXE_PT);
+    const titulo = trad.titulo;
+    let obs = trad.obs;
     const onde = simplificarSeletor([].concat(n.target || []).join(' '));
-    let obs = v.description || v.help || 'Foi encontrado um problema que pode dificultar o uso da pagina.';
     if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
     return { gravidade, titulo, obs, tecnico: v.id };
   }
@@ -1817,17 +1957,22 @@
   function humanizarPa11y(i) {
     const gravidade = GRAVIDADE[i.type] || 'A verificar';
     const msg = (i.message || '').trim();
-    const titulo = msg.split(/[.;!?\n]/)[0].trim() || 'Problema encontrado na pagina';
-    let obs = msg || 'A segunda verificacao encontrou um ponto de atencao.';
+    const trad = traduzirRegra(i.code, msg, msg, REGRAS_PA11Y_PT);
+    const titulo = trad.titulo;
+    let obs = trad.obs;
     const onde = simplificarSeletor(i.selector);
     if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
-    if(i.code) obs += '\n\nCriterio: ' + i.code + '.';
+    if(i.code){
+      const resumo = simplificarCodigoPa11y(i.code);
+      if(resumo) obs += '\n\nCritério WCAG: ' + resumo + '.';
+    }
     return { gravidade, titulo, obs, tecnico: i.code };
   }
 
   function humanizarLighthouse(a, it) {
-    const titulo = (a.title || 'Item reprovado').replace(/\s*\(.*?\)\s*$/, '').trim();
-    let obs = a.description || a.title || 'Este item reduziu a nota de acessibilidade.';
+    const trad = traduzirRegra(a.id, a.title, a.description, {});
+    const titulo = trad.titulo;
+    let obs = trad.obs;
     const onde = simplificarSeletor(it.node && (it.node.selector || it.node.snippet));
     if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
     return { gravidade: 'A corrigir', titulo, obs, tecnico: a.id };
@@ -1876,28 +2021,39 @@
 
   function inserirBlocoA11y(ferramenta, url, qtd, extras) {
     const f = FERRAMENTAS[ferramenta] || { nomeCurto: ferramenta };
-    const el = document.createElement('div');
-    el.className = 'bloco-a11y bloco-a11y-' + ferramenta;
-    let notaHtml = '';
-    if(extras?.nota != null){
-      notaHtml = '<div class="bloco-a11y-nota">Nota: ' + extras.nota + '/100</div>';
-    }
-    el.innerHTML = '<div class="bloco-a11y-titulo">' + f.nomeCurto + '</div>'
-      + '<div class="bloco-a11y-sub">' + (url || 'Pagina escaneada') + ' · '
-      + (qtd === 0 ? 'nenhum problema encontrado' : qtd + ' ponto(s) de atencao') + '</div>'
-      + notaHtml;
-    lista.appendChild(el);
-    return el;
+    const wrap = document.createElement('details');
+    wrap.className = 'bloco-a11y-wrap bloco-a11y-wrap-' + ferramenta;
+    wrap.open = true;
+    wrap.dataset.ferramenta = ferramenta;
+
+    const qtdTxt = qtd === 0 ? 'nenhum problema encontrado' : qtd + ' ponto(s) de atenção';
+    const notaHtml = extras?.nota != null
+      ? '<div class="bloco-a11y-nota">Nota: ' + extras.nota + '/100</div>' : '';
+
+    wrap.innerHTML =
+      '<summary class="bloco-a11y">'
+      + '<span class="bloco-a11y-seta" aria-hidden="true"></span>'
+      + '<div class="bloco-a11y-texto">'
+      + '<div class="bloco-a11y-titulo">' + f.nomeCurto + '</div>'
+      + '<div class="bloco-a11y-sub">' + (url || 'Página escaneada') + ' · ' + qtdTxt + '</div>'
+      + notaHtml
+      + '<div class="bloco-a11y-dica">Clique para expandir ou recolher</div>'
+      + '</div>'
+      + '</summary>'
+      + '<div class="bloco-a11y-corpo"></div>';
+
+    lista.appendChild(wrap);
+    return wrap.querySelector('.bloco-a11y-corpo');
   }
 
   function aplicarAchados(bruto, origem, ferramenta) {
     const tipo = ferramenta || detectarFerramenta(bruto);
     const achados = normalizarA11y(bruto, tipo);
-    if(!achados){ avisar('Formato nao reconhecido. Use a saida do axe-core, Pa11y ou Lighthouse.'); return 0; }
+    if(!achados){ avisar('Formato não reconhecido. Use a saída do axe-core, Pa11y ou Lighthouse.'); return 0; }
 
     const url = bruto.url || bruto.pageUrl || (typeof origem === 'string' && origem.startsWith('http') ? origem : origem);
     const extras = tipo === 'nota' ? { nota: resumoLighthouse(bruto) } : null;
-    inserirBlocoA11y(tipo, url, achados.length, extras);
+    const corpo = inserirBlocoA11y(tipo, url, achados.length, extras);
 
     if(!achados.length){
       avisar('Nenhum problema encontrado — bloco registrado mesmo assim.');
@@ -1907,11 +2063,12 @@
     const f = FERRAMENTAS[tipo] || { nomeCurto: tipo };
     achados.forEach(a => {
       const el = novoPasso();
+      corpo.appendChild(el);
       el.classList.add('passo-a11y', 'passo-a11y-' + tipo);
       el.querySelector('.carimbo').textContent = a.gravidade + ' · ' + f.nomeCurto;
       el.querySelector('.titulo').textContent = a.titulo;
       const obs = el.querySelector('.obs');
-      obs.textContent = a.tecnico ? a.obs + '\n\nReferencia tecnica: ' + a.tecnico : a.obs;
+      obs.textContent = a.tecnico ? a.obs + '\n\nReferência técnica: ' + a.tecnico : a.obs;
     });
     avisar(achados.length === 1 ? '1 ponto registrado.' : achados.length + ' pontos registrados.');
     return achados.length;
@@ -1928,30 +2085,30 @@
   const FERRAMENTAS = {
     axe: {
       nome: 'axe-core',
-      nomeCurto: 'Verificacao automatica',
+      nomeCurto: 'Verificação automática',
       tempo: '~15 s',
-      resumo: 'Primeira analise. Verifica se botoes, campos, textos e imagens estao acessiveis para todos.',
-      exemplos: ['Campo sem nome', 'Botao sem texto', 'Contraste fraco', 'Imagem sem descricao'],
-      botao: 'Rodar verificacao',
-      msgRodando: 'Analisando a pagina...'
+      resumo: 'Primeira análise. Verifica se botões, campos, textos e imagens estão acessíveis para todos.',
+      exemplos: ['Campo sem nome', 'Botão sem texto', 'Contraste fraco', 'Imagem sem descrição'],
+      botao: 'Rodar verificação',
+      msgRodando: 'Analisando a página...'
     },
     pa11y: {
       nome: 'Pa11y',
-      nomeCurto: 'Segunda opiniao',
+      nomeCurto: 'Segunda opinião',
       tempo: '~20 s',
-      resumo: 'Segunda analise com outras regras. Costuma achar problemas que a primeira verificacao nao viu.',
-      exemplos: ['Titulos fora de ordem', 'Link sem proposito claro', 'Criterio WCAG reprovado'],
-      botao: 'Rodar segunda opiniao',
-      msgRodando: 'Fazendo a segunda analise...'
+      resumo: 'Segunda análise com outras regras. Costuma achar problemas que a primeira verificação não viu.',
+      exemplos: ['Títulos fora de ordem', 'Link sem propósito claro', 'Critério WCAG reprovado'],
+      botao: 'Rodar segunda opinião',
+      msgRodando: 'Fazendo a segunda análise...'
     },
     nota: {
       nome: 'Lighthouse',
       nomeCurto: 'Nota de acessibilidade',
       tempo: '~1 min',
-      resumo: 'Gera nota de 0 a 100 e lista o que precisa corrigir. Ideal para o relatorio do cliente.',
-      exemplos: ['Nota geral da pagina', 'Itens que derrubaram a nota', 'Sugestoes de correcao'],
+      resumo: 'Gera nota de 0 a 100 e lista o que precisa corrigir. Ideal para o relatório do cliente.',
+      exemplos: ['Nota geral da página', 'Itens que derrubaram a nota', 'Sugestões de correção'],
       botao: 'Gerar nota',
-      msgRodando: 'Calculando a nota... pode levar ate 1 minuto.'
+      msgRodando: 'Calculando a nota... pode levar até 1 minuto.'
     }
   };
 
