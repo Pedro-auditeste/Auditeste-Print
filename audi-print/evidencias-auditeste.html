@@ -130,13 +130,36 @@
   }
   .sub-config > summary:hover{color:var(--navy);}
   .dica-ponte{font-size:.76rem;color:var(--muted);margin-top:6px;}
-  .legenda-scan{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:7px;}
-  .legenda-scan li{
-    font-size:.82rem;color:var(--muted);line-height:1.45;
-    padding-left:12px;border-left:3px solid var(--line);
+  .ferramentas-scan{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:14px;}
+  .ferramenta-scan{
+    background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+    box-shadow:var(--sombra);display:flex;flex-direction:column;gap:8px;
   }
-  .legenda-scan b{color:var(--navy);font-weight:700;}
-  .legenda-scan .tempo{color:#9fb0a4;font-size:.76rem;}
+  .ferramenta-scan-axe{border-top:4px solid #0d3446;}
+  .ferramenta-scan-pa11y{border-top:4px solid #1a6b8a;}
+  .ferramenta-scan-nota{border-top:4px solid var(--green-dark);}
+  .ferramenta-scan-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .ferramenta-scan-topo h4{font-size:.95rem;color:var(--navy);line-height:1.25;}
+  .ferramenta-scan-tempo{font-size:.72rem;color:#9fb0a4;white-space:nowrap;}
+  .ferramenta-scan-resumo{font-size:.84rem;color:var(--muted);line-height:1.45;}
+  .ferramenta-scan-lista{margin:0;padding-left:1.1rem;font-size:.8rem;color:var(--muted);line-height:1.4;}
+  .ferramenta-scan-lista li{margin-bottom:3px;}
+  .ferramenta-scan .btn{align-self:flex-start;margin-top:4px;}
+  .bloco-a11y{
+    margin:18px 0 10px;padding:14px 18px;border-radius:12px;
+    background:linear-gradient(135deg,var(--navy-deep),var(--navy));color:#fff;
+  }
+  .bloco-a11y:first-child{margin-top:0;}
+  .bloco-a11y-titulo{font-size:1rem;font-weight:700;margin-bottom:4px;}
+  .bloco-a11y-sub{font-size:.82rem;color:#b8d0db;}
+  .bloco-a11y-nota{font-size:1.4rem;font-weight:700;color:var(--green);margin-top:6px;}
+  .passo.passo-a11y{border-left:4px solid var(--line);}
+  .passo.passo-a11y-axe{border-left-color:#0d3446;}
+  .passo.passo-a11y-pa11y{border-left-color:#1a6b8a;}
+  .passo.passo-a11y-nota{border-left-color:var(--green-dark);}
+  .passo.passo-a11y .carimbo{font-weight:600;}
+  .passo.passo-a11y .detalhe-tecnico{font-size:.78rem;color:#8a9aa0;margin-top:6px;font-family:Consolas,monospace;}
+  @media print{.ferramentas-scan,.linha-scan,.estado-ponte{display:none;}.bloco-a11y{break-inside:avoid;}}
   .caixa-cenarios{
     background:var(--card);border-radius:12px;box-shadow:var(--sombra);
     margin-top:16px;overflow:hidden;
@@ -912,11 +935,9 @@
       <summary>Escanear acessibilidade</summary>
       <div class="corpo">
         <div class="linha-scan">
-          <input type="url" id="urlScan" placeholder="https://sistema.cliente.com" autocomplete="off" aria-label="URL a escanear">
-          <button class="btn pequeno" data-acao="scan-axe">axe-core</button>
-          <button class="btn pequeno" data-acao="scan-pa11y">Pa11y</button>
-          <button class="btn pequeno" data-acao="scan-nota">Lighthouse</button>
+          <input type="url" id="urlScan" placeholder="Cole aqui o endereço da página (ex: https://sistema.cliente.com)" autocomplete="off" aria-label="Endereço da página a escanear">
         </div>
+        <div class="ferramentas-scan" id="ferramentasScan"></div>
         <details class="sub-config">
           <summary>Endereço da ponte</summary>
           <div class="linha-scan">
@@ -925,7 +946,7 @@
           </div>
           <p class="dica-ponte">Em branco usa <b>http://localhost:8900</b>. Fica guardado neste navegador.</p>
         </details>
-        <ul class="legenda-scan" id="legendaScan"></ul>
+        <ul class="legenda-scan" id="legendaScan" hidden></ul>
         <p class="estado-ponte" id="estadoPonte" role="status">Verificando a ponte...</p>
       </div>
     </details>
@@ -1766,107 +1787,191 @@
   }
 
   /* ============ IMPORTAR ACESSIBILIDADE ============ */
-  /* Aceita a saida de axe-core, Pa11y ou Lighthouse e vira passo comum,
-     entao salvar/exportar continuam funcionando sem alteracao. */
   const GRAVIDADE = {
-    critical:'Critica', serious:'Alta', moderate:'Media', minor:'Baixa',
-    error:'Alta', warning:'Media', notice:'Baixa'
+    critical:'Grave', serious:'Importante', moderate:'Moderado', minor:'Leve',
+    error:'Importante', warning:'Moderado', notice:'Leve'
   };
 
-  function normalizarA11y(dados){
-    /* axe-core: {violations:[{id,impact,help,nodes:[{target}]}]} */
-    if(dados && Array.isArray(dados.violations)){
+  function simplificarSeletor(sel) {
+    if(!sel) return '';
+    const limpo = String(sel).replace(/\s+/g, ' ').trim();
+    const partes = limpo.split(/[\s>+]+/).filter(Boolean);
+    const ultimo = partes[partes.length - 1] || limpo;
+    if(ultimo.startsWith('#')) return 'no item com id "' + ultimo.slice(1) + '"';
+    if(ultimo.startsWith('.')) return 'no item com classe "' + ultimo.slice(1) + '"';
+    if(/^h[1-6]$/i.test(ultimo)) return 'no titulo ' + ultimo.toUpperCase();
+    if(/^(button|input|a|img|form|select|textarea)$/i.test(ultimo)) return 'no elemento ' + ultimo;
+    return 'no trecho "' + ultimo + '" da pagina';
+  }
+
+  function humanizarAxe(v, n) {
+    const gravidade = GRAVIDADE[v.impact] || 'A verificar';
+    const titulo = (v.help || v.description || v.id || 'Problema de acessibilidade')
+      .replace(/\s*\(.*?\)\s*$/, '').trim();
+    const onde = simplificarSeletor([].concat(n.target || []).join(' '));
+    let obs = v.description || v.help || 'Foi encontrado um problema que pode dificultar o uso da pagina.';
+    if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
+    return { gravidade, titulo, obs, tecnico: v.id };
+  }
+
+  function humanizarPa11y(i) {
+    const gravidade = GRAVIDADE[i.type] || 'A verificar';
+    const msg = (i.message || '').trim();
+    const titulo = msg.split(/[.;!?\n]/)[0].trim() || 'Problema encontrado na pagina';
+    let obs = msg || 'A segunda verificacao encontrou um ponto de atencao.';
+    const onde = simplificarSeletor(i.selector);
+    if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
+    if(i.code) obs += '\n\nCriterio: ' + i.code + '.';
+    return { gravidade, titulo, obs, tecnico: i.code };
+  }
+
+  function humanizarLighthouse(a, it) {
+    const titulo = (a.title || 'Item reprovado').replace(/\s*\(.*?\)\s*$/, '').trim();
+    let obs = a.description || a.title || 'Este item reduziu a nota de acessibilidade.';
+    const onde = simplificarSeletor(it.node && (it.node.selector || it.node.snippet));
+    if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
+    return { gravidade: 'A corrigir', titulo, obs, tecnico: a.id };
+  }
+
+  function detectarFerramenta(dados) {
+    if(!dados) return null;
+    if(dados.ferramenta === 'axe-core' || Array.isArray(dados.violations)) return 'axe';
+    if(dados.ferramenta === 'pa11y' || Array.isArray(dados.issues)) return 'pa11y';
+    if(Array.isArray(dados) && dados[0] && dados[0].code) return 'pa11y';
+    if(dados.ferramenta === 'lighthouse' || dados.categories?.accessibility) return 'nota';
+    return null;
+  }
+
+  function normalizarA11y(dados, ferramenta) {
+    const tipo = ferramenta || detectarFerramenta(dados);
+
+    if(tipo === 'axe' && dados && Array.isArray(dados.violations)){
       return dados.violations.flatMap(v =>
-        (v.nodes && v.nodes.length ? v.nodes : [{}]).map(n => ({
-          regra: v.id || v.help || 'regra',
-          gravidade: GRAVIDADE[v.impact] || v.impact || 'Nao classificada',
-          descricao: v.help || v.description || '',
-          seletor: [].concat(n.target || []).join(' ')
-        })));
+        (v.nodes && v.nodes.length ? v.nodes : [{}]).map(n => humanizarAxe(v, n))
+      );
     }
 
-    /* Pa11y: array direto, ou {issues:[...]} */
-    const issues = Array.isArray(dados) ? dados
-                 : (dados && Array.isArray(dados.issues) ? dados.issues : null);
-    if(issues){
-      return issues.map(i => ({
-        regra: i.code || 'regra',
-        gravidade: GRAVIDADE[i.type] || i.type || 'Nao classificada',
-        descricao: i.message || '',
-        seletor: i.selector || ''
-      }));
+    if(tipo === 'pa11y'){
+      const issues = Array.isArray(dados) ? dados
+                   : (dados && Array.isArray(dados.issues) ? dados.issues : null);
+      if(issues) return issues.map(humanizarPa11y);
     }
 
-    /* Lighthouse: audits reprovados da categoria acessibilidade */
-    if(dados && dados.audits){
+    if(tipo === 'nota' && dados && dados.audits){
       const cat = dados.categories && dados.categories.accessibility;
       const ids = cat && cat.auditRefs ? cat.auditRefs.map(r => r.id)
                                        : Object.keys(dados.audits);
       return ids.map(id => dados.audits[id])
         .filter(a => a && a.score !== null && a.score !== undefined && a.score < 1)
-        .flatMap(a => ((a.details && a.details.items) || [{}]).map(it => ({
-          regra: a.id || 'regra',
-          gravidade: 'Nao classificada',
-          descricao: a.title || '',
-          seletor: (it.node && (it.node.selector || it.node.snippet)) || ''
-        })));
+        .flatMap(a => ((a.details && a.details.items) || [{}]).map(it => humanizarLighthouse(a, it)));
     }
 
     return null;
   }
 
-  function aplicarAchados(bruto, origem){
-    const achados = normalizarA11y(bruto);
-    if(!achados){ avisar('Formato nao reconhecido. Use a saida do axe-core, Pa11y ou Lighthouse.'); return 0; }
-    if(!achados.length){ avisar('Nenhuma violacao encontrada, nada a importar.'); return 0; }
+  function resumoLighthouse(dados) {
+    if(!dados?.categories?.accessibility) return null;
+    return Math.round((dados.categories.accessibility.score || 0) * 100);
+  }
 
+  function inserirBlocoA11y(ferramenta, url, qtd, extras) {
+    const f = FERRAMENTAS[ferramenta] || { nomeCurto: ferramenta };
+    const el = document.createElement('div');
+    el.className = 'bloco-a11y bloco-a11y-' + ferramenta;
+    let notaHtml = '';
+    if(extras?.nota != null){
+      notaHtml = '<div class="bloco-a11y-nota">Nota: ' + extras.nota + '/100</div>';
+    }
+    el.innerHTML = '<div class="bloco-a11y-titulo">' + f.nomeCurto + '</div>'
+      + '<div class="bloco-a11y-sub">' + (url || 'Pagina escaneada') + ' · '
+      + (qtd === 0 ? 'nenhum problema encontrado' : qtd + ' ponto(s) de atencao') + '</div>'
+      + notaHtml;
+    lista.appendChild(el);
+    return el;
+  }
+
+  function aplicarAchados(bruto, origem, ferramenta) {
+    const tipo = ferramenta || detectarFerramenta(bruto);
+    const achados = normalizarA11y(bruto, tipo);
+    if(!achados){ avisar('Formato nao reconhecido. Use a saida do axe-core, Pa11y ou Lighthouse.'); return 0; }
+
+    const url = bruto.url || bruto.pageUrl || (typeof origem === 'string' && origem.startsWith('http') ? origem : origem);
+    const extras = tipo === 'nota' ? { nota: resumoLighthouse(bruto) } : null;
+    inserirBlocoA11y(tipo, url, achados.length, extras);
+
+    if(!achados.length){
+      avisar('Nenhum problema encontrado — bloco registrado mesmo assim.');
+      return 0;
+    }
+
+    const f = FERRAMENTAS[tipo] || { nomeCurto: tipo };
     achados.forEach(a => {
       const el = novoPasso();
-      el.querySelector('.carimbo').textContent = dataHora() + '  ·  ' + origem;
-      el.querySelector('.titulo').textContent = '[' + a.gravidade + '] ' + a.regra;
-      el.querySelector('.obs').textContent = a.seletor
-        ? a.descricao + '  ·  Elemento: ' + a.seletor
-        : a.descricao;
+      el.classList.add('passo-a11y', 'passo-a11y-' + tipo);
+      el.querySelector('.carimbo').textContent = a.gravidade + ' · ' + f.nomeCurto;
+      el.querySelector('.titulo').textContent = a.titulo;
+      const obs = el.querySelector('.obs');
+      obs.textContent = a.tecnico ? a.obs + '\n\nReferencia tecnica: ' + a.tecnico : a.obs;
     });
-    avisar(achados.length === 1 ? '1 violacao importada.' : achados.length + ' violacoes importadas.');
+    avisar(achados.length === 1 ? '1 ponto registrado.' : achados.length + ' pontos registrados.');
     return achados.length;
   }
 
   async function importarA11y(arquivo){
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
-    catch(err){ avisar('JSON invalido: ' + err.message); return 0; }
-    return aplicarAchados(bruto, 'importado de ' + arquivo.name);
+    catch(err){ avisar('Arquivo invalido: ' + err.message); return 0; }
+    return aplicarAchados(bruto, arquivo.name, detectarFerramenta(bruto));
   }
 
   /* ============ PONTE COM O SCANNER LOCAL ============ */
-  /* Pagina em navegador nao executa Node. Os botoes chamam o servidor de
-     auditeste-a11y, que roda axe/Pa11y/Lighthouse e devolve o JSON. */
-  /* uma fonte so para o rotulo, a legenda, o title e as mensagens */
   const FERRAMENTAS = {
     axe: {
-      nome: 'axe-core', tempo: '~5–15s',
-      faz: 'Abre a URL num navegador e roda as regras WCAG sobre o HTML: campo sem rótulo, contraste, ARIA inválido, estrutura semântica. É a detecção principal.'
+      nome: 'axe-core',
+      nomeCurto: 'Verificacao automatica',
+      tempo: '~15 s',
+      resumo: 'Primeira analise. Verifica se botoes, campos, textos e imagens estao acessiveis para todos.',
+      exemplos: ['Campo sem nome', 'Botao sem texto', 'Contraste fraco', 'Imagem sem descricao'],
+      botao: 'Rodar verificacao',
+      msgRodando: 'Analisando a pagina...'
     },
     pa11y: {
-      nome: 'Pa11y', tempo: '~5–20s',
-      faz: 'Abre a mesma URL com outro conjunto de regras (HTML CodeSniffer). Costuma achar coisas que o axe não pega, e devolve o código WCAG exato do critério.'
+      nome: 'Pa11y',
+      nomeCurto: 'Segunda opiniao',
+      tempo: '~20 s',
+      resumo: 'Segunda analise com outras regras. Costuma achar problemas que a primeira verificacao nao viu.',
+      exemplos: ['Titulos fora de ordem', 'Link sem proposito claro', 'Criterio WCAG reprovado'],
+      botao: 'Rodar segunda opiniao',
+      msgRodando: 'Fazendo a segunda analise...'
     },
     nota: {
-      nome: 'Lighthouse', tempo: '~20–60s',
-      faz: 'Audita a página inteira e devolve uma nota de 0 a 100 de acessibilidade, mais os itens reprovados. É o número que vai no relatório do cliente.'
+      nome: 'Lighthouse',
+      nomeCurto: 'Nota de acessibilidade',
+      tempo: '~1 min',
+      resumo: 'Gera nota de 0 a 100 e lista o que precisa corrigir. Ideal para o relatorio do cliente.',
+      exemplos: ['Nota geral da pagina', 'Itens que derrubaram a nota', 'Sugestoes de correcao'],
+      botao: 'Gerar nota',
+      msgRodando: 'Calculando a nota... pode levar ate 1 minuto.'
     }
   };
 
   function montarLegenda(){
-    const ul = document.getElementById('legendaScan');
-    if(!ul) return;
-    ul.innerHTML = Object.entries(FERRAMENTAS).map(([chave, f]) =>
-      `<li><b>${f.nome}</b> <span class="tempo">${f.tempo}</span><br>${f.faz}</li>`
+    const cont = document.getElementById('ferramentasScan');
+    if(!cont) return;
+    cont.innerHTML = Object.entries(FERRAMENTAS).map(([chave, f]) =>
+      `<div class="ferramenta-scan ferramenta-scan-${chave}">
+        <div class="ferramenta-scan-topo">
+          <h4>${f.nomeCurto}</h4>
+          <span class="ferramenta-scan-tempo">${f.tempo}</span>
+        </div>
+        <p class="ferramenta-scan-resumo">${f.resumo}</p>
+        <ul class="ferramenta-scan-lista">${f.exemplos.map(e => '<li>' + e + '</li>').join('')}</ul>
+        <button type="button" class="btn pequeno" data-acao="scan-${chave}">${f.botao}</button>
+      </div>`
     ).join('');
     Object.entries(FERRAMENTAS).forEach(([chave, f]) => {
-      const b = document.querySelector('[data-acao="scan-' + chave + '"]');
-      if(b) b.title = f.nome + ' (' + f.tempo + ') — ' + f.faz;
+      const b = cont.querySelector('[data-acao="scan-' + chave + '"]');
+      if(b) b.title = f.nomeCurto + ' (' + f.tempo + ') — ' + f.resumo;
     });
   }
 
@@ -1907,9 +2012,9 @@
     const st = info && info.status;
     if(!st) return '';
     const ok = (m) => st[m] && st[m].ok;
-    return ' Motores: axe-core ' + (ok('axe') ? 'OK' : 'FALHA')
-      + ' · Pa11y ' + (ok('pa11y') ? 'OK' : 'FALHA')
-      + ' · Lighthouse ' + (ok('nota') ? 'OK' : 'FALHA') + '.';
+    return ' Motores: verificacao ' + (ok('axe') ? 'OK' : 'FALHA')
+      + ' · segunda opiniao ' + (ok('pa11y') ? 'OK' : 'FALHA')
+      + ' · nota ' + (ok('nota') ? 'OK' : 'FALHA') + '.';
   }
 
   async function pingPonte(){
@@ -1951,7 +2056,7 @@
     const botoes = [...document.querySelectorAll('[data-acao^="scan-"]')];
     botoes.forEach(b => b.disabled = true);
     const f = FERRAMENTAS[tipo];
-    el.textContent = 'Rodando ' + f.nome + ' em ' + alvo + '. Leva ' + f.tempo + ', aguarde.';
+    el.textContent = f.msgRodando + ' Aguarde ' + f.tempo + '.';
     el.className = 'estado-ponte trabalhando';
 
     try{
@@ -1959,13 +2064,15 @@
         { headers: ponteCabecalho(), signal: AbortSignal.timeout(180000) });
       const dados = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(dados.erro || ('HTTP ' + r.status));
-      const n = aplicarAchados(dados, f.nome + ' em ' + alvo);
+      const n = aplicarAchados(dados, alvo, tipo);
       if(dados.aviso){
         el.textContent = dados.aviso;
         el.className = 'estado-ponte off';
-        avisar('Pagina possivelmente bloqueada. Leia o aviso antes de usar como evidencia.');
+        avisar('A pagina pode ter bloqueado o scan. Leia o aviso antes de usar como evidencia.');
       }else{
-        el.textContent = n ? (n + ' achado(s) importado(s) de ' + f.nome + '.') : ('Nada encontrado por ' + f.nome + '.');
+        el.textContent = n
+          ? (n + ' ponto(s) registrado(s) em "' + f.nomeCurto + '".')
+          : ('Nenhum problema encontrado em "' + f.nomeCurto + '".');
         el.className = 'estado-ponte ok';
       }
     }catch(err){
@@ -2309,8 +2416,9 @@
      O que ele nao faz: olhar a captura e inferir comportamento que ninguem
      escreveu. Ele estrutura o que foi anotado durante o teste. */
 
-  /* titulo de passo importado de scan vem como "[Gravidade] regra" */
+  /* Passos de acessibilidade: carimbo "Grave · Verificacao automatica" + titulo legivel */
   const RE_VIOLACAO = /^\[(.+?)\]\s*(.+)$/;
+  const RE_A11Y_CARIMBO = /^(Grave|Importante|Moderado|Leve|A corrigir|A verificar)\s·\s(.+)$/;
 
   function limpar(t){ return (t || '').trim().replace(/\s+/g, ' '); }
 
@@ -2322,10 +2430,16 @@
     (r.passos || []).forEach(p => {
       const titulo = limpar(p.titulo);
       const obs = limpar(p.obs);
+      const carimbo = limpar(p.carimbo);
       const m = RE_VIOLACAO.exec(titulo);
+      const mA11y = RE_A11Y_CARIMBO.exec(carimbo);
       if(m){
         const chave = m[2] + ' | ' + m[1];
         if(!violacoes.has(chave)) violacoes.set(chave, { regra: m[2], gravidade: m[1], itens: [] });
+        violacoes.get(chave).itens.push(obs);
+      }else if(mA11y){
+        const chave = titulo + ' | ' + mA11y[1];
+        if(!violacoes.has(chave)) violacoes.set(chave, { regra: titulo, gravidade: mA11y[1], itens: [] });
         violacoes.get(chave).itens.push(obs);
       }else if(titulo || obs){
         funcionais.push({ titulo, obs, imagens: (p.imagens || []).length });
@@ -2362,9 +2476,9 @@
 
     [...violacoes.values()].forEach(v => {
       L.push('  Cenário: Acessibilidade — ' + v.regra + ' (' + v.gravidade + ')');
-      L.push('    Dado que a página avaliada estava no estado registrado');
+      L.push('    Dado que a pagina avaliada estava no estado registrado');
       v.itens.forEach((item, i) => {
-        L.push('    ' + (i === 0 ? 'Então ' : 'E ') + 'não deve haver violação de ' + v.regra);
+        L.push('    ' + (i === 0 ? 'Entao ' : 'E ') + 'o problema "' + v.regra + '" deve ser corrigido');
         if(item) L.push('      # ' + item);
       });
       L.push('');
