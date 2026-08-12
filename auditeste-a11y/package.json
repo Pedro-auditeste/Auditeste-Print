@@ -16,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
     "@axe-core/playwright": "^4.10.2",
+    "@axe-core/puppeteer": "^4.13.0",
     "axe-core": "^4.13.0",
     "chrome-launcher": "^1.2.0",
     "lighthouse": "^12.8.2",
