@@ -1,0 +1,25 @@
+{
+  "name": "auditeste-a11y",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scans de acessibilidade (axe-core, Pa11y, Lighthouse) com saida pronta para importar no Audi Print.",
+  "type": "commonjs",
+  "scripts": {
+    "axe": "node a11y.js axe",
+    "pa11y": "node a11y.js pa11y",
+    "nota": "node a11y.js nota",
+    "fluxo": "node fluxo.js",
+    "servidor": "node servidor.js",
+    "teste-file": "node teste_file.js",
+    "navegador": "playwright install chromium"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
+    "@axe-core/playwright": "^4.10.2",
+    "axe-core": "^4.13.0",
+    "chrome-launcher": "^1.2.0",
+    "lighthouse": "^12.8.2",
+    "pa11y": "^9.0.1",
+    "playwright": "^1.56.1"
+  }
+}

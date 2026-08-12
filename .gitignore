@@ -1,0 +1,9 @@
+node_modules/
+saida/
+chave.txt
+_teste/
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db

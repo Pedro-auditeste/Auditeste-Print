@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  body{width:270px;margin:0;padding:16px;font-family:'Segoe UI',system-ui,sans-serif;color:#1e2a30;}
+  h1{font-size:.95rem;color:#0d3446;margin:0 0 2px;}
+  p.sub{font-size:.75rem;color:#5b6b73;margin:0 0 14px;}
+  button{
+    width:100%;font:inherit;font-size:.8rem;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;border:none;border-radius:999px;padding:10px;
+    background:#5ea32f;color:#fff;cursor:pointer;
+  }
+  button:hover:not(:disabled){background:#4d8827;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  #msg{font-size:.78rem;margin-top:12px;line-height:1.45;min-height:2.6em;}
+  #msg.erro{color:#b23b3b;}
+  #msg b{color:#0d3446;}
+</style>
+</head>
+<body>
+  <h1>Scanner de acessibilidade</h1>
+  <p class="sub">axe-core na aba atual</p>
+  <button id="analisar">Analisar esta página</button>
+  <div id="msg" role="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
