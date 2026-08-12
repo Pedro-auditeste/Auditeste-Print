@@ -2919,7 +2919,6 @@
         <div class="acoes">
           <button class="btn primario pequeno" data-acao="exportarHtml">Exportar HTML</button>
           <button class="btn escuro pequeno" data-acao="salvarPdf">Salvar em PDF</button>
-          <button class="btn escuro pequeno" data-acao="gerarCenarios">Montar cenários</button>
           <button class="btn escuro pequeno" data-acao="gerarCenariosIA">Gerar com IA</button>
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
@@ -2962,7 +2961,6 @@
     if(!b) return;
     if(b.dataset.acao === 'exportarHtml') exportarHtml(registroAberto);
     if(b.dataset.acao === 'salvarPdf') salvarPdf(registroAberto);
-    if(b.dataset.acao === 'gerarCenarios') gerarCenarios(registroAberto);
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
     if(b.dataset.video) baixarVideo(Number(b.dataset.video));
   });
