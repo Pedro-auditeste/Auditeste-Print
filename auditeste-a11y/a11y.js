@@ -12,6 +12,18 @@ const path = require('path');
 
 const SAIDA = path.join(__dirname, 'saida');
 
+const FLAGS_DOCKER = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+
+function chromeDoPlaywright() {
+  const { chromium } = require('playwright');
+  return chromium.executablePath();
+}
+
+function lancarChromium() {
+  const { chromium } = require('playwright');
+  return chromium.launch({ args: FLAGS_DOCKER });
+}
+
 function nomeArquivo(prefixo, url) {
   let host = 'pagina';
   try { host = new URL(url).hostname.replace(/^www\./, '') || 'pagina'; } catch (e) {}
@@ -62,11 +74,10 @@ async function diagnosticar(pagina) {
    estas funcoes direto e devolve o JSON para os botoes do Audi Print. */
 
 async function scanAxe(url) {
-  const { chromium } = require('playwright');
   const mod = require('@axe-core/playwright');
   const AxeBuilder = mod.default || mod.AxeBuilder || mod;
 
-  const navegador = await chromium.launch();
+  const navegador = await lancarChromium();
   try {
     /* AxeBuilder exige pagina vinda de um contexto explicito */
     const contexto = await navegador.newContext();
@@ -83,14 +94,23 @@ async function scanAxe(url) {
 
 async function scanPa11y(url) {
   const pa11y = require('pa11y');
-  return await pa11y(url, { timeout: 60000 });
+  return await pa11y(url, {
+    timeout: 60000,
+    chromeLaunchConfig: {
+      executablePath: chromeDoPlaywright(),
+      args: FLAGS_DOCKER
+    }
+  });
 }
 
 async function scanLighthouse(url) {
   const chromeLauncher = await import('chrome-launcher');
   const { default: lighthouse } = await import('lighthouse');
 
-  const chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-sandbox'] });
+  const chrome = await chromeLauncher.launch({
+    chromePath: chromeDoPlaywright(),
+    chromeFlags: ['--headless=new', ...FLAGS_DOCKER]
+  });
   try {
     const r = await lighthouse(url, {
       port: chrome.port, output: 'json', onlyCategories: ['accessibility'], logLevel: 'error'

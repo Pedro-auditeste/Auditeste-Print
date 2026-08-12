@@ -13,12 +13,13 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
 ## Deploy na Railway
 
 1. Conecte este repositório na [Railway](https://railway.app).
-2. O `railway.toml` já aponta o build para `auditeste-a11y/Dockerfile`.
+2. O `railway.toml` usa o `Dockerfile` na raiz (Playwright + Node).
 3. Defina as variáveis de ambiente:
-   - `PONTE_TOKEN` — **obrigatório** (string longa e aleatória)
+   - `PONTE_TOKEN` — **obrigatório para scans** (string longa e aleatória)
    - `ANTHROPIC_API_KEY` — opcional (habilita cenários por IA)
    - `PONTE_DOMINIOS` — opcional (allowlist de domínios para scan)
 4. A Railway injeta `PORT` automaticamente; o servidor já lê.
+5. Healthcheck em `/ping` — o serviço sobe mesmo sem token, mas scans ficam bloqueados até configurar `PONTE_TOKEN`.
 
 Depois do deploy, abra a URL gerada — o Audi Print fica em `/`. A landing page fica em `/inicio.html`.
 

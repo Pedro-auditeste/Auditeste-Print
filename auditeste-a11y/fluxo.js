@@ -55,7 +55,7 @@ const PARADAS = [
 ];
 
 async function principal() {
-  const navegador = await chromium.launch({ headless: !VISIVEL });
+  const navegador = await chromium.launch({ headless: !VISIVEL, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
   const contexto = await navegador.newContext();
   const pagina = await contexto.newPage();
   let total = 0;

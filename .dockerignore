@@ -1,0 +1,14 @@
+.git
+.gitignore
+*.md
+index.html
+relatorio-teste.html
+audi-print
+audi-print-scanner
+auditeste-a11y/node_modules
+auditeste-a11y/saida
+auditeste-a11y/_teste
+auditeste-a11y/chave.txt
+auditeste-a11y/teste.js
+auditeste-a11y/teste_file.js
+auditeste-a11y/ponte.cmd

@@ -1,14 +1,13 @@
-# Railway: aponta o build para a pasta da ponte (Dockerfile + Playwright).
-# No painel da Railway, defina as variáveis:
-#   PONTE_TOKEN        (obrigatório)
-#   ANTHROPIC_API_KEY  (opcional — habilita "Gerar com IA")
-#   PONTE_DOMINIOS     (opcional — allowlist de domínios para scan)
+# Railway — deploy da ponte auditeste-a11y (Docker + Playwright).
+# Variáveis obrigatórias no painel:
+#   PONTE_TOKEN        string longa e aleatória (habilita scans)
+#   ANTHROPIC_API_KEY  opcional — cenários por IA
+#   PONTE_DOMINIOS     opcional — allowlist de domínios
 
 [build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
-watchPatterns = ["auditeste-a11y/**"]
 
 [deploy]
-healthcheckPath = "/"
+healthcheckPath = "/ping"
 restartPolicyType = "ON_FAILURE"

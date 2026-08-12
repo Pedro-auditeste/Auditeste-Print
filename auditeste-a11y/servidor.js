@@ -38,6 +38,7 @@ const DOMINIOS = (process.env.PONTE_DOMINIOS || '')
 const MOTORES = { axe: scanAxe, pa11y: scanPa11y, nota: scanLighthouse };
 
 const ehLoopback = HOST === '127.0.0.1' || HOST === 'localhost' || HOST === '::1';
+const EXPOSTO_SEM_TOKEN = !ehLoopback && !TOKEN;
 
 /* Rede privada: bloqueada quando exposta, liberada quando local.
    Em loopback quem chama ja esta na maquina e alcanca tudo sozinho — barrar
@@ -46,10 +47,10 @@ const ehLoopback = HOST === '127.0.0.1' || HOST === 'localhost' || HOST === '::1
 const PRIVADO_OK = process.env.PONTE_PRIVADO === '1' ? true
   : process.env.PONTE_PRIVADO === '0' ? false
   : ehLoopback;
-if (!ehLoopback && !TOKEN) {
-  console.error('recusando subir: HOST=' + HOST + ' expõe a ponte e PONTE_TOKEN não foi definido.');
-  console.error('sem token qualquer um manda esta máquina buscar qualquer URL.');
-  process.exit(1);
+if (EXPOSTO_SEM_TOKEN) {
+  console.error('AVISO: HOST=' + HOST + ' expõe a ponte, mas PONTE_TOKEN não foi definido.');
+  console.error('O servidor sobe (healthcheck OK), porém /scan e /cenarios ficam bloqueados.');
+  console.error('Defina PONTE_TOKEN nas variáveis de ambiente da Railway.');
 }
 
 /* ---------- CORS ---------- */
@@ -140,6 +141,7 @@ function lerCorpo(req) {
 }
 
 function tokenInvalido(req, u) {
+  if (!ehLoopback && !TOKEN) return true;
   if (!TOKEN) return false;
   const enviado = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
     || u.searchParams.get('token') || '';
@@ -162,14 +164,19 @@ const servidor = http.createServer(async (req, res) => {
   if (u.pathname === '/ping') {
     return responder(res, 200, {
       ok: true, motores: Object.keys(MOTORES),
-      exigeToken: !!TOKEN, ocupado: rodando, limite: MAX,
-      cenarios: !!process.env.ANTHROPIC_API_KEY, modelo: MODELO
+      exigeToken: !!TOKEN || !ehLoopback, ocupado: rodando, limite: MAX,
+      cenarios: !!process.env.ANTHROPIC_API_KEY, modelo: MODELO,
+      aviso: EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado — scans bloqueados' : undefined
     }, origem);
   }
 
   if (u.pathname === '/cenarios') {
     if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
-    if (tokenInvalido(req, u)) return responder(res, 401, { erro: 'token inválido ou ausente' }, origem);
+    if (tokenInvalido(req, u)) {
+    const msg = EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado no servidor'
+      : 'token inválido ou ausente';
+    return responder(res, 401, { erro: msg }, origem);
+  }
     if (rodando >= MAX) return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
 
     rodando++;
@@ -194,7 +201,11 @@ const servidor = http.createServer(async (req, res) => {
     return responder(res, 404, { erro: 'rota desconhecida' }, origem);
   }
 
-  if (tokenInvalido(req, u)) return responder(res, 401, { erro: 'token inválido ou ausente' }, origem);
+  if (tokenInvalido(req, u)) {
+    const msg = EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado no servidor'
+      : 'token inválido ou ausente';
+    return responder(res, 401, { erro: msg }, origem);
+  }
 
   const tipo = u.searchParams.get('tipo');
   const alvo = u.searchParams.get('url');
