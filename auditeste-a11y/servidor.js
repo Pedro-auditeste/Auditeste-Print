@@ -6,25 +6,26 @@
  *   npm run servidor                      local, sem token
  *   HOST=0.0.0.0 PONTE_TOKEN=... npm run servidor    exposto
  *
- * ── Exposto na internet, isto é um serviço que busca URLs por conta de
- * quem pedir. Sem trava vira SSRF: alguém manda escanear 169.254.169.254
- * e recebe as credenciais da sua instância. Por isso:
+ * Motores:
+ *   /scan?tipo=axe|pa11y|nota|lighthouse&url=https://...
+ *   /ping  — healthcheck + status dos motores
  *
- *   PONTE_TOKEN      obrigatório quando HOST não é loopback
+ * Variáveis:
+ *   PONTE_TOKEN      obrigatório quando HOST não é loopback (para scans)
  *   PONTE_DOMINIOS   allowlist de domínios (o controle mais forte)
  *   PONTE_PRIVADO=1  libera IP privado (só para uso local)
  *   PONTE_MAX        scans simultâneos, padrão 2
  *   PONTE_ORIGENS    origens de CORS, padrão *
+ *   CHROME_PATH      caminho explícito do Chrome (opcional)
  */
 const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
-const { scanAxe, scanPa11y, scanLighthouse } = require('./a11y.js');
+const { scanAxe, scanPa11y, scanLighthouse, statusMotores } = require('./a11y.js');
 const { gerarCenarios, MODELO } = require('./cenarios.js');
 
-/* imagens em base64 pesam; sem teto um POST pode derrubar a ponte */
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
 const PORTA = Number(process.env.PORT || process.env.PORTA_PONTE) || 8900;
@@ -35,31 +36,41 @@ const ORIGENS = process.env.PONTE_ORIGENS || '*';
 const DOMINIOS = (process.env.PONTE_DOMINIOS || '')
   .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
-const MOTORES = { axe: scanAxe, pa11y: scanPa11y, nota: scanLighthouse };
+/* Aliases: o Print usa "nota" para Lighthouse; também aceita "lighthouse". */
+const MOTORES = {
+  axe: scanAxe,
+  pa11y: scanPa11y,
+  nota: scanLighthouse,
+  lighthouse: scanLighthouse
+};
+
+const ROTULOS = {
+  axe: 'axe-core',
+  pa11y: 'Pa11y',
+  nota: 'Lighthouse',
+  lighthouse: 'Lighthouse'
+};
 
 const ehLoopback = HOST === '127.0.0.1' || HOST === 'localhost' || HOST === '::1';
 const EXPOSTO_SEM_TOKEN = !ehLoopback && !TOKEN;
 
-/* Rede privada: bloqueada quando exposta, liberada quando local.
-   Em loopback quem chama ja esta na maquina e alcanca tudo sozinho — barrar
-   ali nao protege nada e so impede escanear o proprio servidor de dev.
-   PONTE_PRIVADO=1 ou =0 manda em cima do padrao. */
 const PRIVADO_OK = process.env.PONTE_PRIVADO === '1' ? true
   : process.env.PONTE_PRIVADO === '0' ? false
   : ehLoopback;
+
 if (EXPOSTO_SEM_TOKEN) {
   console.error('AVISO: HOST=' + HOST + ' expõe a ponte, mas PONTE_TOKEN não foi definido.');
   console.error('O servidor sobe (healthcheck OK), porém /scan e /cenarios ficam bloqueados.');
   console.error('Defina PONTE_TOKEN nas variáveis de ambiente da Railway.');
 }
 
-/* ---------- CORS ---------- */
 function cabecalho(origem) {
   const permitida = ORIGENS === '*' ? '*'
     : (ORIGENS.split(',').map(s => s.trim()).includes(origem) ? origem : 'null');
   return {
     'Access-Control-Allow-Origin': permitida,
     'Access-Control-Allow-Headers': 'authorization,content-type',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Content-Type': 'application/json; charset=utf-8'
   };
 }
@@ -69,7 +80,6 @@ function responder(res, status, corpo, origem) {
   res.end(JSON.stringify(corpo));
 }
 
-/* ---------- SSRF ---------- */
 function faixaPrivada(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -106,16 +116,15 @@ async function recusar(alvo) {
   return null;
 }
 
-/* Serve o Print pela propria ponte. Hospedado, isso vira uma URL so: o
-   analista abre e o Print ja fala com a mesma origem, sem colar endereco. */
 const PUBLICO = path.resolve(process.env.PONTE_PUBLICO || path.join(__dirname, 'publico'));
-const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const TIPOS = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json'
+};
 
 function servirArquivo(req, res, pathname) {
   const nome = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
   const arquivo = path.resolve(PUBLICO, nome);
-  /* o nome vem da URL: sem esta checagem, ../ le qualquer arquivo do disco */
   if (!arquivo.startsWith(PUBLICO + path.sep) && arquivo !== PUBLICO) return false;
   if (!fs.existsSync(arquivo) || !fs.statSync(arquivo).isFile()) return false;
   res.writeHead(200, { 'Content-Type': TIPOS[path.extname(arquivo)] || 'application/octet-stream' });
@@ -148,8 +157,12 @@ function tokenInvalido(req, u) {
   return enviado !== TOKEN;
 }
 
-/* ---------- concorrencia: um scan sobe um navegador, uma geracao custa
-     credito de API. O mesmo teto cobre os dois. ---------- */
+function msgToken() {
+  return EXPOSTO_SEM_TOKEN
+    ? 'PONTE_TOKEN não configurado no servidor'
+    : 'token inválido ou ausente';
+}
+
 let rodando = 0;
 
 const servidor = http.createServer(async (req, res) => {
@@ -161,23 +174,28 @@ const servidor = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  if (u.pathname === '/ping') {
+  if (u.pathname === '/ping' || u.pathname === '/health') {
+    const motores = statusMotores();
     return responder(res, 200, {
-      ok: true, motores: Object.keys(MOTORES),
-      exigeToken: !!TOKEN || !ehLoopback, ocupado: rodando, limite: MAX,
-      cenarios: !!process.env.ANTHROPIC_API_KEY, modelo: MODELO,
+      ok: true,
+      motores: ['axe', 'pa11y', 'nota'],
+      aliases: { lighthouse: 'nota' },
+      status: motores,
+      exigeToken: !!TOKEN || !ehLoopback,
+      ocupado: rodando,
+      limite: MAX,
+      cenarios: !!process.env.ANTHROPIC_API_KEY,
+      modelo: MODELO,
       aviso: EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado — scans bloqueados' : undefined
     }, origem);
   }
 
   if (u.pathname === '/cenarios') {
     if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
-    if (tokenInvalido(req, u)) {
-    const msg = EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado no servidor'
-      : 'token inválido ou ausente';
-    return responder(res, 401, { erro: msg }, origem);
-  }
-    if (rodando >= MAX) return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
+    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken() }, origem);
+    if (rodando >= MAX) {
+      return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
+    }
 
     rodando++;
     const inicio = Date.now();
@@ -196,20 +214,36 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (u.pathname !== '/scan') {
-    /* antes de desistir, tenta servir o Print */
     if (req.method === 'GET' && servirArquivo(req, res, u.pathname)) return;
     return responder(res, 404, { erro: 'rota desconhecida' }, origem);
   }
 
-  if (tokenInvalido(req, u)) {
-    const msg = EXPOSTO_SEM_TOKEN ? 'PONTE_TOKEN não configurado no servidor'
-      : 'token inválido ou ausente';
-    return responder(res, 401, { erro: msg }, origem);
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return responder(res, 405, { erro: 'use GET ou POST' }, origem);
+  }
+  if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken() }, origem);
+
+  let tipo = (u.searchParams.get('tipo') || '').toLowerCase().trim();
+  let alvo = (u.searchParams.get('url') || '').trim();
+
+  /* POST JSON { tipo, url } — útil para URLs longas */
+  if (req.method === 'POST') {
+    try {
+      const corpo = await lerCorpo(req);
+      if (corpo.tipo) tipo = String(corpo.tipo).toLowerCase().trim();
+      if (corpo.url) alvo = String(corpo.url).trim();
+    } catch (err) {
+      return responder(res, 400, { erro: err.message }, origem);
+    }
   }
 
-  const tipo = u.searchParams.get('tipo');
-  const alvo = u.searchParams.get('url');
-  if (!MOTORES[tipo]) return responder(res, 400, { erro: `tipo desconhecido: ${tipo}` }, origem);
+  if (!MOTORES[tipo]) {
+    return responder(res, 400, {
+      erro: `tipo desconhecido: ${tipo || '(vazio)'}`,
+      tipos: ['axe', 'pa11y', 'nota'],
+      aliases: { lighthouse: 'nota' }
+    }, origem);
+  }
   if (!alvo) return responder(res, 400, { erro: 'url ausente' }, origem);
 
   const motivo = await recusar(alvo);
@@ -221,23 +255,32 @@ const servidor = http.createServer(async (req, res) => {
 
   rodando++;
   const inicio = Date.now();
-  process.stdout.write(`${tipo.padEnd(6)} ${alvo} ... `);
+  const rotulo = ROTULOS[tipo] || tipo;
+  process.stdout.write(`${rotulo.padEnd(12)} ${alvo} ... `);
   try {
     const dados = await MOTORES[tipo](alvo);
     console.log(`ok (${((Date.now() - inicio) / 1000).toFixed(1)}s)`);
     responder(res, 200, dados, origem);
   } catch (err) {
     console.log('FALHOU: ' + err.message);
-    responder(res, 500, { erro: err.message }, origem);
+    responder(res, 500, { erro: err.message, motor: rotulo }, origem);
   } finally {
     rodando--;
   }
 });
 
+/* Lighthouse pode passar de 60s — sem isso o socket cai no meio do scan. */
+servidor.requestTimeout = 0;
+servidor.headersTimeout = 120000;
+servidor.timeout = 180000;
+
 servidor.listen(PORTA, HOST, () => {
+  const st = statusMotores();
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
   console.log(`token: ${TOKEN ? 'exigido' : 'não'} · máx ${MAX} simultâneos`
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);
+  console.log(`motores: axe=${st.axe.ok ? 'ok' : 'FALHA'} · pa11y=${st.pa11y.ok ? 'ok' : 'FALHA'} · lighthouse=${st.nota.ok ? 'ok' : 'FALHA'}`);
+  if (st.chrome) console.log(`chrome: ${st.chrome}`);
   if (ehLoopback) console.log('deixe aberto e use os botões de scan no Audi Print.\n');
 });

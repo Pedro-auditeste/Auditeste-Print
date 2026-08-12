@@ -1,8 +1,10 @@
-# Railway — deploy da ponte auditeste-a11y (Docker + Playwright).
-# Variáveis obrigatórias no painel:
-#   PONTE_TOKEN        string longa e aleatória (habilita scans)
+# Railway — ponte auditeste-a11y (axe-core + Pa11y + Lighthouse).
+#
+# Variáveis no painel:
+#   PONTE_TOKEN        obrigatório para habilitar scans
 #   ANTHROPIC_API_KEY  opcional — cenários por IA
-#   PONTE_DOMINIOS     opcional — allowlist de domínios
+#   PONTE_DOMINIOS     opcional — allowlist (ex: cliente.com.br)
+#   PONTE_MAX          opcional — scans simultâneos (padrão 2)
 
 [build]
 builder = "dockerfile"
@@ -10,4 +12,5 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 healthcheckPath = "/ping"
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

@@ -23,6 +23,17 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
 
 Depois do deploy, abra a URL gerada — o Audi Print fica em `/`. A landing page fica em `/inicio.html`.
 
+### API da ponte (scans)
+
+| Endpoint | Uso |
+|---|---|
+| `GET /ping` | Healthcheck + status dos motores |
+| `GET /scan?tipo=axe&url=...` | axe-core (Playwright) |
+| `GET /scan?tipo=pa11y&url=...` | Pa11y (Chrome/Puppeteer) |
+| `GET /scan?tipo=nota&url=...` | Lighthouse (alias: `lighthouse`) |
+
+Header: `Authorization: Bearer <PONTE_TOKEN>`
+
 ## Uso local (ponte)
 
 ```bash

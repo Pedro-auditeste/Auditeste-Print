@@ -1845,15 +1845,15 @@
   /* uma fonte so para o rotulo, a legenda, o title e as mensagens */
   const FERRAMENTAS = {
     axe: {
-      nome: 'axe-core', tempo: '~3s',
+      nome: 'axe-core', tempo: '~5–15s',
       faz: 'Abre a URL num navegador e roda as regras WCAG sobre o HTML: campo sem rótulo, contraste, ARIA inválido, estrutura semântica. É a detecção principal.'
     },
     pa11y: {
-      nome: 'Pa11y', tempo: '~3s',
+      nome: 'Pa11y', tempo: '~5–20s',
       faz: 'Abre a mesma URL com outro conjunto de regras (HTML CodeSniffer). Costuma achar coisas que o axe não pega, e devolve o código WCAG exato do critério.'
     },
     nota: {
-      nome: 'Lighthouse', tempo: '~15s',
+      nome: 'Lighthouse', tempo: '~20–60s',
       faz: 'Audita a página inteira e devolve uma nota de 0 a 100 de acessibilidade, mais os itens reprovados. É o número que vai no relatório do cliente.'
     }
   };
@@ -1897,17 +1897,32 @@
     ct.value = localStorage.getItem('ponte_token') || '';
     cu.addEventListener('change', ()=>{ localStorage.setItem('ponte_url', cu.value.trim()); pingPonte(); });
     ct.addEventListener('change', ()=>{ localStorage.setItem('ponte_token', ct.value.trim()); pingPonte(); });
+    const dica = document.querySelector('.dica-ponte');
+    if(dica && /^https?:$/.test(location.protocol)){
+      dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). Informe o <b>PONTE_TOKEN</b> da Railway se a ponte exigir.';
+    }
+  }
+
+  function textoMotores(info){
+    const st = info && info.status;
+    if(!st) return '';
+    const ok = (m) => st[m] && st[m].ok;
+    return ' Motores: axe-core ' + (ok('axe') ? 'OK' : 'FALHA')
+      + ' · Pa11y ' + (ok('pa11y') ? 'OK' : 'FALHA')
+      + ' · Lighthouse ' + (ok('nota') ? 'OK' : 'FALHA') + '.';
   }
 
   async function pingPonte(){
     const el = document.getElementById('estadoPonte');
     if(!el) return false;
     try{
-      const r = await fetch(ponteUrl() + '/ping', { signal: AbortSignal.timeout(4000) });
+      const r = await fetch(ponteUrl() + '/ping', { signal: AbortSignal.timeout(8000) });
       if(!r.ok) throw new Error('sem resposta');
       const info = await r.json();
-      el.textContent = 'Ponte ativa em ' + ponteUrl()
-        + (info.exigeToken && !ponteToken() ? '. Esta ponte exige token, preencha em Endereço da ponte.' : '.');
+      let msg = 'Ponte ativa em ' + ponteUrl() + '.' + textoMotores(info);
+      if(info.exigeToken && !ponteToken()) msg += ' Esta ponte exige token — preencha em Endereço da ponte.';
+      if(info.aviso) msg += ' ' + info.aviso;
+      el.textContent = msg;
       el.className = 'estado-ponte ok';
       return true;
     }catch(err){
@@ -1926,6 +1941,11 @@
     const alvo = (campo.value || '').trim();
     const el = document.getElementById('estadoPonte');
     if(!alvo){ avisar('Informe a URL a escanear.'); campo.focus(); return; }
+    if(!/^https?:\/\//i.test(alvo)){
+      avisar('A URL precisa começar com http:// ou https://');
+      campo.focus();
+      return;
+    }
 
     const botoes = [...document.querySelectorAll('[data-acao^="scan-"]')];
     botoes.forEach(b => b.disabled = true);
@@ -1934,13 +1954,12 @@
     el.className = 'estado-ponte trabalhando';
 
     try{
-      const r = await fetch(ponteUrl() + '/scan?tipo=' + tipo + '&url=' + encodeURIComponent(alvo),
-        { headers: ponteCabecalho() });
-      const dados = await r.json();
+      const r = await fetch(ponteUrl() + '/scan?tipo=' + encodeURIComponent(tipo) + '&url=' + encodeURIComponent(alvo),
+        { headers: ponteCabecalho(), signal: AbortSignal.timeout(180000) });
+      const dados = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(dados.erro || ('HTTP ' + r.status));
       const n = aplicarAchados(dados, f.nome + ' em ' + alvo);
       if(dados.aviso){
-        /* pagina de bloqueio: os achados sao reais, mas da tela errada */
         el.textContent = dados.aviso;
         el.className = 'estado-ponte off';
         avisar('Pagina possivelmente bloqueada. Leia o aviso antes de usar como evidencia.');
@@ -1949,15 +1968,18 @@
         el.className = 'estado-ponte ok';
       }
     }catch(err){
-      /* fetch para host fora do ar cai aqui como TypeError, sem detalhe util */
-      const semPonte = err instanceof TypeError || /fetch/i.test(err.message);
-      el.textContent = semPonte
-        ? (ponteUrl() === PONTE_PADRAO
-           ? 'Sem ponte. Use a extensão audi-print-scanner e importe o JSON, ou suba a ponte (ponte.cmd).'
-           : 'Não alcancei a ponte em ' + ponteUrl() + '. Confira o endereço.')
-        : 'Falhou: ' + err.message;
+      const timeout = /AbortError|aborted/i.test(err.name || '') || /aborted|timeout/i.test(err.message || '');
+      const semPonte = err instanceof TypeError || /fetch|Failed to fetch|NetworkError/i.test(err.message || '');
+      el.textContent = timeout
+        ? 'O scan demorou demais e foi interrompido. Tente de novo ou use a extensão.'
+        : (semPonte
+          ? (ponteUrl() === PONTE_PADRAO
+             ? 'Sem ponte. Use a extensão audi-print-scanner e importe o JSON, ou suba a ponte (ponte.cmd).'
+             : 'Não alcancei a ponte em ' + ponteUrl() + '. Confira o endereço e o token.')
+          : 'Falhou: ' + err.message);
       el.className = 'estado-ponte off';
-      avisar(semPonte ? 'A ponte nao esta no ar. Rode: npm run servidor' : 'Scan falhou: ' + err.message);
+      avisar(timeout ? 'Timeout no scan. Tente novamente.'
+        : (semPonte ? 'A ponte nao esta no ar. Rode: npm run servidor' : 'Scan falhou: ' + err.message));
     }finally{
       botoes.forEach(b => b.disabled = false);
     }
