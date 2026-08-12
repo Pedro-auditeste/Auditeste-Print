@@ -165,6 +165,13 @@
   .bloco-a11y-sub{font-size:.82rem;color:#b8d0db;word-break:break-word;}
   .bloco-a11y-nota{font-size:1.4rem;font-weight:700;color:var(--green);margin-top:6px;}
   .bloco-a11y-dica{font-size:.72rem;color:#8fb3c0;margin-top:6px;}
+  .bloco-a11y-excluir{
+    flex-shrink:0;align-self:flex-start;margin-top:2px;
+    width:28px;height:28px;border:none;border-radius:8px;
+    background:rgba(255,255,255,.12);color:#c8dce6;cursor:pointer;
+    font-size:1rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;
+  }
+  .bloco-a11y-excluir:hover{background:rgba(220,60,60,.85);color:#fff;}
   .bloco-a11y-corpo{padding:8px 0 2px;}
   .bloco-a11y-corpo .passo{margin-top:8px;}
   .bloco-a11y-corpo .passo:first-child{margin-top:4px;}
@@ -174,7 +181,7 @@
   .passo.passo-a11y-nota{border-left-color:var(--green-dark);}
   .passo.passo-a11y .carimbo{font-weight:600;}
   .passo.passo-a11y .detalhe-tecnico{font-size:.78rem;color:#8a9aa0;margin-top:6px;font-family:Consolas,monospace;}
-  @media print{.ferramentas-scan,.linha-scan,.estado-ponte{display:none;}.bloco-a11y-wrap{break-inside:avoid;}.bloco-a11y-wrap[open] summary{margin-bottom:8px;}}
+  @media print{.ferramentas-scan,.linha-scan,.estado-ponte{display:none;}.bloco-a11y-wrap{break-inside:avoid;}.bloco-a11y-dica,.bloco-a11y-excluir{display:none;}}
   .caixa-cenarios{
     background:var(--card);border-radius:12px;box-shadow:var(--sombra);
     margin-top:16px;overflow:hidden;
@@ -801,7 +808,7 @@
     .marca .clara{display:block;}
     .trilha,.barra-rec,details.caixa > summary,.rodape-fixo,.vazio,.dica,.aviso,.espaco,
     .painel-inicio,.painel-numeros,#blocoRecentes,.aviso-toast,.fundo-modal,.flash,.busca,.resultado-busca,.del-btn,.abertura,
-    .passo .remover,.cabecalho-tela .btn,.painel-projeto .acoes,.videobox video,.videobox .btn{display:none;}
+    .passo .remover,.bloco-a11y-excluir,.cabecalho-tela .btn,.painel-projeto .acoes,.videobox video,.videobox .btn{display:none;}
     main{padding:16px 0 0;}
     details.caixa{box-shadow:none;border:1px solid var(--line);}
     details.caixa .corpo{padding:16px 18px;}
@@ -1875,52 +1882,110 @@
     }
   };
 
+  const REGRAS_LH_PT = {
+    'button-name': 'Botões sem nome acessível',
+    'link-name': 'Links sem texto identificável',
+    'image-alt': 'Imagens sem texto alternativo',
+    'color-contrast': 'Contraste insuficiente entre texto e fundo',
+    'document-title': 'Documento sem título',
+    'html-has-lang': 'Idioma da página não informado',
+    'label': 'Campos de formulário sem rótulo',
+    'meta-viewport': 'Zoom da página bloqueado ou limitado',
+    'target-size': 'Áreas de toque pequenas ou muito próximas',
+    'tap-targets': 'Áreas de toque pequenas ou muito próximas',
+    'heading-order': 'Ordem dos títulos incorreta',
+    'frame-title': 'Iframes sem título',
+    'duplicate-id-active': 'Identificadores duplicados em elementos ativos',
+    'duplicate-id-aria': 'Identificadores ARIA duplicados',
+    'aria-allowed-attr': 'Atributos ARIA não permitidos',
+    'aria-required-attr': 'Atributos ARIA obrigatórios ausentes',
+    'aria-valid-attr-value': 'Valores de atributos ARIA inválidos',
+    'aria-valid-attr': 'Atributos ARIA inválidos',
+    'list': 'Listas com marcação incorreta',
+    'listitem': 'Itens de lista fora de uma lista',
+    'definition-list': 'Listas de definição com marcação incorreta',
+    'video-caption': 'Vídeos sem legendas',
+    'object-alt': 'Objetos sem texto alternativo',
+    'input-image-alt': 'Imagens de botão sem texto alternativo',
+    'accesskeys': 'Teclas de acesso duplicadas'
+  };
+
   const REGRAS_PA11Y_PT = {
     'align attributes': {
       titulo: 'Alinhamento incorreto no HTML',
       obs: 'Um elemento usa atributo de alinhamento de forma inadequada ou obsoleta.'
     },
-    'alt text': {
-      titulo: 'Imagem sem texto alternativo',
-      obs: 'A imagem precisa de uma descrição para quem não consegue vê-la.'
+    '4_1_2_h91.a.nocontent': {
+      titulo: 'Link sem texto identificável',
+      obs: 'Há um link com endereço, mas sem texto ou conteúdo que diga para onde leva.'
     },
-    'duplicate id': {
-      titulo: 'Identificador repetido',
-      obs: 'Dois elementos compartilham o mesmo id, o que gera confusão.'
-    },
-    'heading order': {
-      titulo: 'Sequência de títulos incorreta',
-      obs: 'A hierarquia de títulos da página está fora de ordem.'
+    '2_4_1_g1,g123,g124.nosuchid': {
+      titulo: 'Link para âncora inexistente',
+      obs: 'O link aponta para um ponto da página que não existe.'
     }
   };
 
-  function paraPortugues(texto) {
-    if(!texto) return texto;
-    return String(texto)
-      .replace(/scrollable region must have keyboard access/gi, 'Área rolável precisa ser acessível pelo teclado')
-      .replace(/ensure elements that have scrollable content are accessible by keyboard in safari/gi, 'Partes da página que rolam devem funcionar com teclado no Safari')
-      .replace(/ensure elements that have scrollable content are accessible by keyboard/gi, 'Partes da página que rolam devem funcionar com teclado')
-      .replace(/align attributes/gi, 'Atributos de alinhamento incorretos')
-      .replace(/must have keyboard access/gi, 'precisa ser acessível pelo teclado')
-      .replace(/must have/gi, 'precisa ter')
-      .replace(/must be/gi, 'precisa ser')
-      .replace(/ensure/gi, 'Verifique se')
-      .replace(/elements/gi, 'elementos')
-      .replace(/accessible/gi, 'acessível')
-      .replace(/keyboard/gi, 'teclado')
-      .replace(/contrast/gi, 'contraste')
-      .replace(/sufficient/gi, 'suficiente')
+  function limparHtml(texto) {
+    return String(texto || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
-  function traduzirRegra(id, help, description, mapa) {
-    const chave = (id || '').toLowerCase().trim();
-    if(mapa[chave]) return { ...mapa[chave] };
-    const helpChave = (help || '').toLowerCase().trim();
-    if(mapa[helpChave]) return { ...mapa[helpChave] };
+  function pareceIngles(texto) {
+    return /\b(the|this|that|must|should|ensure|element|found|with|without|missing|attribute|link|button|accessible|document|anchor|content|supplied|points|within|exists|touch|targets|do not have)\b/i.test(texto || '');
+  }
+
+  function codigoSniffPa11y(code) {
+    const m = String(code || '').match(/\.(\d_\d_\d)\.(.+)$/);
+    return m ? (m[1] + '_' + m[2]).toLowerCase() : String(code || '').toLowerCase();
+  }
+
+  function traduzirPa11yMsg(msg, code) {
+    const texto = String(msg || '').trim();
+    const sniff = codigoSniffPa11y(code);
+    if(REGRAS_PA11Y_PT[sniff]) return REGRAS_PA11Y_PT[sniff];
+
+    const ancora = texto.match(/^This link points to a named anchor "([^"]+)" within the document, but no anchor exists with that name/i);
+    if(ancora){
+      return {
+        titulo: 'Link para âncora inexistente',
+        obs: 'Este link aponta para a âncora "' + ancora[1] + '" na página, mas essa âncora não existe.'
+      };
+    }
+    if(/Anchor element found with a valid href attribute, but no link content/i.test(texto)){
+      return {
+        titulo: 'Link sem texto identificável',
+        obs: 'Há um link com endereço, mas sem texto ou conteúdo que diga para onde leva.'
+      };
+    }
+    if(/^Align attributes/i.test(texto)){
+      return REGRAS_PA11Y_PT['align attributes'];
+    }
+    if(!pareceIngles(texto)){
+      return { titulo: texto.split(/[.;!?\n]/)[0].trim() || texto, obs: texto };
+    }
     return {
-      titulo: paraPortugues(help || description || id || 'Problema de acessibilidade'),
-      obs: paraPortugues(description || help || 'Foi encontrado um ponto que pode dificultar o uso da página.')
+      titulo: texto.split(/[.;!?\n]/)[0].trim() || 'Problema encontrado na página',
+      obs: texto
+    };
+  }
+
+  function traduzirRegra(id, help, description, mapa) {
+    const chave = String(id || '').toLowerCase().trim();
+    if(mapa[chave]) return { ...mapa[chave] };
+    const helpChave = String(help || '').toLowerCase().replace(/\.\s*$/, '').trim();
+    if(mapa[helpChave]) return { ...mapa[helpChave] };
+    const tituloBruto = limparHtml(help || description || id || 'Problema de acessibilidade');
+    const obsBruto = limparHtml(description || help || 'Foi encontrado um ponto que pode dificultar o uso da página.');
+    return {
+      titulo: tituloBruto.replace(/\s*\(.*?\)\s*$/, '').trim(),
+      obs: obsBruto
     };
   }
 
@@ -1956,8 +2021,7 @@
 
   function humanizarPa11y(i) {
     const gravidade = GRAVIDADE[i.type] || 'A verificar';
-    const msg = (i.message || '').trim();
-    const trad = traduzirRegra(i.code, msg, msg, REGRAS_PA11Y_PT);
+    const trad = traduzirPa11yMsg(i.message, i.code);
     const titulo = trad.titulo;
     let obs = trad.obs;
     const onde = simplificarSeletor(i.selector);
@@ -1970,9 +2034,21 @@
   }
 
   function humanizarLighthouse(a, it) {
-    const trad = traduzirRegra(a.id, a.title, a.description, {});
-    const titulo = trad.titulo;
-    let obs = trad.obs;
+    const id = a.id || '';
+    let titulo = REGRAS_LH_PT[id] || limparHtml(a.title || id);
+    let obs = limparHtml(a.description || a.title || 'Ponto de atenção encontrado na nota de acessibilidade.');
+    if(pareceIngles(titulo) && REGRAS_LH_PT[id]) titulo = REGRAS_LH_PT[id];
+    if(pareceIngles(titulo)){
+      if(/touch targets/i.test(titulo)) titulo = 'Áreas de toque pequenas ou muito próximas';
+      else if(/buttons? do not have/i.test(titulo) || /button-name/i.test(id)) titulo = 'Botões sem nome acessível';
+      else if(/links? do not have/i.test(titulo) || /link-name/i.test(id)) titulo = 'Links sem texto identificável';
+      else if(/images? do not have/i.test(titulo) || /image-alt/i.test(id)) titulo = 'Imagens sem texto alternativo';
+      else if(/contrast/i.test(titulo)) titulo = 'Contraste insuficiente entre texto e fundo';
+    }
+    if(pareceIngles(obs)){
+      obs = 'Este ponto foi marcado na nota de acessibilidade e deve ser revisado na página.';
+      if(REGRAS_LH_PT[id]) obs = 'Problema: ' + REGRAS_LH_PT[id] + '.';
+    }
     const onde = simplificarSeletor(it.node && (it.node.selector || it.node.snippet));
     if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
     return { gravidade: 'A corrigir', titulo, obs, tecnico: a.id };
@@ -2039,6 +2115,7 @@
       + notaHtml
       + '<div class="bloco-a11y-dica">Clique para expandir ou recolher</div>'
       + '</div>'
+      + '<button type="button" class="bloco-a11y-excluir" data-acao="removerBlocoA11y" title="Excluir este bloco" aria-label="Excluir bloco ' + f.nomeCurto + '">&#10005;</button>'
       + '</summary>'
       + '<div class="bloco-a11y-corpo"></div>';
 
@@ -2863,6 +2940,12 @@
     const acao = a.dataset.acao;
     if(acao === 'novoProjeto') novoProjeto();
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
+    if(acao === 'removerBlocoA11y'){
+      e.preventDefault();
+      e.stopPropagation();
+      const bloco = a.closest('.bloco-a11y-wrap');
+      if(bloco){ bloco.remove(); atualizar(); avisar('Bloco removido.'); }
+    }
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }

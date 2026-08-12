@@ -10,6 +10,9 @@
 const fs = require('fs');
 const path = require('path');
 
+const LOCALE_AXE_PT = require('axe-core/locales/pt_BR.json');
+const { traduzirIssuePa11y } = require('./traducoes-pa11y.js');
+
 const SAIDA = path.join(__dirname, 'saida');
 
 const FLAGS_DOCKER = [
@@ -110,7 +113,9 @@ async function scanAxe(url) {
     await new Promise(r => setTimeout(r, 1000));
 
     const aviso = await diagnosticarPuppeteer(pagina);
-    const r = await new AxePuppeteer(pagina).analyze();
+    const r = await new AxePuppeteer(pagina)
+      .configure({ locale: LOCALE_AXE_PT })
+      .analyze();
 
     return {
       url,
@@ -143,7 +148,8 @@ async function scanPa11y(url) {
     ...resultado,
     ferramenta: 'pa11y',
     url: resultado.pageUrl || url,
-    gerado: new Date().toISOString()
+    gerado: new Date().toISOString(),
+    issues: (resultado.issues || []).map(traduzirIssuePa11y)
   };
 }
 
@@ -162,6 +168,7 @@ async function scanLighthouse(url) {
       port: chrome.port,
       output: 'json',
       onlyCategories: ['accessibility'],
+      locale: 'pt',
       logLevel: 'error',
       formFactor: 'desktop',
       screenEmulation: { disabled: true }
