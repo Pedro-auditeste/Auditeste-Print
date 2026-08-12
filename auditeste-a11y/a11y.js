@@ -103,7 +103,7 @@ async function diagnosticar(pagina) {
 
 /* ---------- scanners ---------- */
 
-async function scanAxe(url) {
+async function scanAxePlaywright(url) {
   const mod = require('@axe-core/playwright');
   const AxeBuilder = mod.default || mod.AxeBuilder || mod;
 
@@ -121,12 +121,74 @@ async function scanAxe(url) {
     return {
       url,
       ferramenta: 'axe-core',
+      via: 'playwright',
       gerado: new Date().toISOString(),
       aviso,
       violations: r.violations
     };
   } finally {
     await navegador.close();
+  }
+}
+
+/** Fallback: mesmo Chrome do Pa11y/Lighthouse + axe-core injetado na pagina. */
+async function scanAxePuppeteer(url) {
+  const puppeteer = require('puppeteer');
+  const axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+  const chrome = exigirChrome('axe-core');
+
+  const navegador = await puppeteer.launch({
+    executablePath: chrome,
+    headless: true,
+    args: FLAGS_DOCKER
+  });
+  try {
+    const pagina = await navegador.newPage();
+    await pagina.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Auditeste-A11y/1.0'
+    );
+    await pagina.goto(url, { waitUntil: 'load', timeout: 60000 });
+    await pagina.waitForNetworkIdle({ idleTime: 500, timeout: 15000 }).catch(() => {});
+    await new Promise(r => setTimeout(r, 1000));
+
+    const aviso = await pagina.evaluate(() => {
+      const titulo = document.title || '';
+      const texto = ((document.body && document.body.innerText) || '').trim().length;
+      if (!titulo && texto < 1500) {
+        return 'ATENCAO: a pagina veio sem <title> e com pouquissimo conteudo. '
+          + 'O site provavelmente bloqueou o navegador automatizado.';
+      }
+      return null;
+    });
+
+    await pagina.evaluate(axeSource);
+    const r = await pagina.evaluate(async () => {
+      // eslint-disable-next-line no-undef
+      return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } });
+    });
+
+    return {
+      url,
+      ferramenta: 'axe-core',
+      via: 'puppeteer',
+      gerado: new Date().toISOString(),
+      aviso,
+      violations: r.violations
+    };
+  } finally {
+    await navegador.close();
+  }
+}
+
+async function scanAxe(url) {
+  try {
+    return await scanAxePlaywright(url);
+  } catch (err) {
+    const msg = err.message || '';
+    const playwrightQuebrou = /Executable doesn't exist|browserType\.launch|playwright/i.test(msg);
+    if (!playwrightQuebrou) throw err;
+    console.warn('axe: Playwright indisponível, usando Chrome do Puppeteer');
+    return await scanAxePuppeteer(url);
   }
 }
 
@@ -190,7 +252,10 @@ function statusMotores() {
   } catch (e) { playwrightOk = false; }
 
   return {
-    axe: { ok: playwrightOk, via: 'playwright-chromium' },
+    axe: {
+      ok: playwrightOk || !!chrome,
+      via: playwrightOk ? 'playwright-chromium' : (chrome ? 'puppeteer-chrome (fallback)' : null)
+    },
     pa11y: { ok: !!chrome, via: chrome ? 'chrome' : null },
     nota: { ok: !!chrome, via: chrome ? 'chrome' : null, alias: 'lighthouse' },
     chrome: chrome || null

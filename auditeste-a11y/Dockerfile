@@ -1,5 +1,5 @@
-# Imagem oficial do Playwright + Chrome do Puppeteer (Pa11y/Lighthouse).
-FROM mcr.microsoft.com/playwright:v1.56.1-noble
+# Versão alinhada com package.json (playwright 1.62.1).
+FROM mcr.microsoft.com/playwright:v1.62.1-noble
 
 WORKDIR /app
 

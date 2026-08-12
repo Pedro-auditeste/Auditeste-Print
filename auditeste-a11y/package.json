@@ -20,7 +20,7 @@
     "chrome-launcher": "^1.2.0",
     "lighthouse": "^12.8.2",
     "pa11y": "^9.0.1",
-    "playwright": "^1.56.1",
+    "playwright": "1.62.1",
     "puppeteer": "^24.43.1"
   }
 }
