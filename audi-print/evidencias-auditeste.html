@@ -2056,7 +2056,7 @@
         }
         const bDepois = depoisSnap ? await canvasParaBlob(depoisSnap, 0.85) : null;
         if(bDepois) juntarImagem(passo, bDepois, antesSnap
-          ? 'Depois — tela após a ação'
+          ? '2 — tela que abriu'
           : `Captura às ${hora()}`);
         const figs = [...passo.querySelectorAll('figure')].filter(f => f._blob);
         const blobAntes = figs.length > 1 ? figs[0]._blob : null;
