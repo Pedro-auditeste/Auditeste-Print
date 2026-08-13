@@ -30,7 +30,8 @@ srv.listen(0, '127.0.0.1', async () => {
     assert.strictEqual(clique.elemento, '#entrar');
     assert.ok(/id="entrar"/.test(clique.html || ''), 'html inspecionado');
     assert.ok(clique.imagens && clique.imagens.length >= 2, 'antes/depois');
-    assert.ok((r.video && r.video.startsWith('data:video/webm')) || (r.quadros && r.quadros.length >= 2), 'vídeo ou quadros gravados pela IA');
+    assert.ok((r.video && r.video.startsWith('data:video/webm')) || (r.quadros && r.quadros.length >= 4), 'vídeo ou quadros da sessão');
+    assert.ok(clique.imagens[0].legenda.includes('clique') && clique.imagens[1].legenda.includes('abriu'), 'legendas antes/depois');
     console.log('OK  passos:', r.passos.map((p) => p.acao + ' ' + p.elemento).join(' | '));
     console.log(r.video ? ('OK  vídeo ' + Math.round((r.video.length * 0.75) / 1024) + ' KB') : ('OK  quadros ' + r.quadros.length));
     console.log('RESULTADO: PASSOU');

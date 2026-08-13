@@ -373,8 +373,8 @@ const servidor = http.createServer(async (req, res) => {
 
 /* Lighthouse pode passar de 60s — sem isso o socket cai no meio do scan. */
 servidor.requestTimeout = 0;
-servidor.headersTimeout = 180000;
-servidor.timeout = 240000;
+servidor.headersTimeout = 240000;
+servidor.timeout = 300000;
 
 servidor.listen(PORTA, HOST, () => {
   const st = statusMotores();

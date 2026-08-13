@@ -1,12 +1,13 @@
-/* Teste autônomo: a IA abre a URL, clica, grava vídeo e inspeciona ids HTML. */
+/* Teste autônomo: abre a URL, percorre a página, grava vídeo e printa antes/depois. */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { chromium } = require('playwright');
 const { caminhoChrome } = require('./a11y.js');
 
-const MAX_CLIQUES = Number(process.env.TESTE_IA_CLIQUES || 4);
-const MAX_VIDEO = 9 * 1024 * 1024;
+const MAX_CLIQUES = Number(process.env.TESTE_IA_CLIQUES || 12);
+const MAX_VIDEO = 16 * 1024 * 1024;
+const MAX_QUADROS = 70;
 const PERIGOSOS = /sair|logout|log off|excluir|deletar|apagar|comprar agora|finalizar compra|pagar|checkout|remover|cancelar conta|unsubscribe|delete account/i;
 
 function ePerigoso(texto) {
@@ -63,9 +64,20 @@ function jpegDataUrl(buf) {
   return 'data:image/jpeg;base64,' + Buffer.from(buf).toString('base64');
 }
 
-async function printTela(pagina) {
-  const buf = await pagina.screenshot({ type: 'jpeg', quality: 52, fullPage: false });
+async function printTela(pagina, qualidade) {
+  const buf = await pagina.screenshot({ type: 'jpeg', quality: qualidade || 68, fullPage: false });
   return jpegDataUrl(buf);
+}
+
+function mesmaOrigem(href, base) {
+  if (!href || href.startsWith('#') || /^javascript:/i.test(href) || /^(mailto|tel):/i.test(href)) return false;
+  try {
+    const u = new URL(href, base);
+    const b = new URL(base);
+    return u.host === b.host && (u.protocol === 'http:' || u.protocol === 'https:');
+  } catch (_) {
+    return false;
+  }
 }
 
 async function listarCandidatos(pagina) {
@@ -73,8 +85,8 @@ async function listarCandidatos(pagina) {
     const perigosos = /sair|logout|log off|excluir|deletar|apagar|comprar agora|finalizar compra|pagar|checkout|remover|cancelar conta|unsubscribe|delete account/i;
     function visivel(el) {
       const r = el.getBoundingClientRect();
-      if (r.width < 10 || r.height < 10) return false;
-      if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false;
+      if (r.width < 8 || r.height < 8) return false;
+      if (r.bottom < -40 || r.top > innerHeight * 1.4 || r.right < 0 || r.left > innerWidth) return false;
       const st = getComputedStyle(el);
       if (st.visibility === 'hidden' || st.display === 'none' || Number(st.opacity) === 0) return false;
       return true;
@@ -105,12 +117,17 @@ async function listarCandidatos(pagina) {
       }
       return partes.length ? '//' + partes.join('').replace(/^\//, '') : '';
     }
-    const els = [...document.querySelectorAll('a[href], button, [role="button"], input[type="submit"], input[type="button"], summary')];
-    return els.filter(visivel).map((el) => {
+    const sel = 'a[href], button, [role="button"], [role="menuitem"], input[type="submit"], input[type="button"], summary, nav a, header a, footer a';
+    const vistos = new Set();
+    return [...document.querySelectorAll(sel)].filter(visivel).map((el) => {
       const texto = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
       const href = el.getAttribute('href') || '';
+      const seletor = seletorDe(el);
+      if (!seletor || vistos.has(seletor)) return null;
+      vistos.add(seletor);
+      const noNav = !!(el.closest('nav, header, [role="navigation"], [role="menubar"]'));
       return {
-        seletor: seletorDe(el),
+        seletor,
         id: el.id || '',
         testid: el.getAttribute('data-testid') || '',
         name: el.getAttribute('name') || '',
@@ -119,18 +136,20 @@ async function listarCandidatos(pagina) {
         href,
         html: (el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 280),
         temId: !!el.id,
+        noNav,
         perigoso: perigosos.test(texto + ' ' + href)
       };
-    }).filter((c) => c.seletor && !c.perigoso && !/^javascript:/i.test(c.href) && !/\.(pdf|zip|exe)(\?|$)/i.test(c.href));
+    }).filter((c) => c && !c.perigoso && !/^javascript:/i.test(c.href) && !/\.(pdf|zip|exe)(\?|$)/i.test(c.href));
   });
 }
 
 function pontuar(c) {
   let s = 0;
-  if (c.temId) s += 50;
-  if (c.testid) s += 30;
-  if (c.name) s += 12;
-  if (/entrar|login|menu|buscar|pesquisar|saiba|ver mais|produtos|cadastro|aceitar|aceito|concordo/i.test(c.texto)) s += 22;
+  if (c.temId) s += 40;
+  if (c.testid) s += 24;
+  if (c.noNav) s += 28;
+  if (c.name) s += 10;
+  if (/entrar|login|menu|buscar|pesquisar|saiba|ver mais|produtos|cadastro|aceitar|aceito|concordo|home|início|inicio|sobre|contato|serviços|servicos/i.test(c.texto)) s += 26;
   if (c.tag === 'button' || c.tag === 'a') s += 4;
   return s;
 }
@@ -139,16 +158,19 @@ async function clicarSeletor(pagina, seletor) {
   const loc = (seletor.startsWith('/') || seletor.startsWith('('))
     ? pagina.locator('xpath=' + seletor)
     : pagina.locator(seletor);
+  await loc.first().scrollIntoViewIfNeeded().catch(() => {});
+  await new Promise((r) => setTimeout(r, 350));
   try {
-    await loc.first().click({ timeout: 6000 });
+    await loc.first().click({ timeout: 7000 });
   } catch (_) {
-    await loc.first().click({ timeout: 4000, force: true });
+    await loc.first().click({ timeout: 5000, force: true });
   }
 }
 
 async function esperarAssentar(pagina) {
-  await pagina.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {});
-  await new Promise((r) => setTimeout(r, 900));
+  await pagina.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+  await pagina.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 1400));
 }
 
 function passoBase({ titulo, obs, acao, elemento, valor, html, imagens }) {
@@ -165,12 +187,19 @@ function passoBase({ titulo, obs, acao, elemento, valor, html, imagens }) {
 
 function optsContexto(pasta, comVideo) {
   const opts = {
-    viewport: { width: 1280, height: 720 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Auditeste-TesteIA/1.0',
+    viewport: { width: 1366, height: 768 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Auditeste-Teste/1.0',
     locale: 'pt-BR'
   };
-  if (comVideo) opts.recordVideo = { dir: pasta, size: { width: 1280, height: 720 } };
+  if (comVideo) opts.recordVideo = { dir: pasta, size: { width: 1366, height: 768 } };
   return opts;
+}
+
+async function voltarBase(pagina, base) {
+  if (pagina.url() === base) return;
+  await pagina.goBack({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null);
+  if (pagina.url() !== base) await pagina.goto(base, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+  await esperarAssentar(pagina);
 }
 
 async function testarUrl(alvo) {
@@ -203,66 +232,119 @@ async function testarUrl(alvo) {
   const passos = [];
   const quadros = [];
   let videoData = null;
-  const gravarQuadro = async () => {
-    if (comVideo || quadros.length >= 36) return;
-    try { quadros.push(await printTela(pagina)); } catch (_) { /* ok */ }
-  };
+  let gravandoQuadros = true;
+  const timerQuadros = setInterval(() => {
+    if (!gravandoQuadros || !pagina || quadros.length >= MAX_QUADROS) return;
+    printTela(pagina, 42).then((u) => {
+      if (gravandoQuadros && quadros.length < MAX_QUADROS) quadros.push(u);
+    }).catch(() => {});
+  }, 500);
 
   try {
     await pagina.goto(url, { waitUntil: 'load', timeout: 45000 });
+    const printChegando = await printTela(pagina);
     await esperarAssentar(pagina);
-    await gravarQuadro();
+    const base = pagina.url();
     const tituloHome = (await pagina.title().catch(() => '')) || parsed.hostname;
     const printHome = await printTela(pagina);
     passos.push(passoBase({
       titulo: 'Acessou ' + parsed.hostname,
-      obs: 'Abriu "' + tituloHome + '" em ' + pagina.url(),
+      obs: 'Antes: abrindo o site. Depois: "' + tituloHome + '" em ' + base,
       acao: 'Acessar',
       elemento: url,
       html: '',
-      imagens: [{ dataUrl: printHome, legenda: '1 — tela inicial' }]
+      imagens: [
+        { dataUrl: printChegando, legenda: '1 — tela do clique' },
+        { dataUrl: printHome, legenda: '2 — tela que abriu' }
+      ]
     }));
+    await new Promise((r) => setTimeout(r, 800));
 
     const usados = new Set();
-    for (let i = 0; i < MAX_CLIQUES; i++) {
-      const lista = (await listarCandidatos(pagina)).sort((a, b) => pontuar(b) - pontuar(a));
-      const cand = lista.find((c) => c.seletor && !usados.has(c.seletor) && !usados.has(c.href || ''));
-      if (!cand) break;
+    let cliques = 0;
+
+    async function executarClique(cand) {
+      if (!cand || cliques >= MAX_CLIQUES) return false;
+      if (usados.has(cand.seletor) || (cand.href && usados.has(cand.href))) return false;
       usados.add(cand.seletor);
       if (cand.href) usados.add(cand.href);
-
+      const urlAntes = pagina.url();
+      try {
+        const loc = (cand.seletor.startsWith('/') || cand.seletor.startsWith('('))
+          ? pagina.locator('xpath=' + cand.seletor)
+          : pagina.locator(cand.seletor);
+        await loc.first().scrollIntoViewIfNeeded().catch(() => {});
+        await new Promise((r) => setTimeout(r, 400));
+      } catch (_) { /* segue o print mesmo assim */ }
       const antes = await printTela(pagina);
-      await gravarQuadro();
-      const rotulo = cand.texto || cand.id || cand.seletor;
       try {
         await clicarSeletor(pagina, cand.seletor);
       } catch (e) {
         avisos.push('não clicou em ' + cand.seletor + ': ' + e.message);
-        continue;
+        return false;
       }
       await esperarAssentar(pagina);
-      await gravarQuadro();
       const depois = await printTela(pagina);
       const heading = await pagina.evaluate(() => {
         const h = document.querySelector('h1, h2, [role="heading"]');
         return (h && (h.innerText || '').trim().slice(0, 80)) || document.title || '';
       }).catch(() => '');
+      const rotulo = cand.texto || cand.id || cand.seletor;
       passos.push(passoBase({
         titulo: 'Clicou em "' + rotulo + '"',
-        obs: 'Antes: ' + rotulo + '. Depois: ' + (heading || pagina.url()) + '. HTML: ' + (cand.html || ''),
+        obs: 'Antes: ' + rotulo + '. Depois: ' + (heading || pagina.url()) + (cand.html ? '. HTML: ' + cand.html : ''),
         acao: 'Clicar',
         elemento: cand.seletor,
         html: cand.html,
         imagens: [
-          { dataUrl: antes, legenda: '1 — tela do clique' },
+          { dataUrl: antes || depois, legenda: '1 — tela do clique' },
           { dataUrl: depois, legenda: '2 — tela que abriu' }
         ]
       }));
+      cliques++;
+      await new Promise((r) => setTimeout(r, 900));
+      if (pagina.url() !== urlAntes && pagina.url() !== base) await voltarBase(pagina, base);
+      return true;
     }
 
-    if (passos.length < 2) avisos.push('poucos elementos clicáveis com id/seletor nesta página');
-    if (!comVideo) avisos.push('vídeo montado por quadros (ffmpeg ausente na ponte)');
+    /* 1) banner de cookies, se houver */
+    const cookie = (await listarCandidatos(pagina)).find((c) => /aceitar|aceito|concordo|entendi|ok,?\s*continuar/i.test(c.texto));
+    if (cookie) await executarClique(cookie);
+
+    /* 2) menu / header — percorre a página toda voltando à origem */
+    await pagina.evaluate(() => window.scrollTo(0, 0));
+    await new Promise((r) => setTimeout(r, 400));
+    const nav = (await listarCandidatos(pagina))
+      .filter((c) => c.noNav || /menu|nav/i.test(c.html))
+      .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#'))
+      .sort((a, b) => pontuar(b) - pontuar(a));
+    for (const cand of nav) {
+      if (cliques >= MAX_CLIQUES) break;
+      await executarClique(cand);
+    }
+
+    /* 3) rola a página e clica o que aparecer em cada faixa */
+    const alturas = await pagina.evaluate(() => {
+      const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 1);
+      return [0, 0.28, 0.52, 0.76, 1].map((p) => Math.floor(Math.max(0, h - innerHeight) * p));
+    });
+    for (const y of alturas) {
+      if (cliques >= MAX_CLIQUES) break;
+      await pagina.evaluate((yy) => window.scrollTo(0, yy), y);
+      await new Promise((r) => setTimeout(r, 700));
+      const lista = (await listarCandidatos(pagina))
+        .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#') || !c.href.startsWith('http'))
+        .sort((a, b) => pontuar(b) - pontuar(a));
+      const cand = lista.find((c) => c.seletor && !usados.has(c.seletor) && !(c.href && usados.has(c.href)));
+      if (cand) await executarClique(cand);
+    }
+
+    if (cliques < 2) avisos.push('poucos elementos clicáveis nesta página');
+    if (!comVideo) avisos.push('vídeo montado por quadros');
   } finally {
+    gravandoQuadros = false;
+    clearInterval(timerQuadros);
+    await new Promise((r) => setTimeout(r, 600));
     const handleVideo = comVideo && pagina && typeof pagina.video === 'function' ? pagina.video() : null;
     await contexto?.close().catch(() => {});
     await navegador.close().catch(() => {});
@@ -271,10 +353,10 @@ async function testarUrl(alvo) {
         const arq = await handleVideo.path();
         if (arq && fs.existsSync(arq)) {
           const buf = fs.readFileSync(arq);
-          if (buf.length && buf.length <= MAX_VIDEO) {
+          if (buf.length >= 80 * 1024 && buf.length <= MAX_VIDEO) {
             videoData = 'data:video/webm;base64,' + buf.toString('base64');
           } else if (buf.length > MAX_VIDEO) {
-            avisos.push('vídeo grande demais (' + Math.round(buf.length / 1048576) + ' MB); prints foram mantidos');
+            avisos.push('vídeo grande demais; usando os quadros da sessão');
           }
         }
       }
@@ -289,7 +371,7 @@ async function testarUrl(alvo) {
     titulo: parsed.hostname,
     passos,
     video: videoData,
-    quadros: videoData ? [] : quadros,
+    quadros: videoData ? quadros.slice(0, 24) : quadros,
     avisos
   };
 }

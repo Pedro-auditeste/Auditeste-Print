@@ -988,7 +988,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v22 · cole o link na tela inicial</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v23 · teste percorre a página e grava o vídeo</p>
       </div>
     </div>
 
@@ -2950,12 +2950,12 @@
     }
 
     testeIaAbort = new AbortController();
-    const timeoutId = setTimeout(() => { try{ testeIaAbort.abort(); }catch(_){ } }, 180000);
+    const timeoutId = setTimeout(() => { try{ testeIaAbort.abort(); }catch(_){ } }, 240000);
     segundos = 0; relogio.textContent = '00:00';
     mudarEstado('gravando');
     btnPausar.disabled = true;
     btnCapturar.disabled = true;
-    dizer('Abrindo o site, gravando e printando...');
+      dizer('Percorrendo a página, gravando o vídeo e printando cada passo...');
     const statusIaEl = document.getElementById('statusIA');
     if(statusIaEl) statusIaEl.textContent = 'Testando e gravando: ' + urlSite;
 
@@ -3007,7 +3007,7 @@
     rec.start(200);
     for(const img of imgs){
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 700));
     }
     rec.stop();
     await new Promise(r => { rec.onstop = r; });
@@ -3017,7 +3017,10 @@
   async function aplicarTesteIa(dados){
     lista.innerHTML = '';
     videoBlob = dados.video ? dataUrlParaBlob(dados.video) : null;
-    if(!videoBlob && (dados.quadros || []).length) videoBlob = await videoDosQuadros(dados.quadros);
+    if(!videoBlob || videoBlob.size < 80000){
+      const viaQuadros = await videoDosQuadros(dados.quadros || []);
+      if(viaQuadros && (!videoBlob || viaQuadros.size > videoBlob.size)) videoBlob = viaQuadros;
+    }
     if(videoBlob){
       caixaVideo.innerHTML = '<div class="videobox"><h3>Vídeo da sessão</h3>'
         + '<div class="meta">' + tam(videoBlob.size) + ' · gravado no teste · será arquivado com esta evidência</div>'
