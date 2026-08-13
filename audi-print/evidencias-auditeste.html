@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v16 · onde clicou + onde entrou</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v17 · antes/depois na ordem certa</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v16</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v17</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -1930,7 +1930,8 @@
     if(!atual) return 0;
     const pct = diffPct(atual, amostraEstavel);
     ultimaAmostra = atual;
-    if(forcar || !amostraEstavel || pct < 10){
+    if(capturaEmAndamento && !forcar) return pct;
+    if(forcar || !amostraEstavel || pct < 6){
       const c = document.createElement('canvas');
       if(gravarTelaAtual(c)){
         telaEstavel = c;
@@ -1944,7 +1945,7 @@
     if(estado !== 'gravando' || !video.videoWidth) return;
     const pct = atualizarTelaEstavel();
     const modo = modoCaptura();
-    const minMs = modo === 'alteracao' ? 700 : Number(document.getElementById('intervalo').value)*1000;
+    const minMs = modo === 'alteracao' ? 2000 : Number(document.getElementById('intervalo').value)*1000;
     if(Date.now() - ultimoCarimbo < minMs) return;
     if(capturaEmAndamento) return;
     const soMudanca = modo === 'alteracao' || document.getElementById('soMudanca').checked;
@@ -1952,20 +1953,26 @@
     if(limiar && pct < limiar) return;
     capturaEmAndamento = true;
     const antes = telaEstavel ? clonarCanvas(telaEstavel) : null;
+    const amostraAntes = amostraEstavel ? amostraEstavel.slice() : null;
     const t0 = Date.now();
     const tentar = () => {
       if(estado !== 'gravando'){ capturaEmAndamento = false; return; }
       const agora = amostraMini();
       const vsUltima = diffPct(agora, ultimaAmostra);
       if(agora) ultimaAmostra = agora;
-      if(vsUltima < 12 || Date.now() - t0 > 1400){
-        capturar(false, pct, antes);
+      if(vsUltima < 10 || Date.now() - t0 > 1800){
+        const vsAntes = amostraAntes && agora ? diffPct(agora, amostraAntes) : 100;
+        if(limiar && vsAntes < Math.max(Number(limiar), 6)){
+          capturaEmAndamento = false;
+          return;
+        }
+        capturar(false, vsAntes, antes);
         capturaEmAndamento = false;
         return;
       }
-      capturaPendente = setTimeout(tentar, 180);
+      capturaPendente = setTimeout(tentar, 200);
     };
-    capturaPendente = setTimeout(tentar, 350);
+    capturaPendente = setTimeout(tentar, 400);
   }
 
   function capturar(forcado, pctMudanca, canvasAntes){
@@ -1982,6 +1989,11 @@
     const primeiro = !!forcado && !manual;
     const antesSnap = (manual || primeiro) ? null
       : (canvasAntes && canvasAntes.width ? clonarCanvas(canvasAntes) : (telaEstavel ? clonarCanvas(telaEstavel) : null));
+    if(depoisSnap){
+      telaEstavel = clonarCanvas(depoisSnap);
+      amostraEstavel = amostraMini() || amostraEstavel;
+      ultimaAmostra = amostraEstavel;
+    }
     clarao();
     const desc = manual
       ? { titulo: 'Captura manual', obs: 'Print disparado pelo analista às ' + hora() + '.' }
@@ -2013,11 +2025,6 @@
         const blobAntes = figs.length > 1 ? figs[0]._blob : null;
         const blobDepois = figs.length ? figs[figs.length-1]._blob : null;
         await descreverTelaIA(passo, blobAntes, blobDepois);
-        if(depoisSnap){
-          telaEstavel = clonarCanvas(depoisSnap);
-          amostraEstavel = amostraMini() || amostraEstavel;
-          ultimaAmostra = amostraEstavel;
-        }
       });
   }
 
