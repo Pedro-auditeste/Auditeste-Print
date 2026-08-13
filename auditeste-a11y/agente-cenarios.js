@@ -18,72 +18,63 @@ const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 2048;
 const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
 const TIMEOUT_CENARIOS_MS = Math.max(90000, TIMEOUT_MS);
 
-const SISTEMA = `Você é o agente de automação web QA da Auditeste (skill automacao-web-qa / SKILL-MAPEAMENTO-QA).
-A partir das evidências do Audi Print você produz a ENTRADA padronizada para gerar feature Behave, steps e Page Object.
+const SISTEMA = `Você gera a entrada da skill automacao-web-qa / SKILL-MAPEAMENTO-QA a partir dos PRINTS do Audi Print.
 
-Contexto do Audi Print:
-- Cada passo é evidência (ação + observação + captura). Campos opcionais: acao, elemento, valor.
-- Acessibilidade: gravidade Grave/Importante/Moderado/Leve. "Verificação automática"=axe; "Segunda opinião"=Pa11y; "Nota"=Lighthouse.
+IDIOMA: somente português do Brasil. Proibido inglês (The image shows, Clicked, product listing, Before, After).
 
-Regras gerais:
-- Só o que as evidências mostram. Não invente telas, campos, mensagens, URLs ou seletores.
-- Poucos cenários corretos. 1 intenção por cenário.
-- Credenciais/URLs concretas só se aparecerem nas evidências; senão use aspas com placeholder e "# A confirmar".
-- Se o resultado da ficha for Reprovado/Bloqueado, priorize o defeito observado.
+Cada PRINT = 1 passo Gherkin + 1 bloco MAPEAMENTO, na mesma ordem das abas (use o título e a observação escritos).
+Não invente cliques. 1 cenário cobrindo o fluxo. Variáveis entre aspas duplas.
 
-GHERKIN (padrão automacao-web-qa):
-- Cabeçalho obrigatório: # language: pt
-- Comentário com artefatos sugeridos em snake_case: Feature, Steps e Page (ex. features/login/login.feature, features/steps/login/login_steps.py, pages/login/login_page.py).
-- Funcionalidade: + Como / Quero / Para quando der para inferir.
-- Tags: @smoke @regressivo e tags de domínio (@login, @ui, etc.).
-- Nome do Cenário EXATO: [Módulo][Funcionalidade] <Cenário> - <Condição>
-- Passos em português, indentados. Variáveis SEMPRE entre aspas duplas, no estilo:
-  Dado que eu acesso a URL "https://..."
-  Quando eu preencho o campo "E-mail" com "qa@teste.com"
-  E eu clico em "Entrar"
-  Então eu vejo o texto "Maria Santos"
-- Comparar: explícito, ex. "igual ao inserido no Passo 4" / "igual ao CPF informado no passo anterior".
-- Upload: Quando eu envio o arquivo "documento_teste.pdf" no campo de anexo
-- Acessibilidade: cenário separado citando o problema em linguagem clara.
+GHERKIN:
+- # language: pt
+- # Feature / Steps / Page em snake_case
+- Funcionalidade + Como / Quero / Para
+- @smoke @regressivo
+- Cenário: [Modulo][Funcionalidade] <nome> - <condicao>
+- Dado / Quando / E / Então a partir de cada print
 
-MAPEAMENTO (entrada da skill §2 — um bloco por passo de automação, na ordem):
-- Passo: N
-- Elemento Web: XPath, ID, seletor CSS, rótulo do componente ou URL. Sem evidência: "(a confirmar)"
-- Ação: SOMENTE Preencher | Clicar | Ler | Limpar | Verificar | Comparar | Acessar | Upload
-- Valor: obrigatório para Preencher, Comparar e Upload
-- Relacionar ao Gherkin: linha "Step: ..." com a frase Dado/Quando/Então correspondente
-- Upload: incluir "Diretório: features/data/..." quando houver arquivo
+MAPEAMENTO (skill §2, um bloco por print):
+Passo: N
+Elemento Web: rótulo visível, seletor ou (a confirmar)
+Ação: só Preencher | Clicar | Ler | Limpar | Verificar | Comparar | Acessar | Upload
+Valor: se Preencher, Comparar ou Upload
+Step: a frase Gherkin correspondente
 
-Formato obrigatório da resposta (somente estes dois blocos, sem prosa nem markdown extra):
+Resposta: comece em ===GHERKIN===. Depois ===MAPEAMENTO===. Nada antes, nada depois, sem repetir ===GHERKIN=== no mapeamento.
 
+Exemplo (print: clicou no card Smart TV Philco e abriu a PDP):
 ===GHERKIN===
 # language: pt
-# Feature: features/<modulo>/<nome>.feature
-# Steps: features/steps/<modulo>/<nome>_steps.py
-# Page: pages/<modulo>/<nome>_page.py
+# Feature: features/compras/compras.feature
+# Steps: features/steps/compras/compras_steps.py
+# Page: pages/compras/compras_page.py
 
-Funcionalidade: <Nome do fluxo>
-  Como <persona>
-  Quero <acao>
-  Para <beneficio>
+Funcionalidade: Compras
+  Como cliente
+  Quero abrir o produto a partir da vitrine
+  Para ver preço e comprar
 
   @smoke @regressivo
-  Cenário: [Modulo][Funcionalidade] <Cenario> - <Condicao>
-    Dado que eu ...
-    Quando eu ...
-    Então eu ...
+  Cenário: [Compras][Produto] Abrir página da Smart TV Philco - sucesso
+    Quando eu clico no card "Smart TV 43' Philco"
+    Então eu vejo o texto "R$ 1.449,90"
+    E eu vejo o botão "Comprar"
 
 ===MAPEAMENTO===
 Passo: 1
-Elemento Web: ...
-Ação: Acessar
-Step: Dado que eu acesso a URL "..."
+Elemento Web: card "Smart TV 43' Philco"
+Ação: Clicar
+Step: Quando eu clico no card "Smart TV 43' Philco"
 
 Passo: 2
-Elemento Web: ...
-Ação: Preencher
-Valor: ...
-Step: Quando eu preencho o campo "..." com "..."
+Elemento Web: texto "R$ 1.449,90"
+Ação: Verificar
+Step: Então eu vejo o texto "R$ 1.449,90"
+
+Passo: 3
+Elemento Web: botão "Comprar"
+Ação: Verificar
+Step: E eu vejo o botão "Comprar"
 `;
 
 function descreverFicha(ficha) {
@@ -108,16 +99,18 @@ function blocoImagem(dataUrl) {
 }
 
 function montarConteudoUsuario({ ficha, passos, quadros }) {
-  const partes = [
-    { type: 'text', text: SISTEMA },
-    { type: 'text', text: descreverFicha(ficha) }
-  ];
+  const partes = [{ type: 'text', text: descreverFicha(ficha) }];
   let imagens = 0;
 
+  partes.push({
+    type: 'text',
+    text: 'PRINTS do Audi Print (1 bloco = 1 print / aba). Use título e observação de cada um:'
+  });
+
   passos.forEach((p, i) => {
-    const linhas = [`Passo ${i + 1}: ${(p.titulo || '').trim() || '(sem descrição)'}`];
-    if ((p.obs || '').trim()) linhas.push(`Observação: ${p.obs.trim()}`);
-    if ((p.acao || '').trim()) linhas.push(`Ação sugerida: ${p.acao.trim()}`);
+    const linhas = [`Print ${i + 1}: ${(p.titulo || '').trim() || '(sem título)'}`];
+    if ((p.obs || '').trim()) linhas.push(`O que está na aba: ${p.obs.trim()}`);
+    if ((p.acao || '').trim()) linhas.push(`Ação: ${p.acao.trim()}`);
     if ((p.elemento || '').trim()) linhas.push(`Elemento Web: ${p.elemento.trim()}`);
     if ((p.valor || '').trim()) linhas.push(`Valor: ${p.valor.trim()}`);
     partes.push({ type: 'text', text: linhas.join('\n') });
@@ -131,7 +124,7 @@ function montarConteudoUsuario({ ficha, passos, quadros }) {
   });
 
   if (Array.isArray(quadros) && quadros.length && imagens < MAX_IMAGENS) {
-    partes.push({ type: 'text', text: 'Quadros amostrados do vídeo da sessão, em ordem cronológica:' });
+    partes.push({ type: 'text', text: 'Quadros do vídeo, em ordem:' });
     for (const q of quadros) {
       if (imagens >= MAX_IMAGENS) break;
       if (!dataUrlValida(q)) continue;
@@ -142,34 +135,164 @@ function montarConteudoUsuario({ ficha, passos, quadros }) {
 
   partes.push({
     type: 'text',
-    text: 'Gere agora a entrada da skill automacao-web-qa no formato ===GHERKIN=== e ===MAPEAMENTO===. Nome do cenário no padrão [Módulo][Funcionalidade] <Cenário> - <Condição>. Aspas duplas nas variáveis. Ações só do enum da skill.'
+    text: 'Gere ===GHERKIN=== completo e em seguida ===MAPEAMENTO===. Um passo Gherkin e um bloco de mapeamento por print. Somente português.'
   });
 
   return { partes, imagens };
 }
 
+function pareceGherkin(t) {
+  return /#\s*language\s*:\s*pt|^\s*Funcionalidade\s*:/im.test(t || '');
+}
+
+function pareceMapa(t) {
+  return /Passo\s*:\s*\d+/i.test(t || '') && /A[cç][aã]o\s*:/i.test(t || '');
+}
+
 function extrairBlocos(texto) {
-  const bruto = (texto || '').trim();
+  const bruto = String(texto || '').replace(/```[a-z]*\n?|```/gi, '').trim();
   if (!bruto) throw new Error('a resposta veio sem texto');
 
-  const reG = /===GHERKIN===\s*([\s\S]*?)(?====MAPEAMENTO===|$)/i;
-  const reM = /===MAPEAMENTO===\s*([\s\S]*?)$/i;
-  const g = reG.exec(bruto);
-  const m = reM.exec(bruto);
+  const re = /=\s*=\s*=\s*(GHERKIN|MAPEAMENTO)\s*=\s*=\s*=/gi;
+  const marks = [];
+  let m;
+  while ((m = re.exec(bruto))) marks.push({ tipo: m[1].toUpperCase(), start: m.index, end: m.index + m[0].length });
 
-  if (!g || !m) {
-    throw new Error(
-      'Resposta do agente sem delimitadores ===GHERKIN=== / ===MAPEAMENTO===. '
-      + 'Tente de novo ou revise o modelo em AGENTE_MODELO.'
-    );
+  const gherkins = [];
+  const mapas = [];
+  if (!marks.length) {
+    const idxP = bruto.search(/Passo\s*:\s*1\b/i);
+    if (pareceGherkin(bruto) && idxP > 0) {
+      gherkins.push(bruto.slice(0, idxP).trim());
+      mapas.push(bruto.slice(idxP).trim());
+    }
+  } else {
+    for (let i = 0; i < marks.length; i++) {
+      const corpo = bruto.slice(marks[i].end, i + 1 < marks.length ? marks[i + 1].start : bruto.length).trim();
+      if (!corpo) continue;
+      (marks[i].tipo === 'GHERKIN' ? gherkins : mapas).push(corpo);
+    }
   }
 
-  const cenarios = g[1].trim();
-  const mapeamento = m[1].trim();
-  if (!cenarios) throw new Error('bloco Gherkin vazio na resposta do agente');
-  if (!mapeamento) throw new Error('bloco mapeamento vazio na resposta do agente');
+  let cenarios = gherkins.find(pareceGherkin) || gherkins.sort((a, b) => b.length - a.length)[0] || '';
+  let mapeamento = mapas.find(pareceMapa) || mapas.sort((a, b) => b.length - a.length)[0] || '';
 
+  if (!pareceGherkin(cenarios) && mapeamento) {
+    const idxG = mapeamento.search(/#\s*language\s*:\s*pt|Funcionalidade\s*:/i);
+    const idxP = mapeamento.search(/Passo\s*:\s*1\b/i);
+    if (idxG >= 0 && (idxP < 0 || idxG < idxP)) {
+      cenarios = mapeamento.slice(idxG, idxP < 0 ? undefined : idxP).trim();
+      if (idxP >= 0) mapeamento = mapeamento.slice(idxP).trim();
+    }
+  }
+
+  mapeamento = mapeamento.replace(/=\s*=\s*=\s*GHERKIN\s*=\s*=\s*=[\s\S]*?(?=Passo\s*:\s*\d+)/i, '').trim();
+  cenarios = cenarios.replace(/=\s*=\s*=\s*(GHERKIN|MAPEAMENTO)\s*=\s*=\s*=/gi, '').trim();
+  mapeamento = mapeamento.replace(/=\s*=\s*=\s*(GHERKIN|MAPEAMENTO)\s*=\s*=\s*=/gi, '').trim();
+
+  if (!pareceGherkin(cenarios) || cenarios.length < 50) {
+    throw new Error('Gherkin inválido na resposta do agente');
+  }
+  if (!pareceMapa(mapeamento)) {
+    throw new Error('mapeamento inválido na resposta do agente');
+  }
   return { cenarios, mapeamento };
+}
+
+const ACOES_SKILL = ['Preencher', 'Clicar', 'Ler', 'Limpar', 'Verificar', 'Comparar', 'Acessar', 'Upload'];
+
+function slugModulo(ficha) {
+  const b = String((ficha && (ficha.modulo || ficha.demanda || ficha.tipo)) || 'fluxo')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'fluxo';
+  return b.slice(0, 40);
+}
+
+function inferirAcao(p) {
+  const a = String(p.acao || '').trim();
+  if (ACOES_SKILL.includes(a)) return a;
+  const tit = p.titulo || '';
+  const t = `${tit} ${p.obs || ''}`;
+  if (/upload|anex|arquivo/i.test(t)) return 'Upload';
+  if (/preencheu|digitou|pesquisou/i.test(t)) return 'Preencher';
+  if (/limpou/i.test(t)) return 'Limpar';
+  if (/compar/i.test(t)) return 'Comparar';
+  if (/^acessou|^entrou na tela|^está na tela|^esta na tela/i.test(tit.trim())) return 'Acessar';
+  if (/verific|então eu vejo|^entao eu vejo/i.test(tit) && !/clicou/i.test(tit)) return 'Verificar';
+  if (/clicou|abriu|selecionou/i.test(t)) return 'Clicar';
+  return 'Clicar';
+}
+
+function extrairAlvo(p) {
+  const el = String(p.elemento || '').trim();
+  if (el) return el;
+  const t = p.titulo || '';
+  const q = /["“”«»]([^"“”«»]+)["“”«»]/.exec(t);
+  if (q) return q[1].trim();
+  return t.replace(/^(Clicou|Digitou|Pesquisou|Abriu|Entrou|Preencheu|Acessou)\s+(em\s+|na\s+|no\s+)?/i, '').trim().slice(0, 90) || '(a confirmar)';
+}
+
+function linhaGherkin(acao, alvo, i, valor) {
+  const primeiro = i === 0;
+  if (acao === 'Acessar') return `    ${primeiro ? 'Dado que' : 'E'} eu acesso a tela "${alvo}"`;
+  if (acao === 'Preencher') {
+    const v = valor ? ` com "${valor}"` : '';
+    return `    ${primeiro ? 'Quando' : 'E'} eu preencho o campo "${alvo}"${v}`;
+  }
+  if (acao === 'Verificar') return `    ${primeiro ? 'Então' : 'E'} eu vejo o texto "${alvo}"`;
+  if (acao === 'Ler') return `    ${primeiro ? 'Quando' : 'E'} eu leio o texto "${alvo}"`;
+  if (acao === 'Limpar') return `    ${primeiro ? 'Quando' : 'E'} eu limpo o campo "${alvo}"`;
+  if (acao === 'Upload') return `    ${primeiro ? 'Quando' : 'E'} eu envio o arquivo "${valor || alvo}" no campo de anexo`;
+  if (acao === 'Comparar') return `    ${primeiro ? 'Então' : 'E'} eu comparo o campo "${alvo}"${valor ? ` com "${valor}"` : ''}`;
+  return `    ${primeiro ? 'Quando' : 'E'} eu clico em "${alvo}"`;
+}
+
+function montarCenariosDosPassos({ ficha, passos }) {
+  const lista = (passos || []).filter((p) => (p.titulo || p.obs || p.acao || p.elemento));
+  if (!lista.length) throw new Error('nenhum passo enviado');
+  const mod = slugModulo(ficha);
+  const nomeMod = String((ficha && ficha.modulo) || 'Fluxo').trim() || 'Fluxo';
+  const primeiroAlvo = extrairAlvo(lista[0]);
+  const linhasG = [
+    '# language: pt',
+    `# Feature: features/${mod}/${mod}.feature`,
+    `# Steps: features/steps/${mod}/${mod}_steps.py`,
+    `# Page: pages/${mod}/${mod}_page.py`,
+    '',
+    `Funcionalidade: ${nomeMod}`,
+    '  Como cliente',
+    '  Quero executar o fluxo registrado nos prints',
+    '  Para validar a navegação',
+    '',
+    '  @smoke @regressivo',
+    `  Cenário: [${nomeMod}][Fluxo] ${primeiroAlvo.slice(0, 60)} - sucesso`
+  ];
+  const linhasM = [];
+  lista.forEach((p, i) => {
+    const acao = inferirAcao(p);
+    const alvo = extrairAlvo(p);
+    const step = linhaGherkin(acao, alvo, i, (p.valor || '').trim()).trim();
+    linhasG.push(step);
+    linhasM.push(`Passo: ${i + 1}`);
+    linhasM.push(`Elemento Web: ${alvo}`);
+    linhasM.push(`Ação: ${acao}`);
+    if ((p.valor || '').trim() && /Preencher|Comparar|Upload/.test(acao)) {
+      linhasM.push(`Valor: ${p.valor.trim()}`);
+    }
+    linhasM.push(`Step: ${step.trim()}`);
+    linhasM.push('');
+  });
+  const ultimoObs = String(lista[lista.length - 1].obs || '');
+  const visto = /["“”]([^"“”]{3,80})["“”]/.exec(ultimoObs);
+  if (visto && !linhasG.some((l) => l.includes(visto[1]))) {
+    linhasG.push(`    Então eu vejo o texto "${visto[1]}"`);
+  } else if (!/Então|Entao/i.test(linhasG.join('\n'))) {
+    linhasG.push('    Então eu vejo a tela de destino do último print');
+  }
+  return {
+    cenarios: linhasG.join('\n').trim(),
+    mapeamento: linhasM.join('\n').trim()
+  };
 }
 
 function exigirChave() {
@@ -284,7 +407,7 @@ async function chamarVisao(conteudo) {
     messages: [
       {
         role: 'system',
-        content: 'Analista QA visual. Leia o texto nas capturas. Diga a região e o controle em que o cliente clicou e a tela/área em que entrou. Proibido frase genérica. Só o que se vê nas imagens.'
+        content: 'Analista QA visual. Responda SOMENTE em português do Brasil. Proibido inglês (The image shows, Clicked, product listing). Diga a região e o controle em que o cliente clicou e a tela em que entrou. Só o que se lê nas imagens.'
       },
       { role: 'user', content: conteudo }
     ],
@@ -303,8 +426,9 @@ async function descreverTela(entrada) {
     'Há UMA imagem JPEG dividida em duas faixas (NVIDIA só aceita 1 imagem):',
     '- Faixa de CIMA, rótulo ANTES: tela em que o cliente estava e clicou/digitou.',
     '- Faixa de BAIXO, rótulo DEPOIS: o que abriu / para onde entrou.',
+    'Somente português. Proibido inglês.',
     'Leia o texto visível (logo, título, botão, campo, card, menu, breadcrumb). Compare CIMA × BAIXO.',
-    'Proibido frases vazias ("o que foi clicado", "tela alterada").',
+    'Proibido frases vazias ("o que foi clicado", "tela alterada", "The image shows").',
     'Título: 1 linha — verbo + rótulo entre aspas + ONDE na tela (topo, header, menu, centro, card, formulário, rodapé, modal).',
     'Observação: 3 a 5 frases, nesta ordem:',
     '1) Estava em: tela de CIMA + o que se lê (marca, heading, formulário, listagem).',
@@ -317,7 +441,7 @@ async function descreverTela(entrada) {
     'Observação: Estava na tela de login da loja, com campos e-mail e senha no centro. Clicou no botão "Entrar" abaixo dos campos. Entrou na home logada, com o nome do usuário no topo e o menu principal visível.'
   ].join('\n');
   const promptUma = [
-    'Há UMA captura (início da gravação ou print único). Leia o texto visível.',
+    'Há UMA captura (início da gravação ou print único). Somente português. Leia o texto visível.',
     'Diga em qual tela/site o cliente está e o que aparece (logo, título, formulário, listagem, modal).',
     'Título: Acessou a tela "..." (use o heading/logo visível).',
     'Observação: 2 a 4 frases descrevendo a tela e o que o cliente pode clicar em seguida (botões/campos visíveis).',
@@ -337,13 +461,29 @@ async function gerarCenarios({ ficha, passos, quadros }) {
   exigirChave();
   if (!Array.isArray(passos) || !passos.length) throw new Error('nenhum passo enviado');
 
+  const local = montarCenariosDosPassos({ ficha, passos });
   const { partes, imagens } = montarConteudoUsuario({ ficha, passos, quadros });
-  const r = await chamarNvidia({
-    messages: [{ role: 'user', content: partes }],
-    maxTokens: Math.min(MAX_TOKENS, 2048),
-    temperature: 0.2,
-    timeoutMs: TIMEOUT_CENARIOS_MS
-  });
+  let r;
+  try {
+    r = await chamarNvidia({
+      messages: [
+        { role: 'system', content: SISTEMA },
+        { role: 'user', content: partes }
+      ],
+      maxTokens: Math.min(MAX_TOKENS, 2048),
+      temperature: 0.15,
+      timeoutMs: TIMEOUT_CENARIOS_MS
+    });
+  } catch (err) {
+    if (err && err.semChave) throw err;
+    return {
+      cenarios: local.cenarios,
+      mapeamento: local.mapeamento,
+      modelo: 'montado dos prints (IA indisponível)',
+      imagens: 0,
+      uso: { entrada: 0, saida: 0 }
+    };
+  }
 
   if (r.finish_reason === 'content_filter') {
     const e = new Error('O modelo recusou gerar a partir dessas evidências (filtro de conteúdo).');
@@ -351,18 +491,38 @@ async function gerarCenarios({ ficha, passos, quadros }) {
     throw e;
   }
 
-  const { cenarios, mapeamento } = extrairBlocos(r.texto);
-
-  return {
-    cenarios,
-    mapeamento,
-    modelo: r.model || MODELO,
-    imagens,
-    uso: {
-      entrada: (r.usage && r.usage.prompt_tokens) || 0,
-      saida: (r.usage && r.usage.completion_tokens) || 0
-    }
-  };
+  try {
+    const parsed = extrairBlocos(r.texto);
+    return {
+      cenarios: parsed.cenarios,
+      mapeamento: parsed.mapeamento,
+      modelo: r.model || MODELO,
+      imagens,
+      uso: {
+        entrada: (r.usage && r.usage.prompt_tokens) || 0,
+        saida: (r.usage && r.usage.completion_tokens) || 0
+      }
+    };
+  } catch (_) {
+    return {
+      cenarios: local.cenarios,
+      mapeamento: local.mapeamento,
+      modelo: (r.model || MODELO) + ' + montado dos prints',
+      imagens,
+      uso: {
+        entrada: (r.usage && r.usage.prompt_tokens) || 0,
+        saida: (r.usage && r.usage.completion_tokens) || 0
+      }
+    };
+  }
 }
 
-module.exports = { gerarCenarios, descreverTela, parseDescricaoTela, MODELO, BASE_URL, extrairBlocos };
+module.exports = {
+  gerarCenarios,
+  descreverTela,
+  parseDescricaoTela,
+  montarCenariosDosPassos,
+  MODELO,
+  BASE_URL,
+  extrairBlocos
+};

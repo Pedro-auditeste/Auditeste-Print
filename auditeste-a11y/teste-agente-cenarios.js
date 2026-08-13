@@ -1,6 +1,6 @@
 /* Smoke do agente: parse de blocos + ausência de chave. Sem chamada de rede. */
 const assert = require('assert');
-const { extrairBlocos, gerarCenarios, parseDescricaoTela } = require('./agente-cenarios.js');
+const { extrairBlocos, gerarCenarios, parseDescricaoTela, montarCenariosDosPassos } = require('./agente-cenarios.js');
 
 const amostra = `===GHERKIN===
 # language: pt
@@ -40,6 +40,47 @@ const desc = parseDescricaoTela('Título: Clicou em "Entrar" no centro do formul
 assert.ok(desc.titulo.includes('Entrar'));
 assert.ok(/login|centro|home|Entrou|Clicou/i.test(desc.obs));
 
+const bagunca = `===GHERKIN===
+e
+===MAPEAMENTO===
+===GHERKIN===
+# language: pt
+# Feature: features/compras/compras.feature
+
+Funcionalidade: Compras
+  Como cliente
+  Quero abrir o produto
+  Para comprar
+
+  @smoke @regressivo
+  Cenário: [Compras][Produto] Abrir PDP da Smart TV - sucesso
+    Quando eu clico no card "Smart TV 43' Philco"
+    Então eu vejo o botão "Comprar"
+
+===MAPEAMENTO===
+Passo: 1
+Elemento Web: card "Smart TV 43' Philco"
+Ação: Clicar
+Step: Quando eu clico no card "Smart TV 43' Philco"
+`;
+const consertado = extrairBlocos(bagunca);
+assert.ok(consertado.cenarios.includes('Funcionalidade: Compras'));
+assert.ok(!/^e\b/i.test(consertado.cenarios.trim()));
+assert.ok(!consertado.mapeamento.includes('===GHERKIN==='));
+assert.ok(consertado.mapeamento.includes('Ação: Clicar'));
+
+const local = montarCenariosDosPassos({
+  ficha: { modulo: 'Compras' },
+  passos: [
+    { titulo: 'Clicou em "Smart TV 43\' Philco" na grade Indicados', obs: 'Entrou na página do produto. Preço "R$ 1.449,90". Botão Comprar.' }
+  ]
+});
+assert.ok(local.cenarios.includes('# language: pt'));
+assert.ok(local.cenarios.includes('Quando eu clico em'));
+assert.ok(!/The image|Clicked|product listing/i.test(local.cenarios + local.mapeamento));
+assert.ok(local.mapeamento.includes('Ação: Clicar'));
+assert.ok(local.mapeamento.includes('Passo: 1'));
+
 let falhouSemChave = false;
 const prev = process.env.AGENTE_API_KEY;
 delete process.env.AGENTE_API_KEY;
@@ -49,6 +90,8 @@ gerarCenarios({ ficha: {}, passos: [{ titulo: 'x' }] })
     falhouSemChave = !!(err && err.semChave);
     assert.ok(falhouSemChave, 'erro semChave esperado');
     console.log('OK  extrairBlocos');
+    console.log('OK  Gherkin "e" recuperado do mapeamento');
+    console.log('OK  montarCenariosDosPassos em PT');
     console.log('OK  sem AGENTE_API_KEY → semChave');
     console.log('RESULTADO: PASSOU');
   })
