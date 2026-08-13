@@ -11,7 +11,8 @@
 const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/$/, '');
 const MODELO = String(process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct').trim();
 const MODELO_FALLBACK = String(process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct').trim();
-const MAX_IMAGENS = Number(process.env.AGENTE_MAX_IMAGENS) || 20;
+const MAX_IMAGENS = Number(process.env.AGENTE_MAX_IMAGENS)
+  || (/llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + BASE_URL) ? 1 : 8);
 const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 4096;
 const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
 
@@ -207,7 +208,7 @@ function modelosTentativa() {
 }
 
 /** Chamada no formato oficial NVIDIA (chat/completions), sem SDK. */
-async function chamarNvidia({ messages, maxTokens, temperature }) {
+async function chamarNvidia({ messages, maxTokens, temperature, timeoutMs }) {
   exigirChave();
   let ultimo = null;
   for (const model of modelosTentativa()) {
@@ -229,7 +230,7 @@ async function chamarNvidia({ messages, maxTokens, temperature }) {
           temperature: temperature == null ? 0.2 : temperature,
           top_p: 1
         }),
-        signal: AbortSignal.timeout(TIMEOUT_MS)
+        signal: AbortSignal.timeout(timeoutMs || TIMEOUT_MS)
       });
       const dados = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -266,11 +267,11 @@ function parseDescricaoTela(texto) {
   const t = /(?:t[íi]tulo|a[cç][aã]o)\s*[:\-–]\s*(.+)/i.exec(bruto);
   const o = /observa[cç][aã]o\s*[:\-–]\s*([\s\S]+)/i.exec(bruto);
   const linhas = bruto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  let titulo = (t ? t[1] : linhas[0] || '').replace(/^["'#*\s]+|["'#*\s]+$/g, '').slice(0, 160);
+  let titulo = (t ? t[1] : linhas[0] || '').replace(/^["'#*\s]+|["'#*\s]+$/g, '').slice(0, 220);
   let obs = (o ? o[1] : linhas.slice(1).join(' ').trim() || titulo)
     .replace(/^["'#*\s]+|["'#*\s]+$/g, '')
     .replace(/\s+/g, ' ')
-    .slice(0, 400);
+    .slice(0, 900);
   if (!titulo) throw new Error('não foi possível ler o título da tela');
   if (!obs) obs = titulo;
   return { titulo, obs };
@@ -278,9 +279,16 @@ function parseDescricaoTela(texto) {
 
 async function chamarVisao(conteudo) {
   const r = await chamarNvidia({
-    messages: [{ role: 'user', content: conteudo }],
-    maxTokens: 180,
-    temperature: 0.1
+    messages: [
+      {
+        role: 'system',
+        content: 'Analista QA visual. Leia o texto nas capturas. Diga a região e o controle em que o cliente clicou e a tela/área em que entrou. Proibido frase genérica. Só o que se vê nas imagens.'
+      },
+      { role: 'user', content: conteudo }
+    ],
+    maxTokens: 480,
+    temperature: 0.2,
+    timeoutMs: Math.max(TIMEOUT_MS, 45000)
   });
   return parseDescricaoTela(r.texto);
 }
@@ -288,52 +296,39 @@ async function chamarVisao(conteudo) {
 async function descreverTela(entrada) {
   exigirChave();
   const depois = typeof entrada === 'string' ? entrada : (entrada && (entrada.imagem || entrada.depois || entrada.dataUrl) || '');
-  const antes = typeof entrada === 'string' ? '' : (entrada && (entrada.antes || entrada.imagemAntes) || '');
   if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
   const promptPar = [
-    'Você é analista QA escrevendo o PASSO do cenário de teste, em português do Brasil.',
-    'Há DUAS capturas: Imagem 1 = TELA A (antes da ação); Imagem 2 = TELA B (depois da ação).',
-    'Descreva o que o USUÁRIO FEZ para ir da tela A para a tela B.',
-    'Título: uma linha, verbo + alvo entre aspas. Verbos: Clicou, Digitou, Pesquisou, Abriu, Entrou, Preencheu.',
-    'Observação: 1 ou 2 frases no formato: O usuário estava na tela "...". Clicou em "..." / preencheu "...". Entrou na tela/área "...".',
-    'Proibido: inventariar a tela, listar links, menus, URLs, HTML, CSS, produtos patrocinados, layout, cores.',
-    'Se o rótulo do botão/campo não estiver claro, use o texto visível mais próximo (ex. "Entrar", "Buscar", nome do card).',
+    'Há UMA imagem JPEG dividida em duas faixas (NVIDIA só aceita 1 imagem):',
+    '- Faixa de CIMA, rótulo ANTES: tela em que o cliente estava e clicou/digitou.',
+    '- Faixa de BAIXO, rótulo DEPOIS: o que abriu / para onde entrou.',
+    'Leia o texto visível (logo, título, botão, campo, card, menu, breadcrumb). Compare CIMA × BAIXO.',
+    'Proibido frases vazias ("o que foi clicado", "tela alterada").',
+    'Título: 1 linha — verbo + rótulo entre aspas + ONDE na tela (topo, header, menu, centro, card, formulário, rodapé, modal).',
+    'Observação: 3 a 5 frases, nesta ordem:',
+    '1) Estava em: tela de CIMA + o que se lê (marca, heading, formulário, listagem).',
+    '2) Clicou/digitou em: controle + TEXTO EXATO lido na faixa ANTES + região da tela.',
+    '3) Entrou em: tela de BAIXO pelo que se lê (título, logo, modal, PDP, busca, home, carrinho, dashboard).',
+    'Se o rótulo estiver ilegível, diga região + tipo do controle. Não invente URL, HTML, CSS nem seletor.',
     'Sem introdução, sem markdown, sem bullet.',
-    'Formato exato:',
-    'Título: Clicou em "Entrar"',
-    'Observação: O usuário estava na tela de login. Clicou em "Entrar" e acessou a área logada / dashboard.'
+    'Formato:',
+    'Título: Clicou em "Entrar" no centro do formulário de login',
+    'Observação: Estava na tela de login da loja, com campos e-mail e senha no centro. Clicou no botão "Entrar" abaixo dos campos. Entrou na home logada, com o nome do usuário no topo e o menu principal visível.'
   ].join('\n');
   const promptUma = [
-    'Você é analista QA. Há UMA captura (tela atual, início ou print único).',
-    'Diga em qual TELA o usuário está. Não inventarie links nem layout.',
-    'Título: Acessou a tela "...".',
-    'Observação: O usuário entrou na tela "...". Ainda não houve clique nesta captura.',
-    'Sem introdução, sem markdown.',
-    'Formato exato:',
-    'Título: Acessou a tela "Login"',
-    'Observação: O usuário está na tela inicial de login, pronto para clicar em "Entrar" ou preencher os campos.'
+    'Há UMA captura (início da gravação ou print único). Leia o texto visível.',
+    'Diga em qual tela/site o cliente está e o que aparece (logo, título, formulário, listagem, modal).',
+    'Título: Acessou a tela "..." (use o heading/logo visível).',
+    'Observação: 2 a 4 frases descrevendo a tela e o que o cliente pode clicar em seguida (botões/campos visíveis).',
+    'Não invente URL/HTML. Sem markdown.',
+    'Formato:',
+    'Título: Acessou a tela "Login" da loja',
+    'Observação: O cliente está na tela inicial de login, com logo no topo e campos e-mail e senha no centro. Pode clicar em "Entrar" ou em "Criar conta".'
   ].join('\n');
-  const par = dataUrlValida(antes)
-    ? [
-      { type: 'text', text: promptPar },
-      { type: 'text', text: 'Imagem 1 — ANTES (tela em que o cliente agiu):' },
-      { type: 'image_url', image_url: { url: antes } },
-      { type: 'text', text: 'Imagem 2 — DEPOIS (tela após a mudança):' },
-      { type: 'image_url', image_url: { url: depois } }
-    ]
-    : null;
-  const uma = [
-    { type: 'text', text: promptUma },
+  const ehPar = !!(entrada && entrada.par);
+  return chamarVisao([
+    { type: 'text', text: ehPar ? promptPar : promptUma },
     { type: 'image_url', image_url: { url: depois } }
-  ];
-  if (par) {
-    try {
-      return await chamarVisao(par);
-    } catch (_) {
-      return chamarVisao(uma);
-    }
-  }
-  return chamarVisao(uma);
+  ]);
 }
 
 async function gerarCenarios({ ficha, passos, quadros }) {

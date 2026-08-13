@@ -36,9 +36,9 @@ assert.ok(mapeamento.includes('Ação: Preencher'));
 assert.ok(mapeamento.includes('Step: Quando eu preencho'));
 assert.ok(!cenarios.includes('===MAPEAMENTO==='));
 
-const desc = parseDescricaoTela('Título: Clicou em "Entrar"\nObservação: O usuário estava na tela de login. Clicou em "Entrar" e acessou a área logada.');
+const desc = parseDescricaoTela('Título: Clicou em "Entrar" no centro do formulário\nObservação: Estava na tela de login da loja. Clicou no botão Entrar no centro. Entrou na home logada com o menu no topo.');
 assert.ok(desc.titulo.includes('Entrar'));
-assert.ok(/login|logada|Entrou|Clicou/i.test(desc.obs));
+assert.ok(/login|centro|home|Entrou|Clicou/i.test(desc.obs));
 
 let falhouSemChave = false;
 const prev = process.env.AGENTE_API_KEY;

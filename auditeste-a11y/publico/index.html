@@ -453,7 +453,7 @@
   }
   .passo .carimbo{font-family:'Cascadia Code','Consolas',monospace;font-size:.75rem;color:var(--muted);margin-bottom:4px;}
   .passo .titulo{color:var(--navy);font-weight:700;font-size:1.02rem;margin-bottom:7px;}
-  .passo .obs{font-size:.93rem;margin-bottom:11px;}
+  .passo .obs{font-size:.93rem;margin-bottom:11px;line-height:1.45;}
   .passo .remover{position:absolute;top:15px;right:15px;background:none;border:none;color:#b6c1c6;font-size:1.02rem;cursor:pointer;}
   .passo .remover:hover{color:var(--rec);}
   .passo img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin-bottom:6px;cursor:zoom-in;}
@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v7 · clique no print para ampliar · IA descreve a ação</p>
+        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v8 · IA lê o print: onde clicou e para onde entrou</p>
       </div>
     </div>
 
@@ -1987,11 +1987,11 @@
       ? { titulo: 'Captura manual', obs: 'Print disparado pelo analista às ' + hora() + '.' }
       : descreverMudancaLocal(pctMudanca || 0, primeiro);
     if(antesSnap){
-      desc.titulo = /início/i.test(desc.titulo || '') ? desc.titulo : 'Ação na tela anterior → resultado nesta tela';
-      desc.obs = 'Descrevendo com IA: o que foi clicado e o que abriu...';
+      desc.titulo = /início/i.test(desc.titulo || '') ? desc.titulo : 'Analisando o print: onde clicou → para onde entrou';
+      desc.obs = 'IA lendo as capturas: região/controle clicado e tela de destino...';
     } else {
-      desc.titulo = desc.titulo || 'O que ocorreu nesta tela';
-      desc.obs = desc.obs || 'Descrevendo com IA o que aconteceu na tela...';
+      desc.titulo = desc.titulo || 'Analisando a tela atual';
+      desc.obs = desc.obs || 'IA lendo o print: em qual tela o cliente está...';
     }
     const passo = novoPasso(desc.titulo, desc.obs);
     passo.classList.add('passo-auto');
@@ -2035,6 +2035,47 @@
     return encolher(blob, 420, 0.35);
   }
 
+  async function montarParAntesDepois(blobAntes, blobDepois){
+    const carregar = (blob) => new Promise((ok, no) => {
+      const im = new Image();
+      const u = URL.createObjectURL(blob);
+      im.onload = () => { URL.revokeObjectURL(u); ok(im); };
+      im.onerror = () => { URL.revokeObjectURL(u); no(new Error('print ilegível')); };
+      im.src = u;
+    });
+    try{
+      const a = await carregar(blobAntes);
+      const b = await carregar(blobDepois);
+      const faixa = 40;
+      const maxW = 920;
+      const sA = Math.min(1, maxW / a.width);
+      const sB = Math.min(1, maxW / b.width);
+      const wA = Math.max(1, Math.round(a.width * sA));
+      const hA = Math.max(1, Math.round(a.height * sA));
+      const wB = Math.max(1, Math.round(b.width * sB));
+      const hB = Math.max(1, Math.round(b.height * sB));
+      const w = Math.max(wA, wB);
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = faixa * 2 + hA + hB + 8;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#0d3446';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('ANTES — onde o cliente clicou', 12, 28);
+      ctx.drawImage(a, 0, faixa, wA, hA);
+      ctx.fillStyle = '#0d3446';
+      ctx.fillRect(0, faixa + hA, c.width, faixa + 8);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('DEPOIS — para onde entrou', 12, faixa + hA + 30);
+      ctx.drawImage(b, 0, faixa * 2 + hA + 8, wB, hB);
+      return canvasParaBlob(c, 0.78);
+    }catch(_){
+      return null;
+    }
+  }
+
   async function descreverTelaIA(passo, blobAntes, blobDepois){
     if(!blobDepois) return;
     const tit = passo.querySelector('.titulo');
@@ -2043,9 +2084,9 @@
     if(!tit) return;
     tit.dataset.auto = '1';
     if(obs) obs.dataset.auto = '1';
-    if(!tit.textContent.trim()) tit.textContent = 'Descrevendo com IA o que aconteceu...';
+    if(!tit.textContent.trim()) tit.textContent = 'IA lendo o print...';
     if(obs && (!obs.textContent.trim() || /ação executada|resultado observado/i.test(obs.textContent))){
-      obs.textContent = 'Descrevendo com IA o que aconteceu na tela...';
+      obs.textContent = 'IA lendo as capturas: onde clicou e para onde entrou...';
     }
     const job = (async () => {
       while(descricaoAtivas >= 2) await new Promise(r => setTimeout(r, 250));
@@ -2055,14 +2096,14 @@
         if(!alvo.info || !alvo.info.cenarios){
           throw new Error('IA sem chave. Use http://127.0.0.1:8900 (ponte local) ou defina AGENTE_API_KEY no serviço da Railway.');
         }
-        const depois = await encolherLeve(blobDepois, 720, 0.55, 140000);
-        const antes = blobAntes ? await encolherLeve(blobAntes, 720, 0.55, 140000) : null;
-        if(!depois) throw new Error('não consegui reduzir a captura');
+        const par = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
+        const envio = await encolherLeve(par || blobDepois, 1200, 0.72, 300000);
+        if(!envio) throw new Error('não consegui reduzir a captura');
         const resp = await fetch(alvo.url + '/descrever', {
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
-          body: JSON.stringify({ imagem: depois, antes: antes || undefined }),
-          signal: AbortSignal.timeout(45000)
+          body: JSON.stringify({ imagem: envio, par: !!par }),
+          signal: AbortSignal.timeout(70000)
         });
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
@@ -2685,7 +2726,7 @@
     const elTitulo = el.querySelector('.titulo');
     const elObs = el.querySelector('.obs');
     if(arguments.length){
-      elTitulo.textContent = (titulo || '').trim() || 'Descrevendo com IA o que aconteceu...';
+      elTitulo.textContent = (titulo || '').trim() || 'IA lendo o print...';
       elObs.textContent = (obs || '').trim() || 'A IA vai preencher o que ocorreu na tela.';
       elTitulo.dataset.auto = '1';
       elObs.dataset.auto = '1';
