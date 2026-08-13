@@ -10,6 +10,46 @@ const MAX_VIDEO = 16 * 1024 * 1024;
 const MAX_QUADROS = 70;
 const PERIGOSOS = /sair|logout|log off|excluir|deletar|apagar|comprar agora|finalizar compra|pagar|checkout|remover|cancelar conta|unsubscribe|delete account/i;
 
+const ROTEIRO = [
+  { chave: 'home', nome: 'Home', texto: /^(home|inicio|pagina inicial|principal)$/i, href: /\/(home|inicio|index)\/?$/i },
+  { chave: 'quem-somos', nome: 'Quem somos', texto: /quem\s*somos|sobre(\s+n[oa]s)?$|institucional|a\s+empresa|nossa\s+historia|about/i, href: /quem-?somos|sobre|about|institucional|empresa/i },
+  { chave: 'funcionalidades', nome: 'Funcionalidades', texto: /funcionalidades|recursos|servicos|solucoes|produtos|o\s+que\s+fazemos|vantagens|como\s+funciona|features/i, href: /funcional|servic|soluc|produt|feature|recurso/i },
+  { chave: 'entrar', nome: 'Entrar', texto: /^(entrar|login|acessar|sign\s*in|cadastre-?se|criar\s+conta|registre-?se)$/i, href: /\/(login|entrar|signin|cadastro|register|conta)\b/i },
+  { chave: 'contato', nome: 'Contato', texto: /contato|fale\s*conosco|atendimento|suporte/i, href: /contato|contact|fale|suporte/i }
+];
+
+function normalizar(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function casarRoteiro(texto, href) {
+  const t = normalizar(texto);
+  const h = String(href || '').toLowerCase();
+  for (const r of ROTEIRO) {
+    if ((t && r.texto.test(t)) || (h && r.href.test(h))) return r;
+  }
+  return null;
+}
+
+function escolherDaRota(lista, rota, usados, base) {
+  const pontos = lista
+    .filter((c) => c && c.seletor && !usados.has(c.seletor) && !(c.href && usados.has(c.href)))
+    .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#'))
+    .map((c) => {
+      const t = normalizar(c.texto);
+      const h = String(c.href || '').toLowerCase();
+      let s = 0;
+      if (t && rota.texto.test(t)) s += 80;
+      if (h && rota.href.test(h)) s += 50;
+      if (c.noNav) s += 20;
+      if (c.temId) s += 10;
+      return { c, s };
+    })
+    .filter((x) => x.s >= 50)
+    .sort((a, b) => b.s - a.s);
+  return pontos[0] ? pontos[0].c : null;
+}
+
 function ePerigoso(texto) {
   return PERIGOSOS.test(String(texto || ''));
 }
@@ -302,41 +342,63 @@ async function testarUrl(alvo) {
         ]
       }));
       cliques++;
-      await new Promise((r) => setTimeout(r, 900));
-      if (pagina.url() !== urlAntes && pagina.url() !== base) await voltarBase(pagina, base);
+      await new Promise((r) => setTimeout(r, 1100));
+      const soAncora = cand.href && (cand.href.startsWith('#') || (() => {
+        try {
+          const u = new URL(cand.href, urlAntes);
+          const a = new URL(urlAntes);
+          return u.hash && u.pathname === a.pathname && u.host === a.host;
+        } catch (_) { return false; }
+      })());
+      if (soAncora) {
+        await pagina.evaluate(() => window.scrollTo(0, 0));
+        await new Promise((r) => setTimeout(r, 400));
+      } else if (pagina.url() !== urlAntes && pagina.url() !== base) {
+        await voltarBase(pagina, base);
+      }
       return true;
     }
 
-    /* 1) banner de cookies, se houver */
+    async function abrirMenuSeHouver() {
+      const clicou = await pagina.evaluate(() => {
+        const b = [...document.querySelectorAll('button, [role="button"], summary')].find((el) => {
+          const t = ((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '')).toLowerCase();
+          return /menu|abrir navega|hamburguer|☰|≡/.test(t);
+        });
+        if (!b) return false;
+        b.click();
+        return true;
+      }).catch(() => false);
+      if (clicou) await new Promise((r) => setTimeout(r, 700));
+    }
+
+    /* 1) cookies */
     const cookie = (await listarCandidatos(pagina)).find((c) => /aceitar|aceito|concordo|entendi|ok,?\s*continuar/i.test(c.texto));
     if (cookie) await executarClique(cookie);
 
-    /* 2) menu / header — percorre a página toda voltando à origem */
+    /* 2) roteiro de funcionalidades: Home, Quem somos, Funcionalidades, Entrar, Contato */
     await pagina.evaluate(() => window.scrollTo(0, 0));
     await new Promise((r) => setTimeout(r, 400));
-    const nav = (await listarCandidatos(pagina))
+    await abrirMenuSeHouver();
+    for (const rota of ROTEIRO) {
+      if (cliques >= MAX_CLIQUES) break;
+      if (rota.chave === 'home' && /\/(home|inicio|index)?\/?$/i.test(new URL(pagina.url()).pathname) && new URL(pagina.url()).pathname.replace(/\/$/, '') === new URL(base).pathname.replace(/\/$/, '')) {
+        continue;
+      }
+      const lista = await listarCandidatos(pagina);
+      const cand = escolherDaRota(lista, rota, usados, base);
+      if (cand) await executarClique(cand);
+    }
+
+    /* 3) demais itens do menu ainda não visitados */
+    await abrirMenuSeHouver();
+    const restoNav = (await listarCandidatos(pagina))
       .filter((c) => c.noNav || /menu|nav/i.test(c.html))
       .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#'))
       .sort((a, b) => pontuar(b) - pontuar(a));
-    for (const cand of nav) {
+    for (const cand of restoNav) {
       if (cliques >= MAX_CLIQUES) break;
       await executarClique(cand);
-    }
-
-    /* 3) rola a página e clica o que aparecer em cada faixa */
-    const alturas = await pagina.evaluate(() => {
-      const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 1);
-      return [0, 0.28, 0.52, 0.76, 1].map((p) => Math.floor(Math.max(0, h - innerHeight) * p));
-    });
-    for (const y of alturas) {
-      if (cliques >= MAX_CLIQUES) break;
-      await pagina.evaluate((yy) => window.scrollTo(0, yy), y);
-      await new Promise((r) => setTimeout(r, 700));
-      const lista = (await listarCandidatos(pagina))
-        .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#') || !c.href.startsWith('http'))
-        .sort((a, b) => pontuar(b) - pontuar(a));
-      const cand = lista.find((c) => c.seletor && !usados.has(c.seletor) && !(c.href && usados.has(c.href)));
-      if (cand) await executarClique(cand);
     }
 
     if (cliques < 2) avisos.push('poucos elementos clicáveis nesta página');
@@ -376,4 +438,4 @@ async function testarUrl(alvo) {
   };
 }
 
-module.exports = { testarUrl, montarSeletor, ePerigoso, PERIGOSOS };
+module.exports = { testarUrl, montarSeletor, ePerigoso, PERIGOSOS, ROTEIRO, casarRoteiro, escolherDaRota, normalizar };

@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { montarSeletor, ePerigoso, montarCenariosDosPassos } = (() => {
+const { montarSeletor, ePerigoso, casarRoteiro, escolherDaRota, ROTEIRO, montarCenariosDosPassos } = (() => {
   const ia = require('./teste-ia.js');
   const ag = require('./agente-cenarios.js');
   return { ...ia, montarCenariosDosPassos: ag.montarCenariosDosPassos };
@@ -13,6 +13,16 @@ assert.ok(ePerigoso('Sair da conta'));
 assert.ok(ePerigoso('Finalizar compra'));
 assert.ok(!ePerigoso('Entrar'));
 assert.ok(!ePerigoso('Ver produtos'));
+assert.strictEqual(casarRoteiro('Quem somos', '/sobre').chave, 'quem-somos');
+assert.strictEqual(casarRoteiro('Funcionalidades', '').chave, 'funcionalidades');
+assert.strictEqual(casarRoteiro('Entrar', '/login').chave, 'entrar');
+assert.strictEqual(casarRoteiro('Início', '').chave, 'home');
+assert.strictEqual(casarRoteiro('Contato', '/fale-conosco').chave, 'contato');
+const quem = escolherDaRota([
+  { seletor: '#promo', texto: 'Banner', href: '/promo', noNav: false },
+  { seletor: '#nav-quem', texto: 'Quem somos', href: '/quem-somos', noNav: true, temId: true }
+], ROTEIRO.find((r) => r.chave === 'quem-somos'), new Set(), 'https://site.com/');
+assert.strictEqual(quem.seletor, '#nav-quem');
 
 const local = montarCenariosDosPassos({
   ficha: { modulo: 'Home' },
@@ -28,5 +38,6 @@ assert.ok(!/PlayStation|The image/i.test(local.cenarios + local.mapeamento));
 
 console.log('OK  montarSeletor #id / name / testid');
 console.log('OK  ePerigoso ignora logout/compra');
+console.log('OK  roteiro Home / Quem somos / Funcionalidades / Entrar');
 console.log('OK  mapeamento usa id inspecionado');
 console.log('RESULTADO: PASSOU');
