@@ -456,7 +456,17 @@
   .passo .obs{font-size:.93rem;margin-bottom:11px;}
   .passo .remover{position:absolute;top:15px;right:15px;background:none;border:none;color:#b6c1c6;font-size:1.02rem;cursor:pointer;}
   .passo .remover:hover{color:var(--rec);}
-  .passo img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin-bottom:6px;}
+  .passo img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin-bottom:6px;cursor:zoom-in;}
+  .passo img:hover{box-shadow:0 8px 22px rgba(13,52,70,.16);}
+  .lupa-print{
+    position:fixed;inset:0;z-index:220;background:rgba(9,40,56,.94);
+    display:none;align-items:center;justify-content:center;flex-direction:column;
+    padding:20px;cursor:zoom-out;
+  }
+  .lupa-print.aberta{display:flex;}
+  .lupa-print img{max-width:100%;max-height:calc(100vh - 64px);border:2px solid #fff;border-radius:8px;cursor:zoom-out;}
+  .lupa-print-dica{color:#c3d2da;font-size:.85rem;margin-top:12px;}
+  @media print{.lupa-print{display:none!important;}}
   .passo .imagens.par-antes-depois{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   @media (max-width:800px){.passo .imagens.par-antes-depois{grid-template-columns:1fr;}}
   .passo .legenda{color:var(--muted);font-size:.83rem;}
@@ -948,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v6 · print antes + depois · IA NVIDIA descreve o que ocorreu</p>
+        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v7 · clique no print para ampliar · IA descreve a ação</p>
       </div>
     </div>
 
@@ -1144,6 +1154,11 @@
       <button class="btn primario" id="btnConfirmarModal">Criar projeto</button>
     </div>
   </div>
+</div>
+
+<div class="lupa-print" id="lupaPrint" hidden role="dialog" aria-modal="true" aria-label="Print ampliado">
+  <img id="lupaPrintImg" alt="Print ampliado">
+  <p class="lupa-print-dica">Clique ou Esc para fechar</p>
 </div>
 
 <video id="fonte" muted playsinline aria-hidden="true"></video>
@@ -2069,9 +2084,24 @@
     const fig = document.createElement('figure');
     fig.style.margin = '0 0 10px';
     fig._blob = blob;
-    fig.innerHTML = `<img src="${url(blob)}" alt="Evidência">
+    fig.innerHTML = `<img src="${url(blob)}" alt="Evidência" title="Clique para ampliar">
       <figcaption class="legenda" contenteditable role="textbox" aria-label="Legenda da captura">${legenda}</figcaption>`;
     passo.querySelector('.imagens').appendChild(fig);
+  }
+
+  function abrirLupaPrint(src){
+    const caixa = document.getElementById('lupaPrint');
+    const img = document.getElementById('lupaPrintImg');
+    if(!caixa || !img || !src) return;
+    img.src = src;
+    caixa.classList.add('aberta');
+    caixa.removeAttribute('hidden');
+  }
+  function fecharLupaPrint(){
+    const caixa = document.getElementById('lupaPrint');
+    if(!caixa) return;
+    caixa.classList.remove('aberta');
+    caixa.setAttribute('hidden', '');
   }
 
   /* ============ IMPORTAR ACESSIBILIDADE ============ */
@@ -3331,7 +3361,7 @@
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
           <div class="obs">${esc(p.obs)}</div>
           ${p.imagens.map(im=>`<figure style="margin:0 0 10px">
-            <img src="${url(im.blob)}" alt="Evidência">
+            <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
             <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}
         </article>`).join('')}
 
@@ -3392,6 +3422,17 @@
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
   });
+
+  document.addEventListener('click', e => {
+    const lupa = document.getElementById('lupaPrint');
+    if(lupa && lupa.classList.contains('aberta')){
+      fecharLupaPrint();
+      return;
+    }
+    const img = e.target.closest('#lista figure img, #telaRegistro figure img, #conteudoRegistro figure img');
+    if(img){ e.preventDefault(); abrirLupaPrint(img.currentSrc || img.src); }
+  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharLupaPrint(); });
 
   document.getElementById('caixaScan').addEventListener('toggle', e => {
     if(e.target.open) pingPonte();
