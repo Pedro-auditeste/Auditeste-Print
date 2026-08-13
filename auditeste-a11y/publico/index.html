@@ -2529,7 +2529,12 @@
       else if(info.modo === 'mesma-origem') msg += ' Scans liberados nesta URL (sem token).';
       msg += info.cenarios
         ? ' IA de cenários: ligada' + (info.modelo ? ' (' + info.modelo + ')' : '') + '.'
-        : ' IA de cenários: desligada (falta AGENTE_API_KEY na ponte).';
+        : ' IA de cenários: desligada (falta AGENTE_API_KEY neste serviço).';
+      if(Array.isArray(info.agenteVars) && info.agenteVars.length){
+        msg += ' Variáveis vistas: ' + info.agenteVars.join(', ') + '.';
+      } else if(!info.cenarios){
+        msg += ' Nenhuma variável AGENTE_* chegou no container — coloque no card do SERVIÇO, não só no projeto.';
+      }
       if(info.aviso) msg += ' ' + info.aviso;
       el.textContent = msg;
       el.className = 'estado-ponte ok';

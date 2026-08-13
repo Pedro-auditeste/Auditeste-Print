@@ -170,11 +170,11 @@ function extrairBlocos(texto) {
 }
 
 function exigirChave() {
-  if (process.env.AGENTE_API_KEY) return;
+  if ((process.env.AGENTE_API_KEY || '').trim()) return;
   const naNuvem = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID
     || (process.env.HOST && process.env.HOST !== '127.0.0.1' && process.env.HOST !== 'localhost'));
   const e = new Error(naNuvem
-    ? 'AGENTE_API_KEY não está na Railway. Painel → Variables → AGENTE_API_KEY = sua chave nvapi-... → Redeploy.'
+    ? 'AGENTE_API_KEY não chegou neste serviço. Na Railway: clique no card do SERVIÇO (não no projeto) → Variables → New → nome exatamente AGENTE_API_KEY, valor nvapi-... → marque Runtime/Deploy → Redeploy.'
     : 'AGENTE_API_KEY não está definida. Crie auditeste-a11y/.env (veja .env.example) ou chave.txt e reinicie a ponte.');
   e.semChave = true;
   throw e;

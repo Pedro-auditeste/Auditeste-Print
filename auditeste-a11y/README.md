@@ -65,13 +65,13 @@ A chave fica **na ponte, nunca no Print**.
 
 ### Railway
 
-No painel do serviço → Variables → adicione:
+Clique no **card do serviço** (não só no projeto / Shared) → Variables → New:
 
-- `AGENTE_API_KEY` = sua chave NVIDIA
+- `AGENTE_API_KEY` = sua chave NVIDIA (`nvapi-...`), disponível em **Runtime**
 - opcional: `AGENTE_BASE_URL` = `https://integrate.api.nvidia.com/v1`
-- opcional: `AGENTE_MODELO` = `meta/llama-3.2-11b-vision-instruct`
+- opcional: `AGENTE_MODELO` = `meta/llama-3.2-90b-vision-instruct`
 
-Depois do redeploy, `/ping` deve mostrar `"cenarios": true`.
+Shared/projeto sozinho não entra no container. Depois **Redeploy**. `/ping` deve mostrar `"cenarios": true`.
 
 | Variável | Padrão |
 |---|---|

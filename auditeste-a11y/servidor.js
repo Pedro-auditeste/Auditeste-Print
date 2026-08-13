@@ -23,8 +23,9 @@
  *   PONTE_ORIGENS       origens de CORS, padrão *
  *   CHROME_PATH         caminho explícito do Chrome (opcional)
  */
-const { carregarEnvs } = require('./carregar-env.js');
+const { carregarEnvs, resolverChaveAgente, varsAgenteVisiveis } = require('./carregar-env.js');
 const envs = carregarEnvs();
+const chaveAgenteOrigem = resolverChaveAgente();
 
 const http = require('http');
 const dns = require('dns').promises;
@@ -224,8 +225,10 @@ const servidor = http.createServer(async (req, res) => {
       cenarios: !!process.env.AGENTE_API_KEY,
       modelo: MODELO,
       base: BASE_URL,
+      agenteVar: chaveAgenteOrigem || undefined,
+      agenteVars: varsAgenteVisiveis(),
       aviso: !process.env.AGENTE_API_KEY && !ehLoopback
-        ? 'IA desligada: defina AGENTE_API_KEY (NVIDIA nvapi-...) nas Variables da Railway e faça Redeploy.'
+        ? 'IA desligada: a variável precisa estar no SERVIÇO (card do Print), nome AGENTE_API_KEY, valor nvapi-..., disponível em Runtime. Shared/projeto sozinho não chega no container. Depois Redeploy.'
         : EXPOSTO_SEM_TOKEN
           ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
           : undefined
@@ -343,7 +346,9 @@ servidor.listen(PORTA, HOST, () => {
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);
   console.log(`motores: axe=${st.axe.ok ? 'ok' : 'FALHA'} · pa11y=${st.pa11y.ok ? 'ok' : 'FALHA'} · lighthouse=${st.nota.ok ? 'ok' : 'FALHA'}`);
-  console.log(`cenários IA: ${process.env.AGENTE_API_KEY ? 'ligado (' + MODELO + ' @ ' + BASE_URL + ')' : 'desligado — defina AGENTE_API_KEY'}`);
+  console.log(`cenários IA: ${process.env.AGENTE_API_KEY ? 'ligado (' + MODELO + ' @ ' + BASE_URL + ')' : 'desligado — defina AGENTE_API_KEY'}`
+    + (chaveAgenteOrigem ? ` · var ${chaveAgenteOrigem}` : '')
+    + (varsAgenteVisiveis().length ? ` · env [${varsAgenteVisiveis().join(', ')}]` : ' · nenhuma var AGENTE/NVIDIA no processo'));
   if (st.chrome) console.log(`chrome: ${st.chrome}`);
   if (ehLoopback) console.log('deixe aberto e use os botões de scan no Audi Print.\n');
 });

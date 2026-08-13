@@ -14,12 +14,14 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
 
 1. Conecte este repositório na [Railway](https://railway.app).
 2. O `railway.toml` usa o `Dockerfile` na raiz (Playwright + Node).
-3. Defina as variáveis de ambiente:
-   - `PONTE_TOKEN` — **obrigatório para scans** (string longa e aleatória)
-   - `AGENTE_API_KEY` — **obrigatória para a IA** (NVIDIA `nvapi-...`; descreve prints e gera cenários)
-   - `PONTE_DOMINIOS` — opcional (allowlist de domínios para scan)
-4. A Railway injeta `PORT` automaticamente; o servidor já lê.
-5. Healthcheck em `/ping` — o serviço sobe mesmo sem token, mas scans ficam bloqueados até configurar `PONTE_TOKEN`.
+3. Variáveis no **card do serviço** (não só em Shared/projeto), com Runtime/Deploy ligado:
+   - `AGENTE_API_KEY` — **obrigatória para a IA** (NVIDIA `nvapi-...`)
+   - `AGENTE_BASE_URL` — opcional (`https://integrate.api.nvidia.com/v1`)
+   - `AGENTE_MODELO` — opcional (`meta/llama-3.2-90b-vision-instruct`)
+   - `PONTE_TOKEN` — para proteger scans
+   - `PONTE_DOMINIOS` — opcional (allowlist)
+4. Depois de salvar, faça **Redeploy**. Confira em `/ping`: `"cenarios": true`.
+5. A Railway injeta `PORT` automaticamente. Healthcheck em `/ping`.
 
 Depois do deploy, abra a URL gerada — o Audi Print fica em `/`. A landing page fica em `/inicio.html`.
 
