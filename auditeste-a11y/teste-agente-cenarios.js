@@ -47,7 +47,7 @@ const passo = juntarPassoAPasso(
   { titulo: 'Clicou no card "Tênis Nike Jordan Luka 4"', obs: 'Listagem NBA Nike, clicou no card do Luka 4.' },
   { titulo: 'Entrou na PDP do Tênis Nike Jordan Luka 4', obs: 'Página do produto com botão Comprar.' }
 );
-assert.ok(/Imagem 1:/i.test(passo.obs) && /Imagem 2:/i.test(passo.obs));
+assert.ok(/Onde clicou:/i.test(passo.obs) && /Onde entrou:/i.test(passo.obs));
 assert.ok(/Nike|Luka/i.test(passo.obs));
 assert.ok(!/PlayStation|PS5/i.test(passo.titulo + passo.obs));
 assert.ok(!/\w{20}$/.test(nike.obs) || /[.!?]$/.test(nike.obs) || /[a-záéíóúãõç]$/i.test(nike.obs));

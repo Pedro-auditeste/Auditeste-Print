@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v15 · imagem 1 + imagem 2, cada uma</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v16 · onde clicou + onde entrou</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v15</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v16</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -1987,8 +1987,8 @@
       ? { titulo: 'Captura manual', obs: 'Print disparado pelo analista às ' + hora() + '.' }
       : descreverMudancaLocal(pctMudanca || 0, primeiro);
     if(antesSnap){
-      desc.titulo = /início/i.test(desc.titulo || '') ? desc.titulo : 'Analisando o print: onde clicou → para onde entrou';
-      desc.obs = 'IA lendo as capturas: região/controle clicado e tela de destino...';
+      desc.titulo = /início/i.test(desc.titulo || '') ? desc.titulo : 'Analisando onde clicou e para onde entrou...';
+      desc.obs = 'Aguarde: lendo o print 1 (clique) e o print 2 (destino).';
     } else {
       desc.titulo = desc.titulo || 'Analisando a tela atual';
       desc.obs = desc.obs || 'IA lendo o print: em qual tela o cliente está...';
@@ -2086,7 +2086,7 @@
     if(obs) obs.dataset.auto = '1';
     if(!tit.textContent.trim()) tit.textContent = 'IA lendo o print...';
     if(obs && (!obs.textContent.trim() || /ação executada|resultado observado/i.test(obs.textContent))){
-      obs.textContent = 'IA lendo imagem 1 e imagem 2...';
+      obs.textContent = 'Aguarde: lendo o print 1 (clique) e o print 2 (destino).';
     }
     const job = (async () => {
       while(descricaoAtivas >= 1) await new Promise(r => setTimeout(r, 250));
@@ -2120,11 +2120,11 @@
         if(recusa || !titulo){
           titulo = 'Ação na tela';
           observ = 'O cliente avançou da tela anterior para a tela seguinte.';
-        } else if(!/Imagem\s*1\s*:/i.test(observ)){
-          const uma = observ.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
-          observ = cortarPalavra(uma ? uma[0] : observ, 220);
+        } else if(/Onde clicou:|Onde entrou:|Imagem\s*1\s*:/i.test(observ)){
+          observ = cortarPalavra(observ, 340);
         } else {
-          observ = cortarPalavra(observ, 280);
+          const uma = observ.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
+          observ = cortarPalavra(uma ? uma[0] : observ, 240);
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;
