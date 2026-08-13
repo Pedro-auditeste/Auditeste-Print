@@ -948,7 +948,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v5 · print antes + depois · IA NVIDIA descreve o que ocorreu</p>
+        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v6 · print antes + depois · IA NVIDIA descreve o que ocorreu</p>
       </div>
     </div>
 
@@ -973,7 +973,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> (onde o cliente clicou) e, quando a página muda, imprime <b>antes + depois</b>. A IA NVIDIA escreve a ação. Abra só em <b>http://127.0.0.1:8900</b> (local) ou a URL da Railway. Recarregue com Ctrl+F5 — tem que aparecer “Captura v5”.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5 — tem que aparecer <b>Captura v6</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -2036,11 +2036,14 @@
       while(descricaoAtivas >= 2) await new Promise(r => setTimeout(r, 250));
       descricaoAtivas++;
       try{
-        await pingPonte();
+        const alvo = await resolverPonteIA();
+        if(!alvo.info || !alvo.info.cenarios){
+          throw new Error('IA sem chave. Use http://127.0.0.1:8900 (ponte local) ou defina AGENTE_API_KEY no serviço da Railway.');
+        }
         const depois = await encolherLeve(blobDepois, 720, 0.55, 140000);
         const antes = blobAntes ? await encolherLeve(blobAntes, 720, 0.55, 140000) : null;
         if(!depois) throw new Error('não consegui reduzir a captura');
-        const resp = await fetch(ponteUrl() + '/descrever', {
+        const resp = await fetch(alvo.url + '/descrever', {
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
           body: JSON.stringify({ imagem: depois, antes: antes || undefined }),
@@ -2491,6 +2494,45 @@
     return t ? { Authorization: 'Bearer ' + t } : {};
   }
 
+  let ponteIACache = { url: '', t: 0, info: null };
+
+  function candidatasPonte(){
+    const lista = [];
+    const add = u => { u = String(u || '').replace(/\/+$/, ''); if(u && lista.indexOf(u) < 0) lista.push(u); };
+    add(ponteUrl());
+    if(/^https?:$/.test(location.protocol)) add(location.origin);
+    add('http://127.0.0.1:8900');
+    add('http://localhost:8900');
+    return lista;
+  }
+
+  async function pingUmaPonte(base){
+    try{
+      const r = await fetch(base + '/ping', { signal: AbortSignal.timeout(5000) });
+      if(!r.ok) return null;
+      const info = await r.json();
+      if(!info || !info.ok) return null;
+      info._url = base;
+      return info;
+    }catch(e){ return null; }
+  }
+
+  async function resolverPonteIA(){
+    if(ponteIACache.t && (Date.now() - ponteIACache.t) < 12000 && ponteIACache.url) return ponteIACache;
+    let fallback = { url: ponteUrl(), t: Date.now(), info: null };
+    for(const base of candidatasPonte()){
+      const info = await pingUmaPonte(base);
+      if(!info) continue;
+      if(info.cenarios){
+        ponteIACache = { url: base, t: Date.now(), info };
+        return ponteIACache;
+      }
+      if(!fallback.info) fallback = { url: base, t: Date.now(), info };
+    }
+    ponteIACache = fallback;
+    return ponteIACache;
+  }
+
   function ligarCamposPonte(){
     const cu = document.getElementById('urlPonte');
     const ct = document.getElementById('tokenPonte');
@@ -2518,35 +2560,33 @@
 
   async function pingPonte(){
     const el = document.getElementById('estadoPonte');
-    if(!el) return false;
+    const statusIA = document.getElementById('statusIA');
     try{
-      const r = await fetch(ponteUrl() + '/ping', { signal: AbortSignal.timeout(8000) });
-      if(!r.ok) throw new Error('sem resposta');
-      const info = await r.json();
+      const alvo = await resolverPonteIA();
+      const info = alvo.info;
       statusPonte = info;
-      let msg = 'Ponte ativa em ' + ponteUrl() + '.' + textoMotores(info);
-      if(info.exigeToken && !ponteToken()) msg += ' Informe o token em Endereço da ponte.';
-      else if(info.modo === 'mesma-origem') msg += ' Scans liberados nesta URL (sem token).';
-      msg += info.cenarios
-        ? ' IA de cenários: ligada' + (info.modelo ? ' (' + info.modelo + ')' : '') + '.'
-        : ' IA de cenários: desligada (falta AGENTE_API_KEY neste serviço).';
-      if(Array.isArray(info.agenteVars) && info.agenteVars.length){
-        msg += ' Variáveis vistas: ' + info.agenteVars.join(', ') + '.';
-      } else if(!info.cenarios){
-        msg += ' Nenhuma variável AGENTE_* chegou no container — coloque no card do SERVIÇO, não só no projeto.';
+      if(!info){
+        if(el){ el.textContent = 'Sem ponte. Rode npm run servidor em auditeste-a11y (http://127.0.0.1:8900).'; el.className = 'estado-ponte off'; }
+        if(statusIA) statusIA.textContent = 'IA desligada: ponte local não está no ar. Rode npm run servidor.';
+        return false;
       }
+      let msg = 'Ponte em ' + alvo.url + '.' + textoMotores(info);
+      msg += info.cenarios
+        ? ' IA NVIDIA: ligada' + (info.modelo ? ' (' + info.modelo + ')' : '') + '.'
+        : ' IA NVIDIA: desligada (sem AGENTE_API_KEY neste endereço).';
+      if(Array.isArray(info.agenteVars) && info.agenteVars.length) msg += ' Vars: ' + info.agenteVars.join(', ') + '.';
       if(info.aviso) msg += ' ' + info.aviso;
-      el.textContent = msg;
-      el.className = 'estado-ponte ok';
-      return true;
+      if(el){ el.textContent = msg; el.className = info.cenarios ? 'estado-ponte ok' : 'estado-ponte off'; }
+      if(statusIA){
+        statusIA.textContent = info.cenarios
+          ? 'IA pronta em ' + alvo.url + (info.modelo ? ' · ' + info.modelo : '')
+          : 'IA desligada. Abra http://127.0.0.1:8900 ou coloque AGENTE_API_KEY no serviço da Railway.';
+      }
+      return !!info.cenarios;
     }catch(err){
       statusPonte = null;
-      el.textContent = ponteUrl() === PONTE_PADRAO
-        ? 'Sem ponte. Estes três botões precisam dela porque uma página não lê o DOM de outro site. '
-          + 'Escaneie com a extensão audi-print-scanner e traga o JSON em "+ Importar acessibilidade", '
-          + 'ou suba a ponte (ponte.cmd) para usá-los daqui.'
-        : 'Não alcancei a ponte em ' + ponteUrl() + '. Confira o endereço.';
-      el.className = 'estado-ponte off';
+      if(el){ el.textContent = 'Não alcancei a ponte. Rode npm run servidor.'; el.className = 'estado-ponte off'; }
+      if(statusIA) statusIA.textContent = 'IA desligada: ponte inacessível.';
       return false;
     }
   }
@@ -3183,10 +3223,10 @@
     if(!(r.passos || []).length){ dizer('Este registro não tem passos.', true); return; }
 
     dizer('Verificando o agente NVIDIA...');
-    const ponteOk = await pingPonte();
-    const iaLigada = !!(ponteOk && statusPonte && statusPonte.cenarios);
+    const alvo = await resolverPonteIA();
+    const iaLigada = !!(alvo.info && alvo.info.cenarios);
     if(!iaLigada){
-      dizer('Agente NVIDIA indisponível. Suba a ponte (npm run servidor / ponte.cmd) e confira AGENTE_API_KEY no .env.', true);
+      dizer('Agente NVIDIA indisponível. Abra http://127.0.0.1:8900 ou defina AGENTE_API_KEY no serviço da Railway.', true);
       avisar('Não foi possível gerar: API NVIDIA não está ligada.');
       return;
     }
@@ -3219,7 +3259,7 @@
       }
 
       dizer('Gerando cenários com NVIDIA no padrão automacao-web-qa. Pode levar até 2 minutos...');
-      const resp = await fetch(ponteUrl() + '/cenarios', {
+      const resp = await fetch(alvo.url + '/cenarios', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
         body: JSON.stringify({ ficha: r.ficha, passos, quadros })
