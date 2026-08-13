@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v10 · Gherkin em PT, um passo por print</p>
+        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v11 · lê Comprar→Identificação, CEP ≠ CPF</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v10</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v11</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -2046,31 +2046,31 @@
     try{
       const a = await carregar(blobAntes);
       const b = await carregar(blobDepois);
-      const faixa = 40;
-      const maxW = 920;
-      const sA = Math.min(1, maxW / a.width);
-      const sB = Math.min(1, maxW / b.width);
-      const wA = Math.max(1, Math.round(a.width * sA));
-      const hA = Math.max(1, Math.round(a.height * sA));
-      const wB = Math.max(1, Math.round(b.width * sB));
-      const hB = Math.max(1, Math.round(b.height * sB));
-      const w = Math.max(wA, wB);
+      const faixa = 44;
+      const gap = 12;
+      const alvoH = 740;
+      let wA = Math.max(1, Math.round(a.width * (alvoH / a.height)));
+      let wB = Math.max(1, Math.round(b.width * (alvoH / b.height)));
+      if (wA + wB + gap > 1480) {
+        const f = 1480 / (wA + wB + gap);
+        wA = Math.max(1, Math.round(wA * f));
+        wB = Math.max(1, Math.round(wB * f));
+      }
+      const hA = Math.max(1, Math.round(a.height * (wA / a.width)));
+      const hB = Math.max(1, Math.round(b.height * (wB / b.width)));
       const c = document.createElement('canvas');
-      c.width = w;
-      c.height = faixa * 2 + hA + hB + 8;
+      c.width = wA + wB + gap;
+      c.height = faixa + Math.max(hA, hB);
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#0d3446';
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 22px sans-serif';
-      ctx.fillText('ANTES — onde o cliente clicou', 12, 28);
+      ctx.fillText('1 ANTES — onde clicou', 10, 30);
+      ctx.fillText('2 DEPOIS — para onde entrou', wA + gap + 10, 30);
       ctx.drawImage(a, 0, faixa, wA, hA);
-      ctx.fillStyle = '#0d3446';
-      ctx.fillRect(0, faixa + hA, c.width, faixa + 8);
-      ctx.fillStyle = '#fff';
-      ctx.fillText('DEPOIS — para onde entrou', 12, faixa + hA + 30);
-      ctx.drawImage(b, 0, faixa * 2 + hA + 8, wB, hB);
-      return canvasParaBlob(c, 0.78);
+      ctx.drawImage(b, wA + gap, faixa, wB, hB);
+      return canvasParaBlob(c, 0.82);
     }catch(_){
       return null;
     }
@@ -2097,7 +2097,7 @@
           throw new Error('IA sem chave. Use http://127.0.0.1:8900 (ponte local) ou defina AGENTE_API_KEY no serviço da Railway.');
         }
         const par = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
-        const envio = await encolherLeve(par || blobDepois, 1200, 0.72, 300000);
+        const envio = await encolherLeve(par || blobDepois, 1400, 0.8, 400000);
         if(!envio) throw new Error('não consegui reduzir a captura');
         const resp = await fetch(alvo.url + '/descrever', {
           method: 'POST',

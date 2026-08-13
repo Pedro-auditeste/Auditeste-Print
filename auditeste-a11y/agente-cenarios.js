@@ -23,7 +23,9 @@ const SISTEMA = `Você gera a entrada da skill automacao-web-qa / SKILL-MAPEAMEN
 IDIOMA: somente português do Brasil. Proibido inglês (The image shows, Clicked, product listing, Before, After).
 
 Cada PRINT = 1 passo Gherkin + 1 bloco MAPEAMENTO, na mesma ordem das abas (use o título e a observação escritos).
-Não invente cliques. 1 cenário cobrindo o fluxo. Variáveis entre aspas duplas.
+Não invente cliques. Não inverta a ordem: print 1 é origem do clique, print 2 é o destino.
+CEP ≠ CPF ≠ CNPJ. CEP = frete/região no topo. CPF/CNPJ = tela Identificação / Entre ou cadastre-se.
+1 cenário cobrindo o fluxo. Variáveis entre aspas duplas.
 
 GHERKIN:
 - # language: pt
@@ -407,12 +409,12 @@ async function chamarVisao(conteudo) {
     messages: [
       {
         role: 'system',
-        content: 'Analista QA visual. Responda SOMENTE em português do Brasil. Proibido inglês (The image shows, Clicked, product listing). Diga a região e o controle em que o cliente clicou e a tela em que entrou. Só o que se lê nas imagens.'
+        content: 'Analista QA visual. Somente português. Compare print 1 (origem do clique) com print 2 (destino). Não inverta. CEP ≠ CPF. Tooltip/banner no topo não é o clique se a tela 2 for outra página. Cursor ou botão verde grande = alvo.'
       },
       { role: 'user', content: conteudo }
     ],
     maxTokens: 480,
-    temperature: 0.2,
+    temperature: 0.05,
     timeoutMs: Math.max(TIMEOUT_MS, 45000)
   });
   return parseDescricaoTela(r.texto);
@@ -423,22 +425,23 @@ async function descreverTela(entrada) {
   const depois = typeof entrada === 'string' ? entrada : (entrada && (entrada.imagem || entrada.depois || entrada.dataUrl) || '');
   if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
   const promptPar = [
-    'Há UMA imagem JPEG dividida em duas faixas (NVIDIA só aceita 1 imagem):',
-    '- Faixa de CIMA, rótulo ANTES: tela em que o cliente estava e clicou/digitou.',
-    '- Faixa de BAIXO, rótulo DEPOIS: o que abriu / para onde entrou.',
-    'Somente português. Proibido inglês.',
-    'Leia o texto visível (logo, título, botão, campo, card, menu, breadcrumb). Compare CIMA × BAIXO.',
-    'Proibido frases vazias ("o que foi clicado", "tela alterada", "The image shows").',
-    'Título: 1 linha — verbo + rótulo entre aspas + ONDE na tela (topo, header, menu, centro, card, formulário, rodapé, modal).',
-    'Observação: 3 a 5 frases, nesta ordem:',
-    '1) Estava em: tela de CIMA + o que se lê (marca, heading, formulário, listagem).',
-    '2) Clicou/digitou em: controle + TEXTO EXATO lido na faixa ANTES + região da tela.',
-    '3) Entrou em: tela de BAIXO pelo que se lê (título, logo, modal, PDP, busca, home, carrinho, dashboard).',
-    'Se o rótulo estiver ilegível, diga região + tipo do controle. Não invente URL, HTML, CSS nem seletor.',
-    'Sem introdução, sem markdown, sem bullet.',
-    'Formato:',
-    'Título: Clicou em "Entrar" no centro do formulário de login',
-    'Observação: Estava na tela de login da loja, com campos e-mail e senha no centro. Clicou no botão "Entrar" abaixo dos campos. Entrou na home logada, com o nome do usuário no topo e o menu principal visível.'
+    'Há UMA imagem com DOIS prints lado a lado (rótulos no topo):',
+    '- ESQUERDA = 1 ANTES: tela em que o cliente já estava e clicou.',
+    '- DIREITA = 2 DEPOIS: tela para onde ENTROU depois do clique.',
+    'Somente português. Não inverta esquerda/direita. Print 1 NÃO é "entrando na loja" se já mostra produto, preço ou botão Comprar.',
+    'Como achar o clique:',
+    '- Se a DIREITA for outra PÁGINA INTEIRA (heading novo), o clique foi o CTA principal da ESQUERDA (Comprar, Adicionar, Continuar, Entrar), não tooltip, banner nem "Informe seu CEP".',
+    '- Se houver cursor/mão na ESQUERDA, esse é o alvo.',
+    '- Botão verde grande > link pequeno no topo.',
+    'Não confunda campos:',
+    '- CEP = código postal / "Informe seu CEP" / frete no header. Só cite CEP se a DIREITA for tela de endereço/CEP.',
+    '- CPF ou CNPJ = documento na tela "Identificação" / "Entre ou cadastre-se". NÃO é CEP.',
+    'Título: Clicou em "<rótulo exato>" + onde (PDP, formulário, vitrine).',
+    'Observação: Estava em [heading/produto da ESQUERDA]. Clicou em [controle]. Entrou em [heading da DIREITA + campos visíveis].',
+    'Sem inglês, sem inventário de layout, sem URL/HTML.',
+    'Exemplo Casas Bahia: ESQUERDA = PDP PlayStation 5 com botão Comprar. DIREITA = Identificação, campo CPF ou CNPJ.',
+    'Título: Clicou em "Comprar" na página do PlayStation 5',
+    'Observação: Estava na página do produto Console PlayStation 5 Edição Digital, com preço e botão Comprar. Clicou no botão verde "Comprar" à direita. Entrou na tela Identificação (Entre ou cadastre-se) para digitar CPF ou CNPJ. Não é tela de CEP.'
   ].join('\n');
   const promptUma = [
     'Há UMA captura (início da gravação ou print único). Somente português. Leia o texto visível.',
