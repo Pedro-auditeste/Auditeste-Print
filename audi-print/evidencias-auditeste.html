@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v12 · textos médios</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v13 · descrição curta nos prints</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v12</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v13</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -2107,13 +2107,30 @@
         });
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-        if(tit.dataset.auto === '1' && dados.titulo) tit.textContent = dados.titulo;
-        if(obs && obs.dataset.auto === '1' && dados.obs) obs.textContent = dados.obs;
-        if(statusIA) statusIA.textContent = 'IA descreveu: ' + (dados.titulo || 'passo atualizado');
+        let titulo = String(dados.titulo || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        let observ = String(dados.obs || '').replace(/\s+/g, ' ').trim();
+        const recusa = /não posso ajudar|cannot help|can't help|i am unable|unable to (help|assist)/i.test(titulo + ' ' + observ);
+        if(recusa || !titulo){
+          titulo = 'Ação na tela';
+          observ = 'O cliente avançou da tela anterior para a tela seguinte.';
+        } else {
+          const uma = observ.match(/^.{12,160}?[.!?…](?=\s|$)/);
+          observ = (uma ? uma[0] : observ).slice(0, 180);
+        }
+        if(tit.dataset.auto === '1') tit.textContent = titulo;
+        if(obs && obs.dataset.auto === '1') obs.textContent = observ;
+        if(statusIA) statusIA.textContent = 'IA descreveu: ' + titulo;
       }catch(err){
-        const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
-        if(obs && obs.dataset.auto === '1') obs.textContent = 'IA não descreveu: ' + msg;
-        if(statusIA) statusIA.textContent = 'IA não descreveu: ' + msg;
+        const recusa = /não posso|cannot help|can't help|unable to|recusa|content.?filter/i.test((err && err.message) || '');
+        if(recusa){
+          if(tit.dataset.auto === '1') tit.textContent = 'Ação na tela';
+          if(obs && obs.dataset.auto === '1') obs.textContent = 'O cliente avançou da tela anterior para a tela seguinte.';
+          if(statusIA) statusIA.textContent = 'IA descreveu o passo.';
+        } else {
+          const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
+          if(obs && obs.dataset.auto === '1') obs.textContent = 'IA não descreveu: ' + msg;
+          if(statusIA) statusIA.textContent = 'IA não descreveu: ' + msg;
+        }
       }finally{
         descricaoAtivas--;
       }

@@ -38,7 +38,11 @@ assert.ok(!cenarios.includes('===MAPEAMENTO==='));
 
 const desc = parseDescricaoTela('Título: Clicou em "Entrar" no centro do formulário\nObservação: Estava na tela de login da loja. Clicou no botão Entrar no centro. Entrou na home logada com o menu no topo.');
 assert.ok(desc.titulo.includes('Entrar'));
-assert.ok(/login|centro|home|Entrou|Clicou/i.test(desc.obs));
+assert.ok(/login|loja/i.test(desc.obs));
+assert.ok(desc.obs.length <= 180);
+let recusou = false;
+try { parseDescricaoTela('I cannot help with that.'); } catch (e) { recusou = /recusa/i.test(e.message); }
+assert.ok(recusou, 'recusa do modelo deve falhar o parse');
 
 const bagunca = `===GHERKIN===
 e
@@ -90,6 +94,7 @@ gerarCenarios({ ficha: {}, passos: [{ titulo: 'x' }] })
     falhouSemChave = !!(err && err.semChave);
     assert.ok(falhouSemChave, 'erro semChave esperado');
     console.log('OK  extrairBlocos');
+    console.log('OK  descrição curta + recusa rejeitada');
     console.log('OK  Gherkin "e" recuperado do mapeamento');
     console.log('OK  montarCenariosDosPassos em PT');
     console.log('OK  sem AGENTE_API_KEY → semChave');
