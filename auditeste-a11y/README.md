@@ -54,8 +54,9 @@ Dois caminhos no Print (registro aberto):
 |---|---|---|
 | **Montar cenários** | Não | Monta Gherkin + mapeamento offline a partir da ficha e dos passos |
 | **Gerar cenários** | Sim (`AGENTE_API_KEY`) | Envia ficha, passos, capturas e quadros à NVIDIA e devolve Gherkin + mapeamento Passo/Elemento/Ação |
+| **Teste IA** | Ponte no ar (Chrome) | Cole a URL: a ponte abre o site, grava o vídeo e devolve prints + `#id` inspecionado |
 
-A chave fica **na ponte, nunca no Print**.
+A chave fica **na ponte, nunca no Print**. O **Teste IA** (gravador) não precisa da NVIDIA: o Chrome da ponte navega, grava o `.webm` e inspeciona `id`/HTML. **Gerar cenários** usa esses seletores no Elemento Web (`#entrar`, `//*[@id='x']`).
 
 ### Local
 

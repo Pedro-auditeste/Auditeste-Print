@@ -9,6 +9,7 @@
  * Motores:
  *   /scan?tipo=axe|pa11y|nota|lighthouse&url=https://...
  *   /ping  — healthcheck + status dos motores
+ *   /teste-ia — IA abre a URL, testa, grava vídeo e inspeciona ids HTML
  *   /cenarios — Gherkin + mapeamento por IA (precisa AGENTE_API_KEY)
  *   /descrever — descreve uma captura (precisa AGENTE_API_KEY)
  *
@@ -32,8 +33,9 @@ const dns = require('dns').promises;
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
-const { scanAxe, scanPa11y, scanLighthouse, statusMotores } = require('./a11y.js');
+const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
+const { testarUrl } = require('./teste-ia.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
@@ -223,6 +225,8 @@ const servidor = http.createServer(async (req, res) => {
       ocupado: rodando,
       limite: MAX,
       cenarios: !!process.env.AGENTE_API_KEY,
+      testeIa: true,
+      chrome: !!caminhoChrome(),
       modelo: MODELO,
       base: BASE_URL,
       agenteVar: chaveAgenteOrigem || undefined,
@@ -235,6 +239,38 @@ const servidor = http.createServer(async (req, res) => {
           ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
           : undefined
     }, origem);
+  }
+
+  if (u.pathname === '/teste-ia') {
+    if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
+    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
+    if (rodando >= MAX) {
+      return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
+    }
+    req.setTimeout(240000);
+    res.setTimeout(240000);
+    let corpo;
+    try { corpo = await lerCorpo(req); } catch (err) {
+      return responder(res, 400, { erro: err.message }, origem);
+    }
+    const alvo = String((corpo && corpo.url) || '').trim();
+    if (!alvo) return responder(res, 400, { erro: 'url ausente' }, origem);
+    const motivo = await recusar(alvo);
+    if (motivo) return responder(res, 400, { erro: motivo }, origem);
+
+    rodando++;
+    const inicio = Date.now();
+    process.stdout.write('teste-ia ... ');
+    try {
+      const dados = await testarUrl(alvo);
+      console.log(`ok (${((Date.now() - inicio) / 1000).toFixed(1)}s, ${dados.passos.length} passo(s)${dados.video ? ', vídeo' : ''})`);
+      return responder(res, 200, dados, origem);
+    } catch (err) {
+      console.log('FALHOU: ' + err.message);
+      return responder(res, 500, { erro: err.message }, origem);
+    } finally {
+      rodando--;
+    }
   }
 
   if (u.pathname === '/descrever') {
@@ -337,8 +373,8 @@ const servidor = http.createServer(async (req, res) => {
 
 /* Lighthouse pode passar de 60s — sem isso o socket cai no meio do scan. */
 servidor.requestTimeout = 0;
-servidor.headersTimeout = 120000;
-servidor.timeout = 180000;
+servidor.headersTimeout = 180000;
+servidor.timeout = 240000;
 
 servidor.listen(PORTA, HOST, () => {
   const st = statusMotores();

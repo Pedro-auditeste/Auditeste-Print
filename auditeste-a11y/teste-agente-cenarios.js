@@ -96,6 +96,16 @@ assert.ok(!/The image|Clicked|product listing/i.test(local.cenarios + local.mape
 assert.ok(local.mapeamento.includes('Ação: Clicar'));
 assert.ok(local.mapeamento.includes('Passo: 1'));
 
+const comId = montarCenariosDosPassos({
+  ficha: { modulo: 'Login' },
+  passos: [
+    { titulo: 'Acessou login', acao: 'Acessar', elemento: 'https://app.exemplo.com/login' },
+    { titulo: 'Clicou em Entrar', acao: 'Clicar', elemento: '#btn-entrar', html: '<button id="btn-entrar">Entrar</button>' }
+  ]
+});
+assert.ok(comId.mapeamento.includes('Elemento Web: #btn-entrar'));
+assert.ok(comId.mapeamento.includes('Ação: Clicar'));
+
 let falhouSemChave = false;
 const prev = process.env.AGENTE_API_KEY;
 delete process.env.AGENTE_API_KEY;

@@ -223,6 +223,12 @@
   .estado-cenarios.off{color:var(--rec);}
   @media print{.caixa-cenarios{box-shadow:none;border:1px solid var(--line);break-inside:avoid;}.caixa-cenarios .abas-cenarios,.caixa-cenarios .topo-painel{display:none;}.caixa-cenarios .painel-cenario{display:block!important;}}
 
+  .caixa-link{
+    background:var(--card);border:2px solid var(--green);border-radius:12px;
+    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);
+  }
+  .caixa-link label{display:block;color:var(--navy);font-weight:700;margin-bottom:8px;}
+  .caixa-link .dica-captura{margin:8px 0 0;}
   .linha-scan{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   .linha-scan input{
     flex:1;min-width:220px;font:inherit;font-size:.9rem;padding:8px 12px;
@@ -470,6 +476,13 @@
   .passo .imagens.par-antes-depois{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   @media (max-width:800px){.passo .imagens.par-antes-depois{grid-template-columns:1fr;}}
   .passo .legenda{color:var(--muted);font-size:.75rem;}
+  .passo .meta-qa{
+    font-family:'Cascadia Code','Consolas',monospace;font-size:.72rem;color:var(--muted);
+    margin:0 0 8px;background:#f4f7f4;border:1px solid var(--line);border-radius:8px;padding:6px 10px;
+  }
+  .passo .meta-qa b{color:var(--navy);font-weight:700;}
+  .passo .meta-qa code{color:#0d3446;word-break:break-all;}
+  .passo .meta-qa .html-insp{margin-top:4px;opacity:.85;word-break:break-word;}
 
   .videobox{background:var(--card);border-radius:12px;box-shadow:var(--sombra);padding:18px 22px;margin-bottom:14px;}
   .videobox h3{color:var(--navy);font-size:1rem;margin-bottom:6px;}
@@ -949,6 +962,14 @@
       </div>
       <button class="btn primario" data-acao="novaGravacao">Nova gravação</button>
     </div>
+    <div class="caixa-link" id="caixaLinkProjeto">
+      <label for="urlTesteIaProjeto">Link do site</label>
+      <div class="linha-scan">
+        <input type="url" id="urlTesteIaProjeto" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site para testar e gravar">
+        <button type="button" class="btn primario" data-acao="iniciarTesteUrl">Iniciar teste</button>
+      </div>
+      <p class="dica-captura">Cole o endereço. O teste abre o site, grava a tela e tira os prints.</p>
+    </div>
     <div id="listaRegistros"></div>
   </div>
 
@@ -958,8 +979,16 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v18 · print 1 = clique, print 2 = destino</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v21 · cole o link e inicie o teste</p>
       </div>
+    </div>
+
+    <div class="caixa-link">
+      <label for="urlTesteIa">Link do site</label>
+      <div class="linha-scan">
+        <input type="url" id="urlTesteIa" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site para testar, gravar e printar">
+      </div>
+      <p class="dica-captura">Cole o link e clique em <b>Iniciar teste</b>. A gravação e os prints saem sozinhos.</p>
     </div>
 
     <div class="barra-rec" id="barraRec" data-estado="parado">
@@ -967,23 +996,24 @@
       <div class="relogio" id="relogio">00:00</div>
       <div class="contagem"><b id="qtd">0</b> passo(s)</div>
       <div class="acoes">
-        <button class="btn primario" id="btnIniciar">Iniciar gravação</button>
+        <button class="btn primario" id="btnIniciar">Iniciar teste</button>
         <button class="btn" id="btnCapturar" disabled>Capturar agora</button>
         <button class="btn" id="btnPausar" disabled>Pausar</button>
         <button class="btn perigo" id="btnParar" disabled>Parar</button>
       </div>
     </div>
-    <p id="statusIA" class="dica-captura" style="margin:8px 0 0" role="status"></p>
+    <p id="estadoTesteIa" class="estado-ponte" role="status" style="margin:8px 0 0"></p>
+    <p id="statusIA" class="dica-captura" style="margin:6px 0 0" role="status"></p>
 
-    <details class="caixa" open>
-      <summary>Opções de captura</summary>
+    <details class="caixa">
+      <summary>Gravar minha tela (manual)</summary>
       <div class="corpo">
         <div class="abas-captura" role="tablist">
           <button type="button" class="aba-captura ativa" data-modo="alteracao" role="tab" aria-selected="true">Por alteração na tela</button>
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Print 1 = tela do clique (ex. Entrar). Print 2 = tela que abriu. Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v18</b>.</p>
+          <p class="dica-captura">Só use se quiser gravar a sua tela. O fluxo principal é o link + <b>Iniciar teste</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -1010,6 +1040,7 @@
         </div>
         <div class="opcoes" style="margin-top:12px">
           <label><input type="checkbox" id="gravarVideo"> Gravar vídeo da sessão</label>
+          <button type="button" class="btn pequeno" id="btnIniciarManual">Iniciar gravação da minha tela</button>
         </div>
       </div>
     </details>
@@ -1036,8 +1067,8 @@
 
     <div class="dica">
       <b>Como gravar</b>
-      Clique em <b>Iniciar gravação</b> e escolha <b>Tela inteira</b> (ou a aba do Ponto Frio). Na aba <b>Por alteração na tela</b>, cada passo traz o print de <b>antes</b> (onde clicou) e o de <b>depois</b>, com a descrição da IA.
-      Você também pode colar capturas com <kbd>Ctrl</kbd> + <kbd>V</kbd> a qualquer momento.
+      Cole o <b>link do site</b> e clique em <b>Iniciar teste</b>. O sistema abre a página, grava a tela e tira os prints (com o id HTML). Você não precisa compartilhar a tela.
+      Depois salve e use <b>Gerar cenários</b>.
     </div>
 
     <details class="caixa" open>
@@ -1090,7 +1121,7 @@
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
-    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Inicie a gravação para capturar a tela automaticamente.</div>
+    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Cole o link do site e clique em Iniciar teste.</div>
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
@@ -1221,6 +1252,7 @@
   let telaEstavel=null, amostraEstavel=null, capturaEmAndamento=false, capturaPendente=null;
   let anelFrames=[], quietTicks=0;
   let gravadorVideo=null, pedacos=[], videoBlob=null, urls=[];
+  let testeIaAbort=null;
 
   const mini = document.createElement('canvas'); mini.width=160; mini.height=90;
   const mctx = mini.getContext('2d',{willReadFrequently:true});
@@ -1732,6 +1764,13 @@
       return desenharProjetos();
     }
     if(b.dataset.acao === 'novaGravacao') return abrirGravador();
+    if(b.dataset.acao === 'iniciarTesteUrl'){
+      const de = document.getElementById('urlTesteIaProjeto');
+      const para = document.getElementById('urlTesteIa');
+      if(de && para) para.value = (de.value || '').trim();
+      abrirGravador();
+      return testeIaUrl();
+    }
   });
 
   document.getElementById('arqLogoProjeto').addEventListener('change', async e => {
@@ -1753,7 +1792,7 @@
   /* ============ TELA GRAVADOR ============ */
   async function abrirGravador(){
     document.getElementById('alvoGravacao').textContent =
-      'As capturas serão arquivadas no projeto ' + projetoAtual.nome + '.';
+      'Cole o link do site. O teste grava e printa no projeto ' + projetoAtual.nome + '.';
     const campoNum = document.querySelector('[data-campo="registro"]');
     if(!campoNum.textContent.trim()){
       const regs = await listarRegistros(projetoAtual.id);
@@ -1778,7 +1817,7 @@
     if(novo === 'gravando') cronometro = setInterval(()=>{ segundos++; relogio.textContent = mmss(segundos); },1000);
   }
 
-  async function iniciar(){
+  async function iniciarManual(){
     if(!navigator.mediaDevices?.getDisplayMedia){
       informar('Este navegador não permite captura de tela. Use o Chrome ou o Edge em um computador.', 'Captura indisponível');
       return;
@@ -1815,13 +1854,26 @@
     pingPonte();
     mudarEstado('gravando');
     const st = document.getElementById('statusIA');
-    if(st) st.textContent = 'Gravando: a IA descreve cada print. Aguarde “Descrevendo…” nos passos.';
+    if(st) st.textContent = 'Gravando: cada print será descrito. Aguarde “Descrevendo…” nos passos.';
     vigiaBuffer = setInterval(() => atualizarTelaEstavel(), 120);
     setTimeout(()=> { atualizarTelaEstavel(true); capturar(true, 100); }, 400);
     vigia = setInterval(observar, 200);
   }
 
+  function iniciar(){
+    return testeIaUrl();
+  }
+
   function parar(externo, silencioso){
+    if(testeIaAbort){
+      testeIaAbort.abort();
+      testeIaAbort = null;
+      mudarEstado('parado');
+      const st = document.getElementById('statusIA');
+      if(st) st.textContent = 'Teste interrompido.';
+      if(!silencioso) avisar('Teste interrompido.');
+      return Promise.resolve();
+    }
     clearInterval(vigia); vigia = null;
     clearInterval(vigiaBuffer); vigiaBuffer = null;
     if(capturaPendente){ clearTimeout(capturaPendente); capturaPendente = null; }
@@ -2040,14 +2092,14 @@
       desc.obs = 'Aguarde: lendo o print 1 (clique) e o print 2 (destino).';
     } else {
       desc.titulo = desc.titulo || 'Analisando a tela atual';
-      desc.obs = desc.obs || 'IA lendo o print: em qual tela o cliente está...';
+      desc.obs = desc.obs || 'Lendo o print: em qual tela o cliente está...';
     }
     const passo = novoPasso(desc.titulo, desc.obs);
     passo.classList.add('passo-auto');
     const caixaImgs = passo.querySelector('.imagens');
     if(antesSnap) caixaImgs.classList.add('par-antes-depois');
     const statusIA = document.getElementById('statusIA');
-    if(statusIA) statusIA.textContent = 'IA NVIDIA descrevendo o passo ' + lista.querySelectorAll('.passo').length + '...';
+    if(statusIA) statusIA.textContent = 'Descrevendo o passo ' + lista.querySelectorAll('.passo').length + '...';
     Promise.resolve()
       .then(async () => {
         if(antesSnap){
@@ -2128,7 +2180,7 @@
     if(!tit) return;
     tit.dataset.auto = '1';
     if(obs) obs.dataset.auto = '1';
-    if(!tit.textContent.trim()) tit.textContent = 'IA lendo o print...';
+    if(!tit.textContent.trim()) tit.textContent = 'Lendo o print...';
     if(obs && (!obs.textContent.trim() || /ação executada|resultado observado/i.test(obs.textContent))){
       obs.textContent = 'Aguarde: lendo o print 1 (clique) e o print 2 (destino).';
     }
@@ -2138,7 +2190,7 @@
       try{
         const alvo = await resolverPonteIA();
         if(!alvo.info || !alvo.info.cenarios){
-          throw new Error('IA sem chave. Use http://127.0.0.1:8900 (ponte local) ou defina AGENTE_API_KEY no serviço da Railway.');
+          throw new Error('Serviço de descrição indisponível. Abra http://127.0.0.1:8900 ou confira a ponte.');
         }
         const depois = await encolherLeve(blobDepois, 1000, 0.78, 280000);
         const antes = blobAntes ? await encolherLeve(blobAntes, 1000, 0.78, 280000) : null;
@@ -2172,17 +2224,17 @@
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;
-        if(statusIA) statusIA.textContent = 'IA descreveu: ' + titulo;
+        if(statusIA) statusIA.textContent = 'Passo descrito: ' + titulo;
       }catch(err){
         const recusa = /não posso|cannot help|can't help|unable to|recusa|content.?filter/i.test((err && err.message) || '');
         if(recusa){
           if(tit.dataset.auto === '1') tit.textContent = 'Ação na tela';
           if(obs && obs.dataset.auto === '1') obs.textContent = 'O cliente avançou da tela anterior para a tela seguinte.';
-          if(statusIA) statusIA.textContent = 'IA descreveu o passo.';
+          if(statusIA) statusIA.textContent = 'Passo descrito.';
         } else {
           const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
-          if(obs && obs.dataset.auto === '1') obs.textContent = 'IA não descreveu: ' + msg;
-          if(statusIA) statusIA.textContent = 'IA não descreveu: ' + msg;
+          if(obs && obs.dataset.auto === '1') obs.textContent = 'Não descreveu: ' + msg;
+          if(statusIA) statusIA.textContent = 'Não descreveu: ' + msg;
         }
       }finally{
         descricaoAtivas--;
@@ -2708,26 +2760,27 @@
       statusPonte = info;
       if(!info){
         if(el){ el.textContent = 'Sem ponte. Rode npm run servidor em auditeste-a11y (http://127.0.0.1:8900).'; el.className = 'estado-ponte off'; }
-        if(statusIA) statusIA.textContent = 'IA desligada: ponte local não está no ar. Rode npm run servidor.';
+        if(statusIA) statusIA.textContent = 'Ponte local não está no ar. Rode npm run servidor.';
         return false;
       }
       let msg = 'Ponte em ' + alvo.url + '.' + textoMotores(info);
+      msg += info.testeIa === false
+        ? ' Teste automático: indisponível.'
+        : ' Teste automático: pronto (grava o vídeo).';
       msg += info.cenarios
-        ? ' IA NVIDIA: ligada' + (info.modelo ? ' (' + info.modelo + ')' : '') + '.'
-        : ' IA NVIDIA: desligada (sem AGENTE_API_KEY neste endereço).';
-      if(Array.isArray(info.agenteVars) && info.agenteVars.length) msg += ' Vars: ' + info.agenteVars.join(', ') + '.';
-      if(info.aviso) msg += ' ' + info.aviso;
+        ? ' Cenários: prontos.'
+        : ' Cenários: indisponíveis neste endereço.';
       if(el){ el.textContent = msg; el.className = info.cenarios ? 'estado-ponte ok' : 'estado-ponte off'; }
       if(statusIA){
         statusIA.textContent = info.cenarios
-          ? 'IA pronta em ' + alvo.url + (info.modelo ? ' · ' + info.modelo : '')
-          : 'IA desligada. Abra http://127.0.0.1:8900 ou coloque AGENTE_API_KEY no serviço da Railway.';
+          ? 'Ponte pronta em ' + alvo.url
+          : 'Cenários indisponíveis. Abra http://127.0.0.1:8900.';
       }
       return !!info.cenarios;
     }catch(err){
       statusPonte = null;
       if(el){ el.textContent = 'Não alcancei a ponte. Rode npm run servidor.'; el.className = 'estado-ponte off'; }
-      if(statusIA) statusIA.textContent = 'IA desligada: ponte inacessível.';
+      if(statusIA) statusIA.textContent = 'Ponte inacessível.';
       return false;
     }
   }
@@ -2792,12 +2845,13 @@
       <div class="carimbo">${dataHora()} &nbsp;·&nbsp; ${mmss(segundos)} de gravação</div>
       <div class="titulo" contenteditable data-vazio="Ação executada nesta tela"></div>
       <div class="obs" contenteditable data-vazio="Resultado observado, dado utilizado ou observação relevante."></div>
+      <div class="meta-qa" hidden></div>
       <div class="imagens"></div>`;
     const elTitulo = el.querySelector('.titulo');
     const elObs = el.querySelector('.obs');
     if(arguments.length){
-      elTitulo.textContent = (titulo || '').trim() || 'IA lendo o print...';
-      elObs.textContent = (obs || '').trim() || 'A IA vai preencher o que ocorreu na tela.';
+      elTitulo.textContent = (titulo || '').trim() || 'Lendo o print...';
+      elObs.textContent = (obs || '').trim() || 'A descrição do que ocorreu na tela será preenchida.';
       elTitulo.dataset.auto = '1';
       elObs.dataset.auto = '1';
     }
@@ -2807,6 +2861,148 @@
     rotular(el);
     atualizar();
     return el;
+  }
+
+  function marcarQa(passo, dados){
+    if(!passo || !dados) return;
+    passo.dataset.acao = dados.acao || '';
+    passo.dataset.elemento = dados.elemento || '';
+    passo.dataset.valor = dados.valor || '';
+    passo.dataset.html = dados.html || '';
+    const box = passo.querySelector('.meta-qa');
+    if(!box) return;
+    if(!(dados.acao || dados.elemento)){ box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<b>' + esc(dados.acao || '') + '</b> · <code>' + esc(dados.elemento || '') + '</code>'
+      + (dados.html ? '<div class="html-insp">' + esc(String(dados.html).slice(0, 220)) + '</div>' : '');
+  }
+
+  function dataUrlParaBlob(dataUrl){
+    if(!dataUrl || typeof dataUrl !== 'string' || dataUrl.indexOf('data:') !== 0) return null;
+    const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    if(!m) return null;
+    const bin = atob(m[2]);
+    const u8 = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return new Blob([u8], { type: m[1] || 'application/octet-stream' });
+  }
+
+  async function testeIaUrl(){
+    const input = document.getElementById('urlTesteIa');
+    const estadoEl = document.getElementById('estadoTesteIa');
+    const urlSite = (input && input.value || '').trim();
+    const dizer = (txt, ruim) => {
+      if(!estadoEl) return;
+      estadoEl.textContent = txt;
+      estadoEl.className = 'estado-ponte' + (ruim ? ' off' : ruim === false ? ' ok' : ' trabalhando');
+    };
+    if(!urlSite){
+      avisar('Cole o link do site para iniciar a gravação e os prints.');
+      if(input) input.focus();
+      return;
+    }
+    try { new URL(urlSite); } catch(_){ avisar('URL inválida.'); return; }
+    if(testeIaAbort){ avisar('Já existe um teste em andamento.'); return; }
+
+    dizer('Verificando a ponte...');
+    const alvo = await resolverPonteIA();
+    if(!alvo.url || !alvo.info){
+      dizer('Ponte fora do ar. Rode npm run servidor em auditeste-a11y.', true);
+      avisar('A ponte precisa estar no ar para gravar o teste.');
+      return;
+    }
+
+    testeIaAbort = new AbortController();
+    const timeoutId = setTimeout(() => { try{ testeIaAbort.abort(); }catch(_){ } }, 180000);
+    segundos = 0; relogio.textContent = '00:00';
+    mudarEstado('gravando');
+    btnPausar.disabled = true;
+    btnCapturar.disabled = true;
+    dizer('Abrindo o site, gravando e printando...');
+    const statusIaEl = document.getElementById('statusIA');
+    if(statusIaEl) statusIaEl.textContent = 'Testando e gravando: ' + urlSite;
+
+    try{
+      const resp = await fetch(alvo.url + '/teste-ia', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
+        body: JSON.stringify({ url: urlSite }),
+        signal: testeIaAbort.signal
+      });
+      const dados = await resp.json().catch(() => ({}));
+      if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
+      await aplicarTesteIa(dados);
+      const n = (dados.passos || []).length;
+      dizer('Teste concluído: ' + n + ' print(s)' + (videoBlob || dados.video || (dados.quadros||[]).length ? ' + vídeo' : '') + '. Revise e salve.', false);
+      if(statusIaEl) statusIaEl.textContent = 'Gravou ' + n + ' passo(s) com id HTML.';
+      avisar('Teste gravado e printado. Revise e salve no projeto.');
+    }catch(err){
+      const abortou = /AbortError|aborted/i.test((err && (err.name + ' ' + err.message)) || '');
+      const timeout = abortou || /timeout/i.test((err && err.message) || '');
+      if(!abortou || timeout){
+        dizer(timeout && !abortou ? 'O teste demorou demais. Tente de novo.' : abortou ? 'Teste interrompido.' : ('Falha no teste: ' + ((err && err.message) || 'erro')), true);
+        if(!abortou) avisar(timeout ? 'Timeout no teste.' : 'Não foi possível gravar o teste.');
+      }
+    }finally{
+      clearTimeout(timeoutId);
+      testeIaAbort = null;
+      mudarEstado('parado');
+    }
+  }
+
+  async function videoDosQuadros(quadros){
+    if(!quadros || !quadros.length || !window.MediaRecorder) return null;
+    const imgs = [];
+    for(const d of quadros){
+      const img = new Image();
+      img.src = d;
+      await new Promise((ok, err) => { img.onload = ok; img.onerror = err; });
+      imgs.push(img);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = imgs[0].naturalWidth || 1280;
+    canvas.height = imgs[0].naturalHeight || 720;
+    const ctx = canvas.getContext('2d');
+    const stream = canvas.captureStream(8);
+    const rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm' });
+    const chunks = [];
+    rec.ondataavailable = ev => { if(ev.data && ev.data.size) chunks.push(ev.data); };
+    rec.start(200);
+    for(const img of imgs){
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      await new Promise(r => setTimeout(r, 450));
+    }
+    rec.stop();
+    await new Promise(r => { rec.onstop = r; });
+    return chunks.length ? new Blob(chunks, { type: 'video/webm' }) : null;
+  }
+
+  async function aplicarTesteIa(dados){
+    lista.innerHTML = '';
+    videoBlob = dados.video ? dataUrlParaBlob(dados.video) : null;
+    if(!videoBlob && (dados.quadros || []).length) videoBlob = await videoDosQuadros(dados.quadros);
+    if(videoBlob){
+      caixaVideo.innerHTML = '<div class="videobox"><h3>Vídeo da sessão</h3>'
+        + '<div class="meta">' + tam(videoBlob.size) + ' · gravado no teste · será arquivado com esta evidência</div>'
+        + '<video src="' + url(videoBlob) + '" controls></video></div>';
+    } else {
+      caixaVideo.innerHTML = '';
+    }
+    (dados.passos || []).forEach(p => {
+      const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
+      marcarQa(el, p);
+      const figs = p.imagens || [];
+      el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
+      figs.forEach(im => {
+        const blob = dataUrlParaBlob(im.dataUrl || im);
+        if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
+      });
+    });
+    const campoMod = document.querySelector('[data-campo="modulo"]');
+    if(campoMod && !campoMod.textContent.trim() && dados.titulo) campoMod.textContent = dados.titulo.slice(0, 80);
+    const campoObs = document.querySelector('[data-campo="observacoes"]');
+    if(campoObs && !campoObs.textContent.trim() && dados.url) campoObs.textContent = 'Teste em ' + dados.url;
+    atualizar();
   }
 
   function atualizar(){
@@ -2893,6 +3089,10 @@
       carimbo: p.querySelector('.carimbo').textContent.trim(),
       titulo: p.querySelector('.titulo').textContent.trim(),
       obs: p.querySelector('.obs').textContent.trim(),
+      acao: p.dataset.acao || '',
+      elemento: p.dataset.elemento || '',
+      valor: p.dataset.valor || '',
+      html: p.dataset.html || '',
       imagens: [...p.querySelectorAll('figure')].filter(f=>f._blob).map(f => ({
         blob: f._blob, legenda: f.querySelector('figcaption').textContent.trim()
       }))
@@ -3117,7 +3317,7 @@
     window.print();
   }
 
-  /* ============ CENARIOS DE TESTE POR IA ============ */
+  /* ============ CENARIOS DE TESTE ============ */
   /* A chave de API mora na ponte, nunca aqui: este arquivo e exportado e
      entregue ao cliente. O video tambem nao sobe como video — a API recebe
      imagem, entao amostramos quadros no navegador. */
@@ -3127,8 +3327,7 @@
     if(!caixa || !c) return;
     const mapa = (c.mapeamento || '').trim();
     caixa.innerHTML = '<h3>Cenários de teste'
-      + '<span class="fonte">' + esc(c.modelo || '') + ' · '
-      + new Date(c.gerado).toLocaleString('pt-BR') + '</span></h3>'
+      + '<span class="fonte">' + new Date(c.gerado).toLocaleString('pt-BR') + '</span></h3>'
       + '<div class="abas-cenarios" role="tablist">'
       + '<button type="button" class="aba-cenario ativa" data-aba="gherkin" role="tab" aria-selected="true">Gherkin</button>'
       + '<button type="button" class="aba-cenario" data-aba="mapeamento" role="tab" aria-selected="false">Mapeamento QA</button>'
@@ -3280,7 +3479,7 @@
     });
     if(!estruturados){
       L.push('# A confirmar');
-      L.push('# - Passos sem acao/elemento estruturados: complete no Print ou use Gerar cenários (IA).');
+      L.push('# - Passos sem acao/elemento estruturados: complete no Print ou use Gerar cenários.');
     }
     return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
@@ -3303,7 +3502,7 @@
     avisar('Cenários montados.');
   }
 
-  /* ============ CENARIOS POR IA (via ponte) ============ */
+  /* ============ CENARIOS VIA PONTE ============ */
   /* Precisa da ponte porque a chave da API mora la. O montador local acima
      continua sendo o padrao: gratis, instantaneo e sem rede. */
 
@@ -3363,12 +3562,12 @@
     const dizer = (txt, ruim) => { if(el){ el.textContent = txt; el.className = 'estado-cenarios' + (ruim ? ' off' : ''); el.hidden = false; } };
     if(!(r.passos || []).length){ dizer('Este registro não tem passos.', true); return; }
 
-    dizer('Verificando o agente NVIDIA...');
+    dizer('Verificando o serviço de cenários...');
     const alvo = await resolverPonteIA();
     const iaLigada = !!(alvo.info && alvo.info.cenarios);
     if(!iaLigada){
-      dizer('Agente NVIDIA indisponível. Abra http://127.0.0.1:8900 ou defina AGENTE_API_KEY no serviço da Railway.', true);
-      avisar('Não foi possível gerar: API NVIDIA não está ligada.');
+      dizer('Serviço de cenários indisponível. Abra http://127.0.0.1:8900.', true);
+      avisar('Não foi possível gerar os cenários. Confira a ponte.');
       return;
     }
 
@@ -3381,10 +3580,11 @@
         obs: p.obs || '',
         acao: p.acao || '',
         elemento: p.elemento || '',
-        valor: p.valor || ''
+        valor: p.valor || '',
+        html: p.html || ''
       }));
 
-      dizer('Gerando cenários com NVIDIA. Pode levar até 90 segundos...');
+      dizer('Gerando cenários. Pode levar até 90 segundos...');
       const resp = await fetch(alvo.url + '/cenarios', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
@@ -3402,14 +3602,14 @@
       };
       await gravarRegistroDB(r);
       mostrarCenarios(r.cenarios);
-      dizer('Cenários gerados · modelo ' + (dados.modelo || 'NVIDIA') + ' · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
-      avisar('Cenários gerados (NVIDIA · automacao-web-qa).');
+      dizer('Cenários gerados · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
+      avisar('Cenários gerados.');
     }catch(err){
       const timeout = /AbortError|aborted|timeout/i.test((err && (err.name + ' ' + err.message)) || '');
       dizer(timeout
-        ? 'A NVIDIA demorou demais. Tente de novo; os passos já descritos pela IA bastam para gerar o Gherkin.'
-        : ('Falha no agente NVIDIA: ' + ((err && err.message) || 'erro')), true);
-      avisar(timeout ? 'Timeout ao gerar cenários. Tente novamente.' : 'Não foi possível gerar os cenários. Confira a ponte e a AGENTE_API_KEY.');
+        ? 'O serviço demorou demais. Tente de novo; os passos já descritos bastam para gerar o Gherkin.'
+        : ('Falha ao gerar cenários: ' + ((err && err.message) || 'erro')), true);
+      avisar(timeout ? 'Timeout ao gerar cenários. Tente novamente.' : 'Não foi possível gerar os cenários. Confira a ponte.');
     }finally{
       if(botao) botao.disabled = false;
     }
@@ -3434,7 +3634,7 @@
         <div class="acoes">
           <button class="btn primario pequeno" data-acao="exportarHtml">Exportar HTML</button>
           <button class="btn escuro pequeno" data-acao="salvarPdf">Salvar em PDF</button>
-          <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Gera Gherkin + mapeamento via API NVIDIA no padrão da skill automacao-web-qa">Gerar cenários</button>
+          <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Gera Gherkin e mapeamento a partir dos passos">Gerar cenários</button>
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
       </div>
@@ -3460,6 +3660,7 @@
           <div class="carimbo">${esc(p.carimbo)}</div>
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
           <div class="obs">${esc(p.obs)}</div>
+          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b> · <code>${esc(p.elemento || '')}</code>${p.html ? `<div class="html-insp">${esc(p.html)}</div>` : ''}</div>` : ''}
           ${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
             <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}
@@ -3485,6 +3686,24 @@
 
   /* ============ EVENTOS GERAIS ============ */
   btnIniciar.addEventListener('click', iniciar);
+  const btnIniciarManual = document.getElementById('btnIniciarManual');
+  if(btnIniciarManual) btnIniciarManual.addEventListener('click', iniciarManual);
+  const campoUrlIa = document.getElementById('urlTesteIa');
+  const campoUrlProjeto = document.getElementById('urlTesteIaProjeto');
+  if(campoUrlIa) campoUrlIa.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); iniciar(); } });
+  if(campoUrlProjeto){
+    campoUrlProjeto.addEventListener('keydown', e => {
+      if(e.key !== 'Enter') return;
+      e.preventDefault();
+      if(campoUrlIa) campoUrlIa.value = campoUrlProjeto.value.trim();
+      abrirGravador();
+      iniciar();
+    });
+    campoUrlProjeto.addEventListener('input', () => { if(campoUrlIa) campoUrlIa.value = campoUrlProjeto.value; });
+  }
+  if(campoUrlIa && campoUrlProjeto){
+    campoUrlIa.addEventListener('input', () => { campoUrlProjeto.value = campoUrlIa.value; });
+  }
   btnParar.addEventListener('click', ()=> parar(false));
   btnCapturar.addEventListener('click', ()=> capturar(true));
   btnPausar.addEventListener('click', ()=>{
@@ -3609,7 +3828,7 @@
       mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte();
       try{ ativarModoCaptura(localStorage.getItem('captura_modo') || 'alteracao'); }catch(e){ ativarModoCaptura('alteracao'); }
       if(location.protocol === 'file:'){
-        avisar('Este Print foi aberto pelo arquivo. Use http://127.0.0.1:8900 (Ctrl+F5) para a captura v4 com antes/depois e IA.');
+        avisar('Este Print foi aberto pelo arquivo. Use http://127.0.0.1:8900 e recarregue com Ctrl+F5.');
       }
     })
     .catch(err => informar('Não foi possível abrir o arquivo local de evidências: ' + err.message, 'Armazenamento indisponível'));

@@ -12,6 +12,7 @@
     "servidor": "node servidor.js",
     "teste-file": "node teste_file.js",
     "teste-agente": "node teste-agente-cenarios.js",
+    "teste-ia": "node teste-ia-seletores.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {

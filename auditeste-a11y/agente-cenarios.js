@@ -38,7 +38,7 @@ GHERKIN:
 
 MAPEAMENTO (skill §2, um bloco por print):
 Passo: N
-Elemento Web: rótulo visível, seletor ou (a confirmar)
+Elemento Web: copie EXATO o seletor inspecionado do passo. Preferência: #id → [name=] → xpath //*[@id='...']. NUNCA invente id. Sem seletor: (a confirmar).
 Ação: só Preencher | Clicar | Ler | Limpar | Verificar | Comparar | Acessar | Upload
 Valor: se Preencher, Comparar ou Upload
 Step: a frase Gherkin correspondente
@@ -65,17 +65,17 @@ Funcionalidade: Compras
 
 ===MAPEAMENTO===
 Passo: 1
-Elemento Web: card "Smart TV 43' Philco"
+Elemento Web: #card-tv-philco
 Ação: Clicar
 Step: Quando eu clico no card "Smart TV 43' Philco"
 
 Passo: 2
-Elemento Web: texto "R$ 1.449,90"
+Elemento Web: #preco-produto
 Ação: Verificar
 Step: Então eu vejo o texto "R$ 1.449,90"
 
 Passo: 3
-Elemento Web: botão "Comprar"
+Elemento Web: #btn-comprar
 Ação: Verificar
 Step: E eu vejo o botão "Comprar"
 `;
@@ -114,7 +114,8 @@ function montarConteudoUsuario({ ficha, passos, quadros }) {
     const linhas = [`Print ${i + 1}: ${(p.titulo || '').trim() || '(sem título)'}`];
     if ((p.obs || '').trim()) linhas.push(`O que está na aba: ${p.obs.trim()}`);
     if ((p.acao || '').trim()) linhas.push(`Ação: ${p.acao.trim()}`);
-    if ((p.elemento || '').trim()) linhas.push(`Elemento Web: ${p.elemento.trim()}`);
+    if ((p.elemento || '').trim()) linhas.push(`Elemento Web (inspecionado): ${p.elemento.trim()}`);
+    if ((p.html || '').trim()) linhas.push(`HTML: ${p.html.trim().slice(0, 280)}`);
     if ((p.valor || '').trim()) linhas.push(`Valor: ${p.valor.trim()}`);
     partes.push({ type: 'text', text: linhas.join('\n') });
 
