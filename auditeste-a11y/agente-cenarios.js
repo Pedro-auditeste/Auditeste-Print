@@ -425,6 +425,40 @@ function parseDescricaoTela(texto) {
 
 const FALLBACK_PRINT = { titulo: 'Ação na tela', obs: 'O cliente avançou da tela anterior para a tela seguinte.' };
 
+const PROMPT_ANTES = [
+  'Esta é a IMAGEM 1 (tela ANTES do clique). Só esta imagem.',
+  'Diga o que aparece: logo/loja, listagem ou produto, botão, cursor.',
+  'O que o cliente clicou NESTA tela. Só texto visível. Não invente marca.',
+  'Sempre descreva. Nunca recuse.',
+  'Título: Clicou em "..." (rótulo lido nesta imagem)',
+  'Observação: 1 frase completa só sobre a imagem 1.'
+].join('\n');
+
+const PROMPT_DEPOIS = [
+  'Esta é a IMAGEM 2 (tela DEPOIS: o que abriu). Só esta imagem.',
+  'Diga heading, produto, campos ou botões que aparecem.',
+  'Para onde o cliente entrou. Só texto visível. Não invente marca.',
+  'Sempre descreva. Nunca recuse.',
+  'Título: Entrou em "..." (heading/produto lido nesta imagem)',
+  'Observação: 1 frase completa só sobre a imagem 2.'
+].join('\n');
+
+const PROMPT_UMA = [
+  'Uma captura. Leia o texto visível. Não invente marca. Sempre descreva. Nunca recuse.',
+  'Título curto + 1 frase completa com o heading/produto que aparece no print.'
+].join('\n');
+
+function juntarPassoAPasso(antes, depois) {
+  const a = antes || FALLBACK_PRINT;
+  const b = depois || FALLBACK_PRINT;
+  const titulo = cortarPalavra(a.titulo || 'Ação na tela', 90);
+  const obs = cortarPalavra(
+    'Imagem 1: ' + (a.obs || a.titulo || '') + ' Imagem 2: ' + (b.obs || b.titulo || ''),
+    280
+  );
+  return { titulo, obs };
+}
+
 async function chamarVisao(conteudo) {
   const timeoutMs = Math.max(TIMEOUT_MS, 45000);
   const tentar = async (system, extraTexto) => {
@@ -453,25 +487,27 @@ async function chamarVisao(conteudo) {
   return out || FALLBACK_PRINT;
 }
 
+async function descreverUma(dataUrl, papel) {
+  const prompt = papel === 'antes' ? PROMPT_ANTES : papel === 'depois' ? PROMPT_DEPOIS : PROMPT_UMA;
+  return chamarVisao([
+    { type: 'text', text: prompt },
+    { type: 'image_url', image_url: { url: dataUrl } }
+  ]);
+}
+
 async function descreverTela(entrada) {
   exigirChave();
   const depois = typeof entrada === 'string' ? entrada : (entrada && (entrada.imagem || entrada.depois || entrada.dataUrl) || '');
+  const antes = typeof entrada === 'string' ? '' : (entrada && (entrada.antes || entrada.imagemAntes) || '');
   if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
-  const promptPar = [
-    'Dois prints: ESQUERDA = onde clicou. DIREITA = para onde entrou. Não inverta.',
-    'Leia o TEXTO da imagem (logo, produto, botão). Use só o que aparece. Proibido inventar marca/produto.',
-    'CTA ou cursor = clique. Tooltip CEP no topo não conta se a direita for outra página. CEP ≠ CPF.',
-    'Sempre descreva. Nunca recuse. Título até 10 palavras. Observação: 1 frase COMPLETA (não corte palavra).'
-  ].join('\n');
-  const promptUma = [
-    'Uma captura. Leia o texto visível. Não invente marca. Sempre descreva. Nunca recuse.',
-    'Título curto + 1 frase completa com o heading/produto que aparece no print.'
-  ].join('\n');
-  const ehPar = !!(entrada && entrada.par);
-  return chamarVisao([
-    { type: 'text', text: ehPar ? promptPar : promptUma },
-    { type: 'image_url', image_url: { url: depois } }
-  ]);
+  if (dataUrlValida(antes)) {
+    const [d1, d2] = await Promise.all([
+      descreverUma(antes, 'antes'),
+      descreverUma(depois, 'depois')
+    ]);
+    return juntarPassoAPasso(d1, d2);
+  }
+  return descreverUma(depois, 'unica');
 }
 
 async function gerarCenarios({ ficha, passos, quadros }) {
@@ -542,6 +578,7 @@ module.exports = {
   gerarCenarios,
   descreverTela,
   parseDescricaoTela,
+  juntarPassoAPasso,
   montarCenariosDosPassos,
   MODELO,
   BASE_URL,

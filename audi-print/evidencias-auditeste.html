@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v14 · descreve o que está no print</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v15 · imagem 1 + imagem 2, cada uma</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v14</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v15</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -2086,24 +2086,24 @@
     if(obs) obs.dataset.auto = '1';
     if(!tit.textContent.trim()) tit.textContent = 'IA lendo o print...';
     if(obs && (!obs.textContent.trim() || /ação executada|resultado observado/i.test(obs.textContent))){
-      obs.textContent = 'IA lendo as capturas: onde clicou e para onde entrou...';
+      obs.textContent = 'IA lendo imagem 1 e imagem 2...';
     }
     const job = (async () => {
-      while(descricaoAtivas >= 2) await new Promise(r => setTimeout(r, 250));
+      while(descricaoAtivas >= 1) await new Promise(r => setTimeout(r, 250));
       descricaoAtivas++;
       try{
         const alvo = await resolverPonteIA();
         if(!alvo.info || !alvo.info.cenarios){
           throw new Error('IA sem chave. Use http://127.0.0.1:8900 (ponte local) ou defina AGENTE_API_KEY no serviço da Railway.');
         }
-        const par = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
-        const envio = await encolherLeve(par || blobDepois, 1400, 0.8, 400000);
-        if(!envio) throw new Error('não consegui reduzir a captura');
+        const depois = await encolherLeve(blobDepois, 1000, 0.78, 280000);
+        const antes = blobAntes ? await encolherLeve(blobAntes, 1000, 0.78, 280000) : null;
+        if(!depois) throw new Error('não consegui reduzir a captura');
         const resp = await fetch(alvo.url + '/descrever', {
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
-          body: JSON.stringify({ imagem: envio, par: !!par }),
-          signal: AbortSignal.timeout(70000)
+          body: JSON.stringify({ imagem: depois, antes: antes || undefined }),
+          signal: AbortSignal.timeout(100000)
         });
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
@@ -2120,9 +2120,11 @@
         if(recusa || !titulo){
           titulo = 'Ação na tela';
           observ = 'O cliente avançou da tela anterior para a tela seguinte.';
-        } else {
+        } else if(!/Imagem\s*1\s*:/i.test(observ)){
           const uma = observ.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
           observ = cortarPalavra(uma ? uma[0] : observ, 220);
+        } else {
+          observ = cortarPalavra(observ, 280);
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;

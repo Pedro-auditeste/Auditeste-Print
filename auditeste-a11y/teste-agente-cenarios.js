@@ -1,6 +1,6 @@
 /* Smoke do agente: parse de blocos + ausência de chave. Sem chamada de rede. */
 const assert = require('assert');
-const { extrairBlocos, gerarCenarios, parseDescricaoTela, montarCenariosDosPassos } = require('./agente-cenarios.js');
+const { extrairBlocos, gerarCenarios, parseDescricaoTela, montarCenariosDosPassos, juntarPassoAPasso } = require('./agente-cenarios.js');
 
 const amostra = `===GHERKIN===
 # language: pt
@@ -43,6 +43,13 @@ assert.ok(desc.obs.length <= 220);
 const nike = parseDescricaoTela('Título: Clicou no card "Tênis Nike Jordan Luka 4"\nObservação: Estava na listagem NBA Nike e clicou no tênis Jordan Luka 4 para abrir a página do produto com botão Comprar e opções de tamanho.');
 assert.ok(/Nike|Jordan|Luka|tênis|tenis/i.test(nike.titulo + nike.obs));
 assert.ok(!/PlayStation|PS5/i.test(nike.titulo + nike.obs));
+const passo = juntarPassoAPasso(
+  { titulo: 'Clicou no card "Tênis Nike Jordan Luka 4"', obs: 'Listagem NBA Nike, clicou no card do Luka 4.' },
+  { titulo: 'Entrou na PDP do Tênis Nike Jordan Luka 4', obs: 'Página do produto com botão Comprar.' }
+);
+assert.ok(/Imagem 1:/i.test(passo.obs) && /Imagem 2:/i.test(passo.obs));
+assert.ok(/Nike|Luka/i.test(passo.obs));
+assert.ok(!/PlayStation|PS5/i.test(passo.titulo + passo.obs));
 assert.ok(!/\w{20}$/.test(nike.obs) || /[.!?]$/.test(nike.obs) || /[a-záéíóúãõç]$/i.test(nike.obs));
 let recusou = false;
 try { parseDescricaoTela('I cannot help with that.'); } catch (e) { recusou = /recusa/i.test(e.message); }
