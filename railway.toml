@@ -4,7 +4,7 @@
 #   PONTE_TOKEN        obrigatório para habilitar scans
 #   AGENTE_API_KEY     obrigatória para IA (descrever prints + Gherkin)
 #   AGENTE_BASE_URL    opcional — padrão https://integrate.api.nvidia.com/v1
-#   AGENTE_MODELO      opcional — padrão meta/llama-3.2-90b-vision-instruct
+#   AGENTE_MODELO      opcional — padrão meta/llama-3.2-11b-vision-instruct
 #   AGENTE_MODELO_FALLBACK  opcional — padrão meta/llama-3.2-11b-vision-instruct
 #   PONTE_DOMINIOS     opcional — allowlist (ex: cliente.com.br)
 #   PONTE_MAX          opcional — scans simultâneos (padrão 2)

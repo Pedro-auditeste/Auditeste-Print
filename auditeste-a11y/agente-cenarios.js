@@ -9,11 +9,11 @@
  *   AGENTE_MODELO       padrão meta/llama-3.2-11b-vision-instruct
  */
 const BASE_URL = (process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '');
-const MODELO = process.env.AGENTE_MODELO || 'meta/llama-3.2-90b-vision-instruct';
+const MODELO = process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct';
 const MODELO_FALLBACK = process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct';
 const MAX_IMAGENS = Number(process.env.AGENTE_MAX_IMAGENS) || 20;
 const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 4096;
-const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 45000;
+const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
 
 const SISTEMA = `Você é o agente de automação web QA da Auditeste (skill automacao-web-qa / SKILL-MAPEAMENTO-QA).
 A partir das evidências do Audi Print você produz a ENTRADA padronizada para gerar feature Behave, steps e Page Object.
