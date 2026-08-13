@@ -929,6 +929,15 @@
       <button class="btn primario" data-acao="novoProjeto">Novo projeto</button>
     </div>
 
+    <div class="caixa-link" id="caixaLinkHome">
+      <label for="urlTesteIaHome">Link do site</label>
+      <div class="linha-scan">
+        <input type="url" id="urlTesteIaHome" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site para testar e gravar">
+        <button type="button" class="btn primario" data-acao="iniciarTesteHome">Iniciar teste</button>
+      </div>
+      <p class="dica-captura">Cole o endereço aqui na tela inicial. O teste grava a tela e tira os prints.</p>
+    </div>
+
     <div class="busca">
       <span class="lupa" aria-hidden="true"></span>
       <input type="text" id="campoBusca" placeholder="Pesquisar projeto por nome ou cliente" autocomplete="off" aria-label="Pesquisar projeto">
@@ -979,7 +988,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v21 · cole o link e inicie o teste</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v22 · cole o link na tela inicial</p>
       </div>
     </div>
 
@@ -1764,13 +1773,7 @@
       return desenharProjetos();
     }
     if(b.dataset.acao === 'novaGravacao') return abrirGravador();
-    if(b.dataset.acao === 'iniciarTesteUrl'){
-      const de = document.getElementById('urlTesteIaProjeto');
-      const para = document.getElementById('urlTesteIa');
-      if(de && para) para.value = (de.value || '').trim();
-      abrirGravador();
-      return testeIaUrl();
-    }
+    if(b.dataset.acao === 'iniciarTesteUrl') return iniciarTesteDaTela('urlTesteIaProjeto');
   });
 
   document.getElementById('arqLogoProjeto').addEventListener('change', async e => {
@@ -1787,6 +1790,40 @@
     a.href = url(r.video);
     a.download = `${(r.ficha.registro||'evidencia').replace(/[^\w.-]/g,'_')}.webm`;
     a.click();
+  }
+
+  function copiarUrlTeste(valor){
+    const v = String(valor || '').trim();
+    ['urlTesteIaHome','urlTesteIaProjeto','urlTesteIa'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.value = v;
+    });
+    return v;
+  }
+
+  async function garantirProjetoParaTeste(){
+    if(projetoAtual) return projetoAtual;
+    const projetos = (await listarProjetos()).sort((a,b)=> (b.criadoEm||0) - (a.criadoEm||0));
+    if(projetos[0]){
+      await abrirProjeto(projetos[0].id);
+      return projetoAtual;
+    }
+    const id = await criarProjetoDB({ nome: 'Teste', cliente: '', criadoEm: Date.now() });
+    await abrirProjeto(id);
+    return projetoAtual;
+  }
+
+  async function iniciarTesteDaTela(origemId){
+    const origem = document.getElementById(origemId);
+    const urlSite = copiarUrlTeste(origem && origem.value);
+    if(!urlSite){
+      avisar('Cole o link do site.');
+      if(origem) origem.focus();
+      return;
+    }
+    await garantirProjetoParaTeste();
+    abrirGravador();
+    return testeIaUrl();
   }
 
   /* ============ TELA GRAVADOR ============ */
@@ -3688,22 +3725,16 @@
   btnIniciar.addEventListener('click', iniciar);
   const btnIniciarManual = document.getElementById('btnIniciarManual');
   if(btnIniciarManual) btnIniciarManual.addEventListener('click', iniciarManual);
-  const campoUrlIa = document.getElementById('urlTesteIa');
-  const campoUrlProjeto = document.getElementById('urlTesteIaProjeto');
-  if(campoUrlIa) campoUrlIa.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); iniciar(); } });
-  if(campoUrlProjeto){
-    campoUrlProjeto.addEventListener('keydown', e => {
+  ['urlTesteIaHome','urlTesteIaProjeto','urlTesteIa'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', () => copiarUrlTeste(el.value));
+    el.addEventListener('keydown', e => {
       if(e.key !== 'Enter') return;
       e.preventDefault();
-      if(campoUrlIa) campoUrlIa.value = campoUrlProjeto.value.trim();
-      abrirGravador();
-      iniciar();
+      iniciarTesteDaTela(id);
     });
-    campoUrlProjeto.addEventListener('input', () => { if(campoUrlIa) campoUrlIa.value = campoUrlProjeto.value; });
-  }
-  if(campoUrlIa && campoUrlProjeto){
-    campoUrlIa.addEventListener('input', () => { campoUrlProjeto.value = campoUrlIa.value; });
-  }
+  });
   btnParar.addEventListener('click', ()=> parar(false));
   btnCapturar.addEventListener('click', ()=> capturar(true));
   btnPausar.addEventListener('click', ()=>{
@@ -3727,6 +3758,7 @@
     if(!a) return;
     const acao = a.dataset.acao;
     if(acao === 'novoProjeto') novoProjeto();
+    if(acao === 'iniciarTesteHome') iniciarTesteDaTela('urlTesteIaHome');
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
     if(acao === 'removerBlocoA11y'){
       e.preventDefault();
