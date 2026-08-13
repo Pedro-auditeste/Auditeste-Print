@@ -11,10 +11,12 @@
 const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/$/, '');
 const MODELO = String(process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct').trim();
 const MODELO_FALLBACK = String(process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct').trim();
-const MAX_IMAGENS = Number(process.env.AGENTE_MAX_IMAGENS)
-  || (/llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + BASE_URL) ? 1 : 8);
-const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 4096;
+const MAX_IMAGENS = /llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + BASE_URL)
+  ? 0
+  : (Number(process.env.AGENTE_MAX_IMAGENS) || 8);
+const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 2048;
 const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
+const TIMEOUT_CENARIOS_MS = Math.max(90000, TIMEOUT_MS);
 
 const SISTEMA = `Você é o agente de automação web QA da Auditeste (skill automacao-web-qa / SKILL-MAPEAMENTO-QA).
 A partir das evidências do Audi Print você produz a ENTRADA padronizada para gerar feature Behave, steps e Page Object.
@@ -338,8 +340,9 @@ async function gerarCenarios({ ficha, passos, quadros }) {
   const { partes, imagens } = montarConteudoUsuario({ ficha, passos, quadros });
   const r = await chamarNvidia({
     messages: [{ role: 'user', content: partes }],
-    maxTokens: MAX_TOKENS,
-    temperature: 0.2
+    maxTokens: Math.min(MAX_TOKENS, 2048),
+    temperature: 0.2,
+    timeoutMs: TIMEOUT_CENARIOS_MS
   });
 
   if (r.finish_reason === 'content_filter') {

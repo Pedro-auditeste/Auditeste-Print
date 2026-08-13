@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v8 · IA lê o print: onde clicou e para onde entrou</p>
+        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v9 · gerar cenários sem timeout</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5 — tem que aparecer <b>Captura v6</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v9</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -2930,9 +2930,9 @@
 
     partes.push('<section class="ficha">');
     campos.forEach(([rot, ch]) => {
-      partes.push('<div><span class="rot">' + rot + '</span><div class="val">' + (esc(f[ch]) || '&mdash;') + '</div></div>');
+      partes.push('<div><span class="rot">' + rot + '</span><div class="val">' + (esc(f[ch]) || '') + '</div></div>');
     });
-    partes.push('<div class="largo"><span class="rot">Observações</span><div class="val">' + (esc(f.observacoes) || '&mdash;') + '</div></div>');
+    partes.push('<div class="largo"><span class="rot">Observações</span><div class="val">' + (esc(f.observacoes) || '') + '</div></div>');
     partes.push('</section>');
 
     if(video){
@@ -3306,36 +3306,22 @@
 
     try{
       dizer('Preparando as evidências do Print...');
-      const passos = [];
-      for(const p of (r.passos || [])){
-        const imagens = [];
-        for(const im of (p.imagens || [])){
-          const d = await encolher(im.blob, 1200, 0.7);
-          if(d) imagens.push(d);
-        }
-        passos.push({
-          titulo: p.titulo || '',
-          obs: p.obs || '',
-          acao: p.acao || '',
-          elemento: p.elemento || '',
-          valor: p.valor || '',
-          imagens
-        });
-      }
+      const passos = (r.passos || []).map(p => ({
+        titulo: p.titulo || '',
+        obs: p.obs || '',
+        acao: p.acao || '',
+        elemento: p.elemento || '',
+        valor: p.valor || ''
+      }));
 
-      let quadros = [];
-      if(r.video){
-        dizer('Amostrando quadros do vídeo...');
-        quadros = await amostrarVideo(r.video, 4);
-      }
-
-      dizer('Gerando cenários com NVIDIA no padrão automacao-web-qa. Pode levar até 2 minutos...');
+      dizer('Gerando cenários com NVIDIA. Pode levar até 90 segundos...');
       const resp = await fetch(alvo.url + '/cenarios', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
-        body: JSON.stringify({ ficha: r.ficha, passos, quadros })
+        body: JSON.stringify({ ficha: r.ficha, passos }),
+        signal: AbortSignal.timeout(120000)
       });
-      const dados = await resp.json();
+      const dados = await resp.json().catch(() => ({}));
       if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
 
       r.cenarios = {
@@ -3349,8 +3335,11 @@
       dizer((dados.imagens || 0) + ' imagem(ns) analisada(s) · modelo ' + (dados.modelo || '') + ' · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
       avisar('Cenários gerados (NVIDIA · automacao-web-qa).');
     }catch(err){
-      dizer('Falha no agente NVIDIA: ' + err.message, true);
-      avisar('Não foi possível gerar os cenários. Confira a ponte e a AGENTE_API_KEY.');
+      const timeout = /AbortError|aborted|timeout/i.test((err && (err.name + ' ' + err.message)) || '');
+      dizer(timeout
+        ? 'A NVIDIA demorou demais. Tente de novo; os passos já descritos pela IA bastam para gerar o Gherkin.'
+        : ('Falha no agente NVIDIA: ' + ((err && err.message) || 'erro')), true);
+      avisar(timeout ? 'Timeout ao gerar cenários. Tente novamente.' : 'Não foi possível gerar os cenários. Confira a ponte e a AGENTE_API_KEY.');
     }finally{
       if(botao) botao.disabled = false;
     }
@@ -3384,8 +3373,8 @@
         <summary>Ficha de identificação</summary>
         <div class="corpo">
           <div class="ficha">
-            ${campos.map(([rot,ch])=>`<div><span class="rot">${rot}</span><div class="val">${esc(f[ch])||'&mdash;'}</div></div>`).join('')}
-            <div class="largo"><span class="rot">Observações gerais</span><div class="val">${esc(f.observacoes)||'&mdash;'}</div></div>
+            ${campos.map(([rot,ch])=>`<div><span class="rot">${rot}</span><div class="val">${esc(f[ch])||''}</div></div>`).join('')}
+            <div class="largo"><span class="rot">Observações gerais</span><div class="val">${esc(f.observacoes)||''}</div></div>
           </div>
         </div>
       </details>
