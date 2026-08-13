@@ -452,8 +452,8 @@
     background:var(--green);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.98rem;
   }
   .passo .carimbo{font-family:'Cascadia Code','Consolas',monospace;font-size:.75rem;color:var(--muted);margin-bottom:4px;}
-  .passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px;}
-  .passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4;}
+  .passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px;overflow:visible;overflow-wrap:break-word;white-space:normal;max-width:100%;}
+  .passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4;overflow:visible;overflow-wrap:break-word;white-space:normal;max-width:100%;}
   .passo .remover{position:absolute;top:15px;right:15px;background:none;border:none;color:#b6c1c6;font-size:1.02rem;cursor:pointer;}
   .passo .remover:hover{color:var(--rec);}
   .passo img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin-bottom:6px;cursor:zoom-in;}
@@ -958,7 +958,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v13 · descrição curta nos prints</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v14 · descreve o que está no print</p>
       </div>
     </div>
 
@@ -983,7 +983,7 @@
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v13</b>.</p>
+          <p class="dica-captura">Guarda a última tela <b>estável</b> e imprime <b>antes + depois</b>. A IA usa a ponte que tiver chave NVIDIA (local 8900 se a Railway estiver sem chave). Recarregue com Ctrl+F5. Tem que aparecer <b>Captura v14</b>.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -2107,15 +2107,22 @@
         });
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-        let titulo = String(dados.titulo || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        const cortarPalavra = (t, max) => {
+          const s = String(t || '').replace(/\s+/g, ' ').trim();
+          if(s.length <= max) return s;
+          const c = s.slice(0, max);
+          const sp = c.lastIndexOf(' ');
+          return (sp > 12 ? c.slice(0, sp) : c).replace(/[.,;:]+$/, '');
+        };
+        let titulo = cortarPalavra(dados.titulo || '', 90);
         let observ = String(dados.obs || '').replace(/\s+/g, ' ').trim();
         const recusa = /não posso ajudar|cannot help|can't help|i am unable|unable to (help|assist)/i.test(titulo + ' ' + observ);
         if(recusa || !titulo){
           titulo = 'Ação na tela';
           observ = 'O cliente avançou da tela anterior para a tela seguinte.';
         } else {
-          const uma = observ.match(/^.{12,160}?[.!?…](?=\s|$)/);
-          observ = (uma ? uma[0] : observ).slice(0, 180);
+          const uma = observ.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
+          observ = cortarPalavra(uma ? uma[0] : observ, 220);
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;
@@ -3011,8 +3018,8 @@
       '.passo{background:var(--card);border-radius:12px;box-shadow:0 2px 10px rgba(13,52,70,.06);padding:20px 24px 20px 74px;margin-bottom:14px;position:relative}',
       '.passo .num{position:absolute;left:20px;top:20px;width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center}',
       ".passo .carimbo{font-family:'Cascadia Code',Consolas,monospace;font-size:.75rem;color:var(--muted);margin-bottom:4px}",
-      '.passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px}',
-      '.passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4}',
+      '.passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px;overflow-wrap:break-word}',
+      '.passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4;overflow-wrap:break-word}',
       'figure{margin:0 0 10px}',
       'figure img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;cursor:zoom-in;transition:box-shadow .2s ease}',
       'figure img:hover{box-shadow:0 10px 24px rgba(13,52,70,.16)}',

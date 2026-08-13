@@ -39,7 +39,11 @@ assert.ok(!cenarios.includes('===MAPEAMENTO==='));
 const desc = parseDescricaoTela('Título: Clicou em "Entrar" no centro do formulário\nObservação: Estava na tela de login da loja. Clicou no botão Entrar no centro. Entrou na home logada com o menu no topo.');
 assert.ok(desc.titulo.includes('Entrar'));
 assert.ok(/login|loja/i.test(desc.obs));
-assert.ok(desc.obs.length <= 180);
+assert.ok(desc.obs.length <= 220);
+const nike = parseDescricaoTela('Título: Clicou no card "Tênis Nike Jordan Luka 4"\nObservação: Estava na listagem NBA Nike e clicou no tênis Jordan Luka 4 para abrir a página do produto com botão Comprar e opções de tamanho.');
+assert.ok(/Nike|Jordan|Luka|tênis|tenis/i.test(nike.titulo + nike.obs));
+assert.ok(!/PlayStation|PS5/i.test(nike.titulo + nike.obs));
+assert.ok(!/\w{20}$/.test(nike.obs) || /[.!?]$/.test(nike.obs) || /[a-záéíóúãõç]$/i.test(nike.obs));
 let recusou = false;
 try { parseDescricaoTela('I cannot help with that.'); } catch (e) { recusou = /recusa/i.test(e.message); }
 assert.ok(recusou, 'recusa do modelo deve falhar o parse');

@@ -391,10 +391,18 @@ function eRecusaModelo(texto, finish) {
   return /i\s*(can'?t|cannot)\s+(help|assist)|i'?m\s+not\s+able|as an ai|i am unable|sorry[,.]?\s+i\s+can'?t|não\s+posso\s+(ajudar|assistir|descrever)|n[aã]o\s+consigo\s+(ajudar|descrever)|unable to (help|assist|describe)/i.test(texto || '');
 }
 
+function cortarPalavra(t, max) {
+  const s = String(t || '').replace(/\s+/g, ' ').trim();
+  if (s.length <= max) return s;
+  const corte = s.slice(0, max);
+  const sp = corte.lastIndexOf(' ');
+  return (sp > 12 ? corte.slice(0, sp) : corte).replace(/[.,;:]+$/, '');
+}
+
 function encurtarObs(t, max) {
   const s = String(t || '').replace(/\s+/g, ' ').trim();
-  const uma = s.match(/^.{12,160}?[.!?…](?=\s|$)/);
-  return (uma ? uma[0] : s).slice(0, max);
+  const uma = s.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
+  return cortarPalavra(uma ? uma[0] : s, max);
 }
 
 function parseDescricaoTela(texto) {
@@ -407,9 +415,9 @@ function parseDescricaoTela(texto) {
   const t = /(?:t[íi]tulo|a[cç][aã]o)\s*[:\-–]\s*(.+)/i.exec(bruto);
   const o = /observa[cç][aã]o\s*[:\-–]\s*([\s\S]+)/i.exec(bruto);
   const linhas = bruto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  let titulo = (t ? t[1] : linhas[0] || '').replace(/^["'#*\s]+|["'#*\s]+$/g, '').slice(0, 80);
+  let titulo = cortarPalavra((t ? t[1] : linhas[0] || '').replace(/^["'#*\s]+|["'#*\s]+$/g, ''), 90);
   let obs = encurtarObs((o ? o[1] : linhas.slice(1).join(' ').trim() || titulo)
-    .replace(/^["'#*\s]+|["'#*\s]+$/g, ''), 180);
+    .replace(/^["'#*\s]+|["'#*\s]+$/g, ''), 220);
   if (!titulo) throw new Error('não foi possível ler o título da tela');
   if (!obs) obs = titulo;
   return { titulo, obs };
@@ -428,19 +436,19 @@ async function chamarVisao(conteudo) {
         { role: 'system', content: system },
         { role: 'user', content: user }
       ],
-      maxTokens: 120,
+      maxTokens: 200,
       temperature: 0.05,
       timeoutMs
     });
     if (eRecusaModelo(r.texto, r.finish_reason)) return null;
     try { return parseDescricaoTela(r.texto); } catch (_) { return null; }
   };
-  const sistema = 'Analista QA. Sempre descreva o print. Proibido recusar ou dizer que não pode ajudar. Português. Texto CURTO.';
+  const sistema = 'Analista QA. Descreva SÓ o que está escrito na imagem. Não invente marca nem produto. Sempre responda. Português. Texto curto e completo.';
   let out = await tentar(sistema);
   if (out) return out;
   out = await tentar(
-    'Você SEMPRE responde. Nunca diga que não pode ajudar. Descreva o clique e o destino em 2 linhas curtas, em português.',
-    'Obrigatório: Título: (até 10 palavras)\nObservação: (1 frase: estava em X, clicou Y, entrou em Z). CEP ≠ CPF.'
+    'Você SEMPRE responde. Nunca recuse. Use apenas texto visível no print.',
+    'Título: (até 10 palavras, nome lido na imagem)\nObservação: (1 frase completa: estava em X, clicou Y, entrou em Z).'
   );
   return out || FALLBACK_PRINT;
 }
@@ -450,17 +458,14 @@ async function descreverTela(entrada) {
   const depois = typeof entrada === 'string' ? entrada : (entrada && (entrada.imagem || entrada.depois || entrada.dataUrl) || '');
   if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
   const promptPar = [
-    'Dois prints lado a lado: ESQUERDA=onde clicou. DIREITA=para onde entrou. Não inverta.',
-    'CTA/cursor = clique. Tooltip CEP no topo não conta se a direita for outra página. CEP ≠ CPF/CNPJ.',
-    'SEMPRE descreva. Nunca recuse. Nunca diga que não pode ajudar.',
-    'Título: até 10 palavras. Observação: UMA frase curta.',
-    'Título: Clicou em "Comprar" no PlayStation 5',
-    'Observação: Estava na PDP do PS5, clicou em Comprar e entrou em Identificação (CPF/CNPJ).'
+    'Dois prints: ESQUERDA = onde clicou. DIREITA = para onde entrou. Não inverta.',
+    'Leia o TEXTO da imagem (logo, produto, botão). Use só o que aparece. Proibido inventar marca/produto.',
+    'CTA ou cursor = clique. Tooltip CEP no topo não conta se a direita for outra página. CEP ≠ CPF.',
+    'Sempre descreva. Nunca recuse. Título até 10 palavras. Observação: 1 frase COMPLETA (não corte palavra).'
   ].join('\n');
   const promptUma = [
-    'Uma captura. Sempre descreva. Nunca recuse. Português. Título curto + 1 frase.',
-    'Título: Acessou a tela "Login"',
-    'Observação: Tela inicial de login, com campos e-mail e senha.'
+    'Uma captura. Leia o texto visível. Não invente marca. Sempre descreva. Nunca recuse.',
+    'Título curto + 1 frase completa com o heading/produto que aparece no print.'
   ].join('\n');
   const ehPar = !!(entrada && entrada.par);
   return chamarVisao([
