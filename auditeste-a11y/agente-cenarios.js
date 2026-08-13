@@ -426,39 +426,35 @@ function parseDescricaoTela(texto) {
 const FALLBACK_PRINT = { titulo: 'Ação na tela', obs: 'O cliente avançou da tela anterior para a tela seguinte.' };
 
 const PROMPT_ANTES = [
-  'IMAGEM 1: tela em que o cliente CLICOU. Analise esta imagem.',
-  'Obrigatório: ONDE clicou (região: header, card, botão à direita, centro, rodapé) + TEXTO EXATO do controle.',
-  'Só o que se lê no print. Não invente marca/produto.',
-  'Sempre descreva. Nunca recuse. Nunca diga "o que foi clicado" de forma genérica.',
-  'Título: Clicou em "..." no/na [região]',
-  'Observação: Estava em [tela/produto lido]. Clicou em [controle + região].'
+  'IMAGEM 1: tela ANTES. Descreva o que está escrito (logo, heading, produto, botão).',
+  'Só diga "Clicou em ..." se o cursor estiver em cima do controle OU o rótulo for óbvio e único.',
+  'Proibido inventar clique, menu, banner ou botão. Se não tiver certeza, NÃO use a palavra Clicou.',
+  'Título: Tela "..." (heading/produto lido)  OU  Clicou em "..." (só se visível)',
+  'Observação: 1 frase só sobre esta tela.'
 ].join('\n');
 
 const PROMPT_DEPOIS = [
-  'IMAGEM 2: tela para onde ENTROU depois do clique. Analise esta imagem.',
-  'Obrigatório: nome da tela (heading/logo/produto) + o que aparece (preço, campo, botão).',
-  'Só o que se lê no print. Não invente marca/produto.',
-  'Sempre descreva. Nunca recuse. Nunca diga só "o que abriu".',
-  'Título: Entrou em "..."',
-  'Observação: Entrou na tela [heading]. Aparece [produto/campo/botão lido].'
+  'IMAGEM 2: tela DEPOIS (o que abriu). Descreva heading, produto, campos, botões lidos.',
+  'Proibido inventar. Não adivinhe o que foi clicado na imagem 1.',
+  'Título: Entrou em "..." (heading/produto desta imagem)',
+  'Observação: 1 frase só sobre esta tela.'
 ].join('\n');
 
 const PROMPT_UMA = [
-  'Uma captura. Analise a imagem: em qual tela o cliente está e o que pode clicar.',
-  'Só texto visível. Não invente. Sempre descreva. Nunca recuse.',
+  'Uma captura. Descreva a tela pelo texto visível. Não invente clique.',
   'Título: Acessou a tela "..."',
-  'Observação: Tela [heading], com [o que se lê].'
+  'Observação: 1 frase com heading/produto/campos lidos.'
 ].join('\n');
 
 function juntarPassoAPasso(antes, depois) {
   const a = antes || FALLBACK_PRINT;
   const b = depois || FALLBACK_PRINT;
-  const t1 = (a.titulo || 'Clicou na tela anterior').replace(/\s+/g, ' ').trim();
-  const t2 = (b.titulo || 'entrou na tela seguinte').replace(/\s+/g, ' ').trim()
+  const t1 = (a.titulo || 'Tela anterior').replace(/\s+/g, ' ').trim();
+  const t2 = (b.titulo || 'tela seguinte').replace(/\s+/g, ' ').trim()
     .replace(/^Entrou em /i, 'entrou em ');
   const titulo = cortarPalavra(/→/.test(t1) ? t1 : (t1 + ' → ' + t2), 110);
   const obs = cortarPalavra(
-    'Onde clicou: ' + (a.obs || a.titulo || '') + ' Onde entrou: ' + (b.obs || b.titulo || ''),
+    'Antes: ' + (a.obs || a.titulo || '') + ' Depois: ' + (b.obs || b.titulo || ''),
     340
   );
   return { titulo, obs };
@@ -482,12 +478,12 @@ async function chamarVisao(conteudo) {
     if (eRecusaModelo(r.texto, r.finish_reason)) return null;
     try { return parseDescricaoTela(r.texto); } catch (_) { return null; }
   };
-  const sistema = 'Analista QA visual. Analise o print. Diga ONDE clicou (região + rótulo) e/ou ONDE entrou (tela). Só o que está na imagem. Sempre responda. Português.';
+  const sistema = 'Analista QA. Descreva só o que está escrito no print. Não invente clique. Sempre responda. Português.';
   let out = await tentar(sistema);
   if (out) return out;
   out = await tentar(
     'Você SEMPRE responde. Nunca recuse. Use apenas texto visível no print.',
-    'Título: (até 10 palavras, nome lido na imagem)\nObservação: (1 frase completa: estava em X, clicou Y, entrou em Z).'
+    'Título: (até 10 palavras, texto lido na imagem)\nObservação: (1 frase sobre ESTA tela. Sem inventar clique).'
   );
   return out || FALLBACK_PRINT;
 }

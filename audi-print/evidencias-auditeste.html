@@ -2164,7 +2164,7 @@
         if(recusa || !titulo){
           titulo = 'Ação na tela';
           observ = 'O cliente avançou da tela anterior para a tela seguinte.';
-        } else if(/Onde clicou:|Onde entrou:|Imagem\s*1\s*:/i.test(observ)){
+        } else if(/Antes:|Depois:|Onde clicou:|Onde entrou:|Imagem\s*1\s*:/i.test(observ)){
           observ = cortarPalavra(observ, 340);
         } else {
           const uma = observ.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
