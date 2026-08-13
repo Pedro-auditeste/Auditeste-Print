@@ -9,11 +9,14 @@
  * Motores:
  *   /scan?tipo=axe|pa11y|nota|lighthouse&url=https://...
  *   /ping  — healthcheck + status dos motores
- *   /cenarios — Gherkin por IA (precisa ANTHROPIC_API_KEY)
+ *   /cenarios — Gherkin + mapeamento por IA (precisa AGENTE_API_KEY)
+ *   /descrever — descreve uma captura (precisa AGENTE_API_KEY)
  *
  * Variáveis:
  *   PONTE_TOKEN         obrigatório quando HOST não é loopback (para scans)
- *   ANTHROPIC_API_KEY   habilita Gerar com IA
+ *   AGENTE_API_KEY      habilita Gerar cenários (NVIDIA nvapi-...)
+ *   AGENTE_BASE_URL     endpoint (padrão https://integrate.api.nvidia.com/v1)
+ *   AGENTE_MODELO       modelo (padrão meta/llama-3.2-11b-vision-instruct)
  *   PONTE_DOMINIOS      allowlist de domínios (o controle mais forte)
  *   PONTE_PRIVADO=1     libera IP privado (só para uso local)
  *   PONTE_MAX           scans simultâneos, padrão 2
@@ -29,7 +32,7 @@ const net = require('net');
 const fs = require('fs');
 const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores } = require('./a11y.js');
-const { gerarCenarios, MODELO } = require('./cenarios.js');
+const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
@@ -131,7 +134,10 @@ function servirArquivo(req, res, pathname) {
   const arquivo = path.resolve(PUBLICO, nome);
   if (!arquivo.startsWith(PUBLICO + path.sep) && arquivo !== PUBLICO) return false;
   if (!fs.existsSync(arquivo) || !fs.statSync(arquivo).isFile()) return false;
-  res.writeHead(200, { 'Content-Type': TIPOS[path.extname(arquivo)] || 'application/octet-stream' });
+  const ext = path.extname(arquivo);
+  const cab = { 'Content-Type': TIPOS[ext] || 'application/octet-stream' };
+  if (ext === '.html') cab['Cache-Control'] = 'no-store';
+  res.writeHead(200, cab);
   fs.createReadStream(arquivo).pipe(res);
   return true;
 }
@@ -215,12 +221,32 @@ const servidor = http.createServer(async (req, res) => {
       modo: TOKEN ? 'token' : (ehLoopback ? 'local' : 'mesma-origem'),
       ocupado: rodando,
       limite: MAX,
-      cenarios: !!process.env.ANTHROPIC_API_KEY,
+      cenarios: !!process.env.AGENTE_API_KEY,
       modelo: MODELO,
+      base: BASE_URL,
       aviso: EXPOSTO_SEM_TOKEN
         ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
         : undefined
     }, origem);
+  }
+
+  if (u.pathname === '/descrever') {
+    if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
+    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
+    if (rodando >= MAX) {
+      return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
+    }
+    rodando++;
+    try {
+      const corpo = await lerCorpo(req);
+      const dados = await descreverTela(corpo);
+      return responder(res, 200, dados, origem);
+    } catch (err) {
+      console.log('descrever FALHOU: ' + err.message);
+      return responder(res, err.semChave ? 503 : 500, { erro: err.message }, origem);
+    } finally {
+      rodando--;
+    }
   }
 
   if (u.pathname === '/cenarios') {
@@ -315,7 +341,7 @@ servidor.listen(PORTA, HOST, () => {
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);
   console.log(`motores: axe=${st.axe.ok ? 'ok' : 'FALHA'} · pa11y=${st.pa11y.ok ? 'ok' : 'FALHA'} · lighthouse=${st.nota.ok ? 'ok' : 'FALHA'}`);
-  console.log(`cenários IA: ${process.env.ANTHROPIC_API_KEY ? 'ligado (' + MODELO + ')' : 'desligado — defina ANTHROPIC_API_KEY'}`);
+  console.log(`cenários IA: ${process.env.AGENTE_API_KEY ? 'ligado (' + MODELO + ' @ ' + BASE_URL + ')' : 'desligado — defina AGENTE_API_KEY'}`);
   if (st.chrome) console.log(`chrome: ${st.chrome}`);
   if (ehLoopback) console.log('deixe aberto e use os botões de scan no Audi Print.\n');
 });

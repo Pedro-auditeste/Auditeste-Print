@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Audi Print · Auditeste</title>
+<meta http-equiv="Cache-Control" content="no-store">
 <style>
   :root{
     --navy:#0d3446;
@@ -201,13 +202,26 @@
     display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;
   }
   .caixa-cenarios .fonte{font-size:.76rem;color:var(--muted);font-weight:400;}
+  .caixa-cenarios .abas-cenarios{
+    display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 12px;background:#f7faf8;
+  }
+  .caixa-cenarios .aba-cenario{
+    font:inherit;font-size:.88rem;font-weight:600;color:var(--muted);background:none;border:none;
+    border-bottom:2px solid transparent;padding:10px 14px;cursor:pointer;margin-bottom:-1px;
+  }
+  .caixa-cenarios .aba-cenario.ativa{color:var(--navy);border-bottom-color:var(--green);}
+  .caixa-cenarios .painel-cenario{display:none;}
+  .caixa-cenarios .painel-cenario.ativo{display:block;}
+  .caixa-cenarios .topo-painel{
+    display:flex;justify-content:flex-end;padding:8px 12px 0;
+  }
   .caixa-cenarios pre{
     margin:0;padding:18px 20px;font-family:Consolas,Menlo,monospace;font-size:.84rem;
     line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--ink);
   }
   .estado-cenarios{font-size:.84rem;color:var(--muted);padding:0 20px 16px;}
   .estado-cenarios.off{color:var(--rec);}
-  @media print{.caixa-cenarios{box-shadow:none;border:1px solid var(--line);break-inside:avoid;}}
+  @media print{.caixa-cenarios{box-shadow:none;border:1px solid var(--line);break-inside:avoid;}.caixa-cenarios .abas-cenarios,.caixa-cenarios .topo-painel{display:none;}.caixa-cenarios .painel-cenario{display:block!important;}}
 
   .linha-scan{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   .linha-scan input{
@@ -406,6 +420,15 @@
   .opcoes label{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:600;}
   .opcoes select{font-family:inherit;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:#fff;color:var(--ink);}
   .opcoes input[type=checkbox]{width:16px;height:16px;accent-color:var(--green);}
+  .abas-captura{display:flex;gap:0;border-bottom:1px solid var(--line);margin:-4px -4px 14px;padding:0 4px;}
+  .aba-captura{
+    font:inherit;font-size:.9rem;font-weight:700;color:var(--muted);background:none;border:none;
+    border-bottom:2px solid transparent;padding:10px 14px;cursor:pointer;margin-bottom:-1px;
+  }
+  .aba-captura.ativa{color:var(--navy);border-bottom-color:var(--green);}
+  .painel-captura{display:none;}
+  .painel-captura.ativo{display:block;}
+  .dica-captura{font-size:.86rem;color:var(--muted);margin:0 0 12px;line-height:1.45;}
 
   .ficha{display:grid;grid-template-columns:repeat(3,1fr);gap:15px 24px;}
   .ficha .largo{grid-column:span 3;}
@@ -434,6 +457,8 @@
   .passo .remover{position:absolute;top:15px;right:15px;background:none;border:none;color:#b6c1c6;font-size:1.02rem;cursor:pointer;}
   .passo .remover:hover{color:var(--rec);}
   .passo img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;margin-bottom:6px;}
+  .passo .imagens.par-antes-depois{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width:800px){.passo .imagens.par-antes-depois{grid-template-columns:1fr;}}
   .passo .legenda{color:var(--muted);font-size:.83rem;}
 
   .videobox{background:var(--card);border-radius:12px;box-shadow:var(--sombra);padding:18px 22px;margin-bottom:14px;}
@@ -923,6 +948,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
+        <p id="printBuild" style="font-size:.82rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v4 · print antes + depois · IA NVIDIA descreve o que ocorreu</p>
       </div>
     </div>
 
@@ -937,27 +963,42 @@
         <button class="btn perigo" id="btnParar" disabled>Parar</button>
       </div>
     </div>
+    <p id="statusIA" class="dica-captura" style="margin:8px 0 0" role="status"></p>
 
-    <details class="caixa">
+    <details class="caixa" open>
       <summary>Opções de captura</summary>
       <div class="corpo">
-        <div class="opcoes">
-          <label>Intervalo mínimo
-            <select id="intervalo">
-              <option value="2">2 segundos</option>
-              <option value="3" selected>3 segundos</option>
-              <option value="5">5 segundos</option>
-              <option value="10">10 segundos</option>
-            </select>
-          </label>
-          <label>Sensibilidade
-            <select id="sensibilidade">
-              <option value="0.8">Alta</option>
-              <option value="2" selected>Média</option>
-              <option value="6">Baixa</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="soMudanca" checked> Capturar só quando a tela mudar</label>
+        <div class="abas-captura" role="tablist">
+          <button type="button" class="aba-captura ativa" data-modo="alteracao" role="tab" aria-selected="true">Por alteração na tela</button>
+          <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
+        </div>
+        <div class="painel-captura ativo" data-painel="alteracao">
+          <p class="dica-captura">Guarda a última tela <b>estável</b> (onde o cliente clicou) e, quando a página muda, imprime <b>antes + depois</b>. A IA NVIDIA escreve a ação. Abra só em <b>http://127.0.0.1:8900</b> e recarregue com Ctrl+F5 — se não aparecer “Captura v4” no título, está no Print antigo.</p>
+          <div class="opcoes">
+            <label>Sensibilidade
+              <select id="sensibilidade">
+                <option value="0.8">Alta</option>
+                <option value="2" selected>Média</option>
+                <option value="6">Baixa</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="painel-captura" data-painel="intervalo">
+          <p class="dica-captura">Captura periódica, no ritmo escolhido. Útil quando a tela muda pouco ou a animação dispara prints demais.</p>
+          <div class="opcoes">
+            <label>Intervalo
+              <select id="intervalo">
+                <option value="2">2 segundos</option>
+                <option value="3" selected>3 segundos</option>
+                <option value="5">5 segundos</option>
+                <option value="10">10 segundos</option>
+              </select>
+            </label>
+            <label><input type="checkbox" id="soMudanca"> Só se a tela mudar</label>
+          </div>
+        </div>
+        <div class="opcoes" style="margin-top:12px">
           <label><input type="checkbox" id="gravarVideo"> Gravar vídeo da sessão</label>
         </div>
       </div>
@@ -985,7 +1026,7 @@
 
     <div class="dica">
       <b>Como gravar</b>
-      Clique em <b>Iniciar gravação</b> e escolha <b>Tela inteira</b> na janela do navegador. A captura acontece sozinha a cada mudança de tela.
+      Clique em <b>Iniciar gravação</b> e escolha <b>Tela inteira</b> (ou a aba do Ponto Frio). Na aba <b>Por alteração na tela</b>, cada passo traz o print de <b>antes</b> (onde clicou) e o de <b>depois</b>, com a descrição da IA.
       Você também pode colar capturas com <kbd>Ctrl</kbd> + <kbd>V</kbd> a qualquer momento.
     </div>
 
@@ -1160,11 +1201,12 @@
 
   const LIMITE = 120;
   let projetoAtual = null, telaAtual = 'telaProjetos';
-  let estado='parado', segundos=0, cronometro=null, vigia=null;
-  let stream=null, ultimaAmostra=null, ultimoCarimbo=0, passoAlvo=null;
+  let estado='parado', segundos=0, cronometro=null, vigia=null, vigiaBuffer=null;
+  let stream=null, ultimaAmostra=null, ultimoCarimbo=0, passoAlvo=null, descricaoAtivas=0;
+  let telaEstavel=null, amostraEstavel=null, capturaEmAndamento=false, capturaPendente=null;
   let gravadorVideo=null, pedacos=[], videoBlob=null, urls=[];
 
-  const mini = document.createElement('canvas'); mini.width=80; mini.height=45;
+  const mini = document.createElement('canvas'); mini.width=160; mini.height=90;
   const mctx = mini.getContext('2d',{willReadFrequently:true});
   const cheio = document.createElement('canvas');
   const cctx = cheio.getContext('2d');
@@ -1726,7 +1768,7 @@
       return;
     }
     try{
-      stream = await navigator.mediaDevices.getDisplayMedia({video:{frameRate:5, cursor:'always'}, audio:false});
+      stream = await navigator.mediaDevices.getDisplayMedia({video:{frameRate:24, cursor:'always'}, audio:false});
     }catch(err){
       if(err.name !== 'NotAllowedError') informar('Não foi possível iniciar a captura: ' + err.message, 'Falha na captura');
       return;
@@ -1751,13 +1793,23 @@
 
     segundos = 0; relogio.textContent = '00:00';
     ultimaAmostra = null; ultimoCarimbo = 0;
+    telaEstavel = null; amostraEstavel = null; capturaEmAndamento = false;
+    if(capturaPendente){ clearTimeout(capturaPendente); capturaPendente = null; }
+    pingPonte();
     mudarEstado('gravando');
-    setTimeout(()=> capturar(true), 700);
-    vigia = setInterval(observar, 900);
+    const st = document.getElementById('statusIA');
+    if(st) st.textContent = 'Gravando: a IA descreve cada print. Aguarde “Descrevendo…” nos passos.';
+    vigiaBuffer = setInterval(() => atualizarTelaEstavel(), 120);
+    setTimeout(()=> { atualizarTelaEstavel(true); capturar(true, 100); }, 400);
+    vigia = setInterval(observar, 200);
   }
 
   function parar(externo, silencioso){
     clearInterval(vigia); vigia = null;
+    clearInterval(vigiaBuffer); vigiaBuffer = null;
+    if(capturaPendente){ clearTimeout(capturaPendente); capturaPendente = null; }
+    capturaEmAndamento = false;
+    telaEstavel = null; amostraEstavel = null;
 
     const espera = new Promise(resolve => {
       if(gravadorVideo && gravadorVideo.state !== 'inactive'){
@@ -1779,37 +1831,235 @@
     return espera;
   }
 
-  function observar(){
-    if(estado !== 'gravando' || !video.videoWidth) return;
-    if(Date.now() - ultimoCarimbo < Number(document.getElementById('intervalo').value)*1000) return;
-    mctx.drawImage(video,0,0,mini.width,mini.height);
-    const atual = mctx.getImageData(0,0,mini.width,mini.height).data;
-    if(!document.getElementById('soMudanca').checked){ capturar(); ultimaAmostra = atual; return; }
-    if(ultimaAmostra){
-      let alterados = 0;
-      for(let i=0;i<atual.length;i+=4){
-        const d = Math.abs(atual[i]-ultimaAmostra[i])+Math.abs(atual[i+1]-ultimaAmostra[i+1])+Math.abs(atual[i+2]-ultimaAmostra[i+2]);
-        if(d>60) alterados++;
-      }
-      if((alterados/(atual.length/4))*100 >= Number(document.getElementById('sensibilidade').value)) capturar();
-    }
-    ultimaAmostra = atual;
+  function modoCaptura(){
+    const aba = document.querySelector('.aba-captura.ativa');
+    return (aba && aba.dataset.modo) || 'alteracao';
   }
 
-  function capturar(forcado){
+  function ativarModoCaptura(modo){
+    document.querySelectorAll('.aba-captura').forEach(b => {
+      const on = b.dataset.modo === modo;
+      b.classList.toggle('ativa', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.painel-captura').forEach(p => {
+      p.classList.toggle('ativo', p.dataset.painel === modo);
+    });
+    try{ localStorage.setItem('captura_modo', modo); }catch(e){}
+  }
+
+  function diffPct(a, b){
+    if(!a || !b || a.length !== b.length) return 100;
+    let alterados = 0;
+    for(let i=0;i<a.length;i+=4){
+      const d = Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2]);
+      if(d>60) alterados++;
+    }
+    return (alterados/(a.length/4))*100;
+  }
+
+  function percentualMudanca(atual){
+    return diffPct(atual, ultimaAmostra);
+  }
+
+  function descreverMudancaLocal(pct, forcado){
+    if(forcado && (!pct || pct >= 99)) return {
+      titulo: 'Início da gravação — tela inicial',
+      obs: 'Primeira captura da sessão. Confira o que aparece na tela.'
+    };
+    if(pct >= 35) return {
+      titulo: 'Tela alterada — possível navegação ou recarregamento',
+      obs: Math.round(pct) + '% da tela mudou em relação à captura anterior.'
+    };
+    if(pct >= 8) return {
+      titulo: 'Alteração visível na tela',
+      obs: Math.round(pct) + '% da área exibida mudou (conteúdo, modal ou formulário).'
+    };
+    return {
+      titulo: 'Pequena alteração na tela',
+      obs: Math.round(pct || 0) + '% da tela mudou.'
+    };
+  }
+
+  function gravarTelaAtual(destino){
+    if(!video.videoWidth) return false;
+    const escala = Math.min(1, 1400/video.videoWidth);
+    destino.width = Math.round(video.videoWidth*escala);
+    destino.height = Math.round(video.videoHeight*escala);
+    destino.getContext('2d').drawImage(video, 0, 0, destino.width, destino.height);
+    return true;
+  }
+
+  function clonarCanvas(src){
+    if(!src || !src.width) return null;
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    c.getContext('2d').drawImage(src, 0, 0);
+    return c;
+  }
+
+  function canvasParaBlob(cnv, qualidade){
+    return new Promise(ok => cnv.toBlob(ok, 'image/jpeg', qualidade || 0.82));
+  }
+
+  function amostraMini(){
+    if(!video.videoWidth) return null;
+    mctx.drawImage(video,0,0,mini.width,mini.height);
+    return mctx.getImageData(0,0,mini.width,mini.height).data;
+  }
+
+  function atualizarTelaEstavel(forcar){
+    if(estado !== 'gravando' || !video.videoWidth) return 0;
+    const atual = amostraMini();
+    if(!atual) return 0;
+    const pct = diffPct(atual, amostraEstavel);
+    ultimaAmostra = atual;
+    if(forcar || !amostraEstavel || pct < 10){
+      const c = document.createElement('canvas');
+      if(gravarTelaAtual(c)){
+        telaEstavel = c;
+        amostraEstavel = atual;
+      }
+    }
+    return pct;
+  }
+
+  function observar(){
+    if(estado !== 'gravando' || !video.videoWidth) return;
+    const pct = atualizarTelaEstavel();
+    const modo = modoCaptura();
+    const minMs = modo === 'alteracao' ? 700 : Number(document.getElementById('intervalo').value)*1000;
+    if(Date.now() - ultimoCarimbo < minMs) return;
+    if(capturaEmAndamento) return;
+    const soMudanca = modo === 'alteracao' || document.getElementById('soMudanca').checked;
+    const limiar = soMudanca ? Number(document.getElementById('sensibilidade').value) : 0;
+    if(limiar && pct < limiar) return;
+    capturaEmAndamento = true;
+    const antes = telaEstavel ? clonarCanvas(telaEstavel) : null;
+    const t0 = Date.now();
+    const tentar = () => {
+      if(estado !== 'gravando'){ capturaEmAndamento = false; return; }
+      const agora = amostraMini();
+      const vsUltima = diffPct(agora, ultimaAmostra);
+      if(agora) ultimaAmostra = agora;
+      if(vsUltima < 12 || Date.now() - t0 > 1400){
+        capturar(false, pct, antes);
+        capturaEmAndamento = false;
+        return;
+      }
+      capturaPendente = setTimeout(tentar, 180);
+    };
+    capturaPendente = setTimeout(tentar, 350);
+  }
+
+  function capturar(forcado, pctMudanca, canvasAntes){
     if(!video.videoWidth) return;
     if(lista.querySelectorAll('.passo').length >= LIMITE){
       if(forcado) avisar('Limite de ' + LIMITE + ' passos atingido. Encerre e salve a evidência.');
       return;
     }
     ultimoCarimbo = Date.now();
-    const escala = Math.min(1, 1600/video.videoWidth);
-    cheio.width = Math.round(video.videoWidth*escala);
-    cheio.height = Math.round(video.videoHeight*escala);
-    cctx.drawImage(video,0,0,cheio.width,cheio.height);
+    const manual = !!forcado && pctMudanca == null;
+    if(pctMudanca == null) pctMudanca = atualizarTelaEstavel();
+    gravarTelaAtual(cheio);
+    const depoisSnap = clonarCanvas(cheio);
+    const primeiro = !!forcado && !manual;
+    const antesSnap = (manual || primeiro) ? null
+      : (canvasAntes && canvasAntes.width ? clonarCanvas(canvasAntes) : (telaEstavel ? clonarCanvas(telaEstavel) : null));
     clarao();
-    const passo = novoPasso();
-    cheio.toBlob(b => juntarImagem(passo, b, `Captura automática às ${hora()}`), 'image/jpeg', 0.82);
+    const desc = manual
+      ? { titulo: 'Captura manual', obs: 'Print disparado pelo analista às ' + hora() + '.' }
+      : descreverMudancaLocal(pctMudanca || 0, primeiro);
+    if(antesSnap){
+      desc.titulo = /início/i.test(desc.titulo || '') ? desc.titulo : 'Ação na tela anterior → resultado nesta tela';
+      desc.obs = 'Descrevendo com IA: o que foi clicado e o que abriu...';
+    } else {
+      desc.titulo = desc.titulo || 'O que ocorreu nesta tela';
+      desc.obs = desc.obs || 'Descrevendo com IA o que aconteceu na tela...';
+    }
+    const passo = novoPasso(desc.titulo, desc.obs);
+    passo.classList.add('passo-auto');
+    const caixaImgs = passo.querySelector('.imagens');
+    if(antesSnap) caixaImgs.classList.add('par-antes-depois');
+    const statusIA = document.getElementById('statusIA');
+    if(statusIA) statusIA.textContent = 'IA NVIDIA descrevendo o passo ' + lista.querySelectorAll('.passo').length + '...';
+    Promise.resolve()
+      .then(async () => {
+        if(antesSnap){
+          const bAntes = await canvasParaBlob(antesSnap, 0.85);
+          if(bAntes) juntarImagem(passo, bAntes, 'Antes — tela em que o cliente clicou / digitou');
+        }
+        const bDepois = depoisSnap ? await canvasParaBlob(depoisSnap, 0.85) : null;
+        if(bDepois) juntarImagem(passo, bDepois, antesSnap
+          ? 'Depois — tela após a ação'
+          : `Captura às ${hora()}`);
+        const figs = [...passo.querySelectorAll('figure')].filter(f => f._blob);
+        const blobAntes = figs.length > 1 ? figs[0]._blob : null;
+        const blobDepois = figs.length ? figs[figs.length-1]._blob : null;
+        await descreverTelaIA(passo, blobAntes, blobDepois);
+        if(depoisSnap){
+          telaEstavel = clonarCanvas(depoisSnap);
+          amostraEstavel = amostraMini() || amostraEstavel;
+          ultimaAmostra = amostraEstavel;
+        }
+      });
+  }
+
+  async function encolherLeve(blob, maxLado, qualidade, maxBytes){
+    let lado = maxLado, q = qualidade;
+    for(let i=0;i<5;i++){
+      const d = await encolher(blob, lado, q);
+      if(!d) return null;
+      const b64 = d.slice(d.indexOf(',')+1);
+      const bytes = Math.ceil(b64.length * 0.75);
+      if(!maxBytes || bytes <= maxBytes) return d;
+      q = Math.max(0.35, q - 0.12);
+      lado = Math.max(420, Math.round(lado * 0.78));
+    }
+    return encolher(blob, 420, 0.35);
+  }
+
+  async function descreverTelaIA(passo, blobAntes, blobDepois){
+    if(!blobDepois) return;
+    const tit = passo.querySelector('.titulo');
+    const obs = passo.querySelector('.obs');
+    const statusIA = document.getElementById('statusIA');
+    if(!tit) return;
+    tit.dataset.auto = '1';
+    if(obs) obs.dataset.auto = '1';
+    if(!tit.textContent.trim()) tit.textContent = 'Descrevendo com IA o que aconteceu...';
+    if(obs && (!obs.textContent.trim() || /ação executada|resultado observado/i.test(obs.textContent))){
+      obs.textContent = 'Descrevendo com IA o que aconteceu na tela...';
+    }
+    const job = (async () => {
+      while(descricaoAtivas >= 2) await new Promise(r => setTimeout(r, 250));
+      descricaoAtivas++;
+      try{
+        await pingPonte();
+        const depois = await encolherLeve(blobDepois, 720, 0.55, 140000);
+        const antes = blobAntes ? await encolherLeve(blobAntes, 720, 0.55, 140000) : null;
+        if(!depois) throw new Error('não consegui reduzir a captura');
+        const resp = await fetch(ponteUrl() + '/descrever', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
+          body: JSON.stringify({ imagem: depois, antes: antes || undefined }),
+          signal: AbortSignal.timeout(30000)
+        });
+        const dados = await resp.json().catch(() => ({}));
+        if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
+        if(tit.dataset.auto === '1' && dados.titulo) tit.textContent = dados.titulo;
+        if(obs && obs.dataset.auto === '1' && dados.obs) obs.textContent = dados.obs;
+        if(statusIA) statusIA.textContent = 'IA descreveu: ' + (dados.titulo || 'passo atualizado');
+      }catch(err){
+        const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
+        if(obs && obs.dataset.auto === '1') obs.textContent = 'IA não descreveu: ' + msg;
+        if(statusIA) statusIA.textContent = 'IA não descreveu: ' + msg;
+      }finally{
+        descricaoAtivas--;
+      }
+    })();
+    return job;
   }
 
   function juntarImagem(passo, blob, legenda){
@@ -2279,7 +2529,7 @@
       else if(info.modo === 'mesma-origem') msg += ' Scans liberados nesta URL (sem token).';
       msg += info.cenarios
         ? ' IA de cenários: ligada' + (info.modelo ? ' (' + info.modelo + ')' : '') + '.'
-        : ' IA de cenários: desligada (falta ANTHROPIC_API_KEY na ponte).';
+        : ' IA de cenários: desligada (falta AGENTE_API_KEY na ponte).';
       if(info.aviso) msg += ' ' + info.aviso;
       el.textContent = msg;
       el.className = 'estado-ponte ok';
@@ -2347,7 +2597,7 @@
     }
   }
 
-  function novoPasso(){
+  function novoPasso(titulo, obs){
     const el = document.createElement('article');
     el.className = 'passo';
     el.innerHTML = `
@@ -2357,6 +2607,16 @@
       <div class="titulo" contenteditable data-vazio="Ação executada nesta tela"></div>
       <div class="obs" contenteditable data-vazio="Resultado observado, dado utilizado ou observação relevante."></div>
       <div class="imagens"></div>`;
+    const elTitulo = el.querySelector('.titulo');
+    const elObs = el.querySelector('.obs');
+    if(arguments.length){
+      elTitulo.textContent = (titulo || '').trim() || 'Descrevendo com IA o que aconteceu...';
+      elObs.textContent = (obs || '').trim() || 'A IA vai preencher o que ocorreu na tela.';
+      elTitulo.dataset.auto = '1';
+      elObs.dataset.auto = '1';
+    }
+    elTitulo.addEventListener('input', ()=> { delete elTitulo.dataset.auto; });
+    elObs.addEventListener('input', ()=> { delete elObs.dataset.auto; });
     lista.appendChild(el);
     rotular(el);
     atualizar();
@@ -2545,7 +2805,11 @@
       partes.push('<section class="cenarios"><h2>Cenários de teste</h2>');
       partes.push('<p class="linha">Montados a partir das evidências desta execução em ' +
         new Date(r.cenarios.gerado).toLocaleString('pt-BR') + '.</p>');
-      partes.push('<pre>' + esc(r.cenarios.texto) + '</pre></section>');
+      partes.push('<h3>Gherkin</h3><pre>' + esc(r.cenarios.texto) + '</pre>');
+      if(r.cenarios.mapeamento){
+        partes.push('<h3>Mapeamento QA</h3><pre>' + esc(r.cenarios.mapeamento) + '</pre>');
+      }
+      partes.push('</section>');
     }
 
     partes.push('<section class="ficha">');
@@ -2675,11 +2939,50 @@
   function mostrarCenarios(c){
     const caixa = document.getElementById('caixaCenarios');
     if(!caixa || !c) return;
+    const mapa = (c.mapeamento || '').trim();
     caixa.innerHTML = '<h3>Cenários de teste'
       + '<span class="fonte">' + esc(c.modelo || '') + ' · '
       + new Date(c.gerado).toLocaleString('pt-BR') + '</span></h3>'
-      + '<pre>' + esc(c.texto) + '</pre>';
+      + '<div class="abas-cenarios" role="tablist">'
+      + '<button type="button" class="aba-cenario ativa" data-aba="gherkin" role="tab" aria-selected="true">Gherkin</button>'
+      + '<button type="button" class="aba-cenario" data-aba="mapeamento" role="tab" aria-selected="false">Mapeamento QA</button>'
+      + '</div>'
+      + '<div class="painel-cenario ativo" data-painel="gherkin">'
+      + '<div class="topo-painel"><button type="button" class="btn pequeno" data-acao="copiarCenario" data-alvo="gherkin">Copiar Gherkin</button></div>'
+      + '<pre id="textoGherkin">' + esc(c.texto || '') + '</pre></div>'
+      + '<div class="painel-cenario" data-painel="mapeamento">'
+      + '<div class="topo-painel"><button type="button" class="btn pequeno" data-acao="copiarCenario" data-alvo="mapeamento">Copiar mapeamento</button></div>'
+      + '<pre id="textoMapeamento">' + esc(mapa || '# A confirmar\n# - Sem mapeamento Passo/Elemento/Ação neste registro.') + '</pre></div>';
     caixa.hidden = false;
+    caixa._cenarios = c;
+  }
+
+  function ativarAbaCenario(aba){
+    const caixa = document.getElementById('caixaCenarios');
+    if(!caixa) return;
+    caixa.querySelectorAll('.aba-cenario').forEach(b => {
+      const on = b.dataset.aba === aba;
+      b.classList.toggle('ativa', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    caixa.querySelectorAll('.painel-cenario').forEach(p => {
+      p.classList.toggle('ativo', p.dataset.painel === aba);
+    });
+  }
+
+  async function copiarBlocoCenario(alvo){
+    const caixa = document.getElementById('caixaCenarios');
+    const c = caixa && caixa._cenarios;
+    if(!c) return;
+    const texto = alvo === 'mapeamento'
+      ? ((c.mapeamento || '').trim() || '# A confirmar\n# - Sem mapeamento.')
+      : (c.texto || '');
+    try{
+      await navigator.clipboard.writeText(texto);
+      avisar(alvo === 'mapeamento' ? 'Mapeamento copiado.' : 'Gherkin copiado.');
+    }catch(err){
+      avisar('Não foi possível copiar: ' + err.message);
+    }
   }
 
   /* ============ CENARIOS DE TESTE ============ */
@@ -2766,6 +3069,36 @@
     return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
 
+  function montarMapeamento(r){
+    const L = [];
+    let n = 0;
+    let estruturados = 0;
+    (r.passos || []).forEach(p => {
+      const titulo = limpar(p.titulo);
+      const obs = limpar(p.obs);
+      const carimbo = limpar(p.carimbo);
+      if(RE_VIOLACAO.exec(titulo) || RE_A11Y_CARIMBO.exec(carimbo)) return;
+      if(!(titulo || obs || p.acao || p.elemento)) return;
+      n++;
+      const acao = limpar(p.acao);
+      const elemento = limpar(p.elemento);
+      const valor = limpar(p.valor);
+      if(acao || elemento) estruturados++;
+      L.push('Passo: ' + n);
+      L.push('Elemento Web: ' + (elemento || '(a confirmar)'));
+      L.push('Ação: ' + (acao || '(a confirmar)'));
+      if(valor) L.push('Valor: ' + valor);
+      else if(titulo) L.push('# Evidência: ' + titulo);
+      if(obs) L.push('# Observação: ' + obs);
+      L.push('');
+    });
+    if(!estruturados){
+      L.push('# A confirmar');
+      L.push('# - Passos sem acao/elemento estruturados: complete no Print ou use Gerar cenários (IA).');
+    }
+    return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   async function gerarCenarios(r){
     if(!r){ avisar('Nenhum registro aberto.'); return; }
     const el = document.getElementById('estadoCenarios');
@@ -2774,7 +3107,8 @@
     if(!(r.passos || []).length){ dizer('Este registro não tem passos para montar cenário.', true); return; }
 
     const texto = montarGherkin(r);
-    r.cenarios = { texto, modelo: 'montado das evidências', gerado: new Date().toISOString() };
+    const mapeamento = montarMapeamento(r);
+    r.cenarios = { texto, mapeamento, modelo: 'montado das evidências', gerado: new Date().toISOString() };
     await gravarRegistroDB(r);
     mostrarCenarios(r.cenarios);
 
@@ -2843,14 +3177,12 @@
     const dizer = (txt, ruim) => { if(el){ el.textContent = txt; el.className = 'estado-cenarios' + (ruim ? ' off' : ''); el.hidden = false; } };
     if(!(r.passos || []).length){ dizer('Este registro não tem passos.', true); return; }
 
-    /* Sem chave Anthropic: monta Gherkin local a partir das evidências do Print (gratis). */
-    dizer('Verificando se a IA está disponível...');
+    dizer('Verificando o agente NVIDIA...');
     const ponteOk = await pingPonte();
     const iaLigada = !!(ponteOk && statusPonte && statusPonte.cenarios);
     if(!iaLigada){
-      await gerarCenarios(r);
-      const base = el?.textContent || 'Cenários montados.';
-      dizer(base.replace(/\s*\(modo local[^)]*\)\s*$/, '') + ' (modo local — sem API)');
+      dizer('Agente NVIDIA indisponível. Suba a ponte (npm run servidor / ponte.cmd) e confira AGENTE_API_KEY no .env.', true);
+      avisar('Não foi possível gerar: API NVIDIA não está ligada.');
       return;
     }
 
@@ -2865,7 +3197,14 @@
           const d = await encolher(im.blob, 1200, 0.7);
           if(d) imagens.push(d);
         }
-        passos.push({ titulo: p.titulo || '', obs: p.obs || '', imagens });
+        passos.push({
+          titulo: p.titulo || '',
+          obs: p.obs || '',
+          acao: p.acao || '',
+          elemento: p.elemento || '',
+          valor: p.valor || '',
+          imagens
+        });
       }
 
       let quadros = [];
@@ -2874,7 +3213,7 @@
         quadros = await amostrarVideo(r.video, 4);
       }
 
-      dizer('Gerando cenários com IA a partir das evidências do Print. Pode levar de 30s a 2 minutos...');
+      dizer('Gerando cenários com NVIDIA no padrão automacao-web-qa. Pode levar até 2 minutos...');
       const resp = await fetch(ponteUrl() + '/cenarios', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
@@ -2883,15 +3222,19 @@
       const dados = await resp.json();
       if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
 
-      r.cenarios = { texto: dados.cenarios, modelo: dados.modelo, gerado: new Date().toISOString() };
+      r.cenarios = {
+        texto: dados.cenarios,
+        mapeamento: dados.mapeamento || '',
+        modelo: dados.modelo,
+        gerado: new Date().toISOString()
+      };
       await gravarRegistroDB(r);
       mostrarCenarios(r.cenarios);
       dizer((dados.imagens || 0) + ' imagem(ns) analisada(s) · modelo ' + (dados.modelo || '') + ' · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
-      avisar('Cenários gerados por IA a partir do Print.');
+      avisar('Cenários gerados (NVIDIA · automacao-web-qa).');
     }catch(err){
-      dizer('IA falhou (' + err.message + '). Montando cenários localmente...');
-      await gerarCenarios(r);
-      avisar('Cenários montados localmente (fallback sem API).');
+      dizer('Falha no agente NVIDIA: ' + err.message, true);
+      avisar('Não foi possível gerar os cenários. Confira a ponte e a AGENTE_API_KEY.');
     }finally{
       if(botao) botao.disabled = false;
     }
@@ -2916,7 +3259,7 @@
         <div class="acoes">
           <button class="btn primario pequeno" data-acao="exportarHtml">Exportar HTML</button>
           <button class="btn escuro pequeno" data-acao="salvarPdf">Salvar em PDF</button>
-          <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Com chave Anthropic usa IA; sem chave monta localmente a partir das evidências">Gerar cenários</button>
+          <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Gera Gherkin + mapeamento via API NVIDIA no padrão da skill automacao-web-qa">Gerar cenários</button>
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
       </div>
@@ -2954,11 +3297,14 @@
   }
 
   document.getElementById('telaRegistro').addEventListener('click', e => {
+    const aba = e.target.closest('.aba-cenario');
+    if(aba && aba.dataset.aba){ ativarAbaCenario(aba.dataset.aba); return; }
     const b = e.target.closest('button');
     if(!b) return;
     if(b.dataset.acao === 'exportarHtml') exportarHtml(registroAberto);
     if(b.dataset.acao === 'salvarPdf') salvarPdf(registroAberto);
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
+    if(b.dataset.acao === 'copiarCenario') copiarBlocoCenario(b.dataset.alvo);
     if(b.dataset.video) baixarVideo(Number(b.dataset.video));
   });
 
@@ -2981,6 +3327,8 @@
   });
 
   document.addEventListener('click', e => {
+    const abaCap = e.target.closest('.aba-captura');
+    if(abaCap && abaCap.dataset.modo){ ativarModoCaptura(abaCap.dataset.modo); return; }
     const a = e.target.closest('[data-acao]');
     if(!a) return;
     const acao = a.dataset.acao;
@@ -3071,7 +3419,13 @@
   })();
 
   abrirDB()
-    .then(()=>{ mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte(); })
+    .then(()=>{
+      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte();
+      try{ ativarModoCaptura(localStorage.getItem('captura_modo') || 'alteracao'); }catch(e){ ativarModoCaptura('alteracao'); }
+      if(location.protocol === 'file:'){
+        avisar('Este Print foi aberto pelo arquivo. Use http://127.0.0.1:8900 (Ctrl+F5) para a captura v4 com antes/depois e IA.');
+      }
+    })
     .catch(err => informar('Não foi possível abrir o arquivo local de evidências: ' + err.message, 'Armazenamento indisponível'));
 })();
 </script>

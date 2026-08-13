@@ -2,8 +2,9 @@
 #
 # Variáveis no painel:
 #   PONTE_TOKEN        obrigatório para habilitar scans
-#   ANTHROPIC_API_KEY  obrigatória para "Gerar com IA" (cenários Gherkin do Print)
-#   CENARIOS_MODELO    opcional — padrão claude-sonnet-4-6
+#   AGENTE_API_KEY     obrigatória para o agente NVIDIA (cenários Gherkin + mapeamento)
+#   AGENTE_BASE_URL    opcional — padrão https://integrate.api.nvidia.com/v1
+#   AGENTE_MODELO      opcional — padrão meta/llama-3.2-11b-vision-instruct
 #   PONTE_DOMINIOS     opcional — allowlist (ex: cliente.com.br)
 #   PONTE_MAX          opcional — scans simultâneos (padrão 2)
 

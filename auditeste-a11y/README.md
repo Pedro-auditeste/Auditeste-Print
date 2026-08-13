@@ -52,35 +52,39 @@ Dois caminhos no Print (registro aberto):
 
 | Botão | Precisa de chave? | O que faz |
 |---|---|---|
-| **Montar cenários** | Não | Monta Gherkin offline a partir da ficha e dos passos |
-| **Gerar com IA** | Sim (`ANTHROPIC_API_KEY`) | Envia ficha, passos, capturas e quadros do vídeo à Claude e devolve Gherkin |
+| **Montar cenários** | Não | Monta Gherkin + mapeamento offline a partir da ficha e dos passos |
+| **Gerar cenários** | Sim (`AGENTE_API_KEY`) | Envia ficha, passos, capturas e quadros à NVIDIA e devolve Gherkin + mapeamento Passo/Elemento/Ação |
 
 A chave fica **na ponte, nunca no Print**.
 
 ### Local
 
 1. Copie `auditeste-a11y/.env.example` para `auditeste-a11y/.env`
-2. Cole a chave Anthropic (`sk-ant-...`) em `ANTHROPIC_API_KEY=`
+2. Cole a chave NVIDIA (`nvapi-...`) em `AGENTE_API_KEY=`
 3. Reinicie: `npm run servidor`
 
 ### Railway
 
 No painel do serviço → Variables → adicione:
 
-- `ANTHROPIC_API_KEY` = sua chave
-- opcional: `CENARIOS_MODELO` = `claude-sonnet-4-6` (padrão)
+- `AGENTE_API_KEY` = sua chave NVIDIA
+- opcional: `AGENTE_BASE_URL` = `https://integrate.api.nvidia.com/v1`
+- opcional: `AGENTE_MODELO` = `meta/llama-3.2-11b-vision-instruct`
 
 Depois do redeploy, `/ping` deve mostrar `"cenarios": true`.
 
 | Variável | Padrão |
 |---|---|
-| `ANTHROPIC_API_KEY` | obrigatória para Gerar com IA |
-| `CENARIOS_MODELO` | `claude-sonnet-4-6` |
-| `CENARIOS_MAX_IMAGENS` | `20` |
+| `AGENTE_API_KEY` | obrigatória para o agente de cenários |
+| `AGENTE_BASE_URL` | `https://integrate.api.nvidia.com/v1` |
+| `AGENTE_MODELO` | `meta/llama-3.2-11b-vision-instruct` |
+| `AGENTE_MAX_IMAGENS` | `20` |
 | `PONTE_LIMITE_MB` | `25` |
 
-**O que sobe para a IA:** a ficha, o título e a observação de cada passo, e as capturas
+**O que sobe para a IA:** a ficha, o título e a observação de cada passo (e `acao`/`elemento`/`valor` se existirem), e as capturas
 reduzidas para 1200px em JPEG. O vídeo não sobe como vídeo — o Print amostra 4 quadros.
+
+**Saída do agente:** Gherkin de negócio + bloco mapeado (`Passo` / `Elemento Web` / `Ação`) para colar na skill de automação.
 
 ## Subir na Railway (ou qualquer host com Docker)
 
@@ -98,7 +102,7 @@ Conecte o repositório e defina as variáveis:
 | Variável | Valor |
 |---|---|
 | `PONTE_TOKEN` | **obrigatória** — string longa e aleatória. Sem ela o servidor se recusa a subir exposto |
-| `ANTHROPIC_API_KEY` | habilita o botão **Gerar com IA**. Sem ela, só o montador local funciona |
+| `AGENTE_API_KEY` | habilita o agente NVIDIA de cenários. Sem ela, só o montador local funciona |
 | `PONTE_DOMINIOS` | allowlist dos domínios que podem ser escaneados — a defesa mais forte contra SSRF |
 | `PORT` | a Railway injeta sozinha; o servidor já lê |
 

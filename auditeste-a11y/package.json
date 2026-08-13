@@ -11,15 +11,16 @@
     "fluxo": "node fluxo.js",
     "servidor": "node servidor.js",
     "teste-file": "node teste_file.js",
+    "teste-agente": "node teste-agente-cenarios.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.116.0",
     "@axe-core/playwright": "^4.10.2",
     "@axe-core/puppeteer": "^4.13.0",
     "axe-core": "^4.13.0",
     "chrome-launcher": "^1.2.0",
     "lighthouse": "^12.8.2",
+    "openai": "^7.4.0",
     "pa11y": "^9.0.1",
     "playwright": "1.62.1",
     "puppeteer": "^24.43.1"

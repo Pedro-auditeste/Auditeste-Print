@@ -1,5 +1,8 @@
 node_modules/
 saida/
 chave.txt
+.env
+.env.*
+!.env.example
 _teste/
 relatorio-teste.html
