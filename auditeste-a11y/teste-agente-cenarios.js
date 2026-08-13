@@ -36,9 +36,9 @@ assert.ok(mapeamento.includes('Ação: Preencher'));
 assert.ok(mapeamento.includes('Step: Quando eu preencho'));
 assert.ok(!cenarios.includes('===MAPEAMENTO==='));
 
-const desc = parseDescricaoTela('Título: Preencheu o campo E-mail\nObservação: Formulário de login visível.');
-assert.ok(desc.titulo.includes('E-mail'));
-assert.ok(desc.obs.includes('login'));
+const desc = parseDescricaoTela('Título: Clicou em "Entrar"\nObservação: O usuário estava na tela de login. Clicou em "Entrar" e acessou a área logada.');
+assert.ok(desc.titulo.includes('Entrar'));
+assert.ok(/login|logada|Entrou|Clicou/i.test(desc.obs));
 
 let falhouSemChave = false;
 const prev = process.env.AGENTE_API_KEY;

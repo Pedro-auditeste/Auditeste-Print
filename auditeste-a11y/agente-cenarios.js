@@ -279,8 +279,8 @@ function parseDescricaoTela(texto) {
 async function chamarVisao(conteudo) {
   const r = await chamarNvidia({
     messages: [{ role: 'user', content: conteudo }],
-    maxTokens: 220,
-    temperature: 0.2
+    maxTokens: 180,
+    temperature: 0.1
   });
   return parseDescricaoTela(r.texto);
 }
@@ -290,8 +290,29 @@ async function descreverTela(entrada) {
   const depois = typeof entrada === 'string' ? entrada : (entrada && (entrada.imagem || entrada.depois || entrada.dataUrl) || '');
   const antes = typeof entrada === 'string' ? '' : (entrada && (entrada.antes || entrada.imagemAntes) || '');
   if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
-  const promptPar = 'Você descreve evidências de teste web em português do Brasil. Há DUAS capturas: a primeira é ANTES (onde o usuário clicou ou preencheu); a segunda é DEPOIS. Título curto com verbo (Clicou, Digitou, Pesquisou, Abriu). Observação: o que apareceu. Sem introdução e sem markdown. Formato exato:\nTítulo: ...\nObservação: ...';
-  const promptUma = 'Você descreve evidências de teste web em português do Brasil. Diga a ação visível e o resultado na tela. Título curto com verbo. Sem introdução e sem markdown. Formato exato:\nTítulo: ...\nObservação: ...';
+  const promptPar = [
+    'Você é analista QA escrevendo o PASSO do cenário de teste, em português do Brasil.',
+    'Há DUAS capturas: Imagem 1 = TELA A (antes da ação); Imagem 2 = TELA B (depois da ação).',
+    'Descreva o que o USUÁRIO FEZ para ir da tela A para a tela B.',
+    'Título: uma linha, verbo + alvo entre aspas. Verbos: Clicou, Digitou, Pesquisou, Abriu, Entrou, Preencheu.',
+    'Observação: 1 ou 2 frases no formato: O usuário estava na tela "...". Clicou em "..." / preencheu "...". Entrou na tela/área "...".',
+    'Proibido: inventariar a tela, listar links, menus, URLs, HTML, CSS, produtos patrocinados, layout, cores.',
+    'Se o rótulo do botão/campo não estiver claro, use o texto visível mais próximo (ex. "Entrar", "Buscar", nome do card).',
+    'Sem introdução, sem markdown, sem bullet.',
+    'Formato exato:',
+    'Título: Clicou em "Entrar"',
+    'Observação: O usuário estava na tela de login. Clicou em "Entrar" e acessou a área logada / dashboard.'
+  ].join('\n');
+  const promptUma = [
+    'Você é analista QA. Há UMA captura (tela atual, início ou print único).',
+    'Diga em qual TELA o usuário está. Não inventarie links nem layout.',
+    'Título: Acessou a tela "...".',
+    'Observação: O usuário entrou na tela "...". Ainda não houve clique nesta captura.',
+    'Sem introdução, sem markdown.',
+    'Formato exato:',
+    'Título: Acessou a tela "Login"',
+    'Observação: O usuário está na tela inicial de login, pronto para clicar em "Entrar" ou preencher os campos.'
+  ].join('\n');
   const par = dataUrlValida(antes)
     ? [
       { type: 'text', text: promptPar },
