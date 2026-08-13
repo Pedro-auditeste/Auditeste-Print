@@ -8,9 +8,9 @@
  *   AGENTE_BASE_URL     padrão https://integrate.api.nvidia.com/v1
  *   AGENTE_MODELO       padrão meta/llama-3.2-11b-vision-instruct
  */
-const BASE_URL = (process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '');
-const MODELO = process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct';
-const MODELO_FALLBACK = process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct';
+const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/$/, '');
+const MODELO = String(process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct').trim();
+const MODELO_FALLBACK = String(process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct').trim();
 const MAX_IMAGENS = Number(process.env.AGENTE_MAX_IMAGENS) || 20;
 const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 4096;
 const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
@@ -171,10 +171,13 @@ function extrairBlocos(texto) {
 
 function exigirChave() {
   if ((process.env.AGENTE_API_KEY || '').trim()) return;
+  const visiveis = Object.keys(process.env).filter(k => /^AGENTE_/i.test(k)).sort();
   const naNuvem = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID
     || (process.env.HOST && process.env.HOST !== '127.0.0.1' && process.env.HOST !== 'localhost'));
   const e = new Error(naNuvem
-    ? 'AGENTE_API_KEY não chegou neste serviço. Na Railway: clique no card do SERVIÇO (não no projeto) → Variables → New → nome exatamente AGENTE_API_KEY, valor nvapi-... → marque Runtime/Deploy → Redeploy.'
+    ? ('Falta a 4ª variável AGENTE_API_KEY neste serviço. Já existem: '
+      + (visiveis.join(', ') || '(nenhuma)')
+      + '. No card do serviço audiprint → Variables → New → nome AGENTE_API_KEY, valor nvapi-... (Runtime) → Redeploy. Não use só BASE_URL/MODELO.')
     : 'AGENTE_API_KEY não está definida. Crie auditeste-a11y/.env (veja .env.example) ou chave.txt e reinicie a ponte.');
   e.semChave = true;
   throw e;
@@ -195,9 +198,12 @@ function tratarErroAgente(err) {
 }
 
 function modelosTentativa() {
-  const lista = [MODELO];
-  if (MODELO_FALLBACK && MODELO_FALLBACK !== MODELO) lista.push(MODELO_FALLBACK);
-  return lista;
+  const principal = MODELO;
+  const fallback = MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct';
+  if (/90b/i.test(principal)) {
+    return [fallback, principal].filter((m, i, a) => m && a.indexOf(m) === i);
+  }
+  return [principal, fallback].filter((m, i, a) => m && a.indexOf(m) === i);
 }
 
 /** Chamada no formato oficial NVIDIA (chat/completions), sem SDK. */

@@ -88,6 +88,11 @@ function carregarEnvs() {
     } catch (e) { /* ignore */ }
   }
   resolverChaveAgente();
+  for (const k of Object.keys(process.env)) {
+    if (!/^AGENTE_/i.test(k)) continue;
+    const limpo = limparChave(process.env[k]);
+    if (limpo) process.env[k] = limpo;
+  }
   return carregados;
 }
 

@@ -228,7 +228,9 @@ const servidor = http.createServer(async (req, res) => {
       agenteVar: chaveAgenteOrigem || undefined,
       agenteVars: varsAgenteVisiveis(),
       aviso: !process.env.AGENTE_API_KEY && !ehLoopback
-        ? 'IA desligada: a variável precisa estar no SERVIÇO (card do Print), nome AGENTE_API_KEY, valor nvapi-..., disponível em Runtime. Shared/projeto sozinho não chega no container. Depois Redeploy.'
+        ? ('IA desligada: faltou AGENTE_API_KEY. Vars neste serviço: '
+          + (varsAgenteVisiveis().join(', ') || '(nenhuma)')
+          + '. Adicione AGENTE_API_KEY (nvapi-...) no card do serviço, Runtime, e Redeploy.')
         : EXPOSTO_SEM_TOKEN
           ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
           : undefined
