@@ -16,7 +16,7 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
 2. O `railway.toml` usa o `Dockerfile` na raiz (Playwright + Node).
 3. Defina as variáveis de ambiente:
    - `PONTE_TOKEN` — **obrigatório para scans** (string longa e aleatória)
-   - `AGENTE_API_KEY` — opcional (habilita o agente NVIDIA de cenários)
+   - `AGENTE_API_KEY` — **obrigatória para a IA** (NVIDIA `nvapi-...`; descreve prints e gera cenários)
    - `PONTE_DOMINIOS` — opcional (allowlist de domínios para scan)
 4. A Railway injeta `PORT` automaticamente; o servidor já lê.
 5. Healthcheck em `/ping` — o serviço sobe mesmo sem token, mas scans ficam bloqueados até configurar `PONTE_TOKEN`.

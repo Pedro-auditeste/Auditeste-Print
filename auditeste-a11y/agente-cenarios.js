@@ -9,9 +9,11 @@
  *   AGENTE_MODELO       padrão meta/llama-3.2-11b-vision-instruct
  */
 const BASE_URL = (process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '');
-const MODELO = process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct';
+const MODELO = process.env.AGENTE_MODELO || 'meta/llama-3.2-90b-vision-instruct';
+const MODELO_FALLBACK = process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct';
 const MAX_IMAGENS = Number(process.env.AGENTE_MAX_IMAGENS) || 20;
 const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 4096;
+const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 45000;
 
 const SISTEMA = `Você é o agente de automação web QA da Auditeste (skill automacao-web-qa / SKILL-MAPEAMENTO-QA).
 A partir das evidências do Audi Print você produz a ENTRADA padronizada para gerar feature Behave, steps e Page Object.
@@ -169,21 +171,13 @@ function extrairBlocos(texto) {
 
 function exigirChave() {
   if (process.env.AGENTE_API_KEY) return;
-  const e = new Error(
-    'AGENTE_API_KEY não está definida na ponte. '
-    + 'Crie auditeste-a11y/.env com a chave NVIDIA (veja .env.example) ou defina a variável na Railway, depois reinicie a ponte.'
-  );
+  const naNuvem = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID
+    || (process.env.HOST && process.env.HOST !== '127.0.0.1' && process.env.HOST !== 'localhost'));
+  const e = new Error(naNuvem
+    ? 'AGENTE_API_KEY não está na Railway. Painel → Variables → AGENTE_API_KEY = sua chave nvapi-... → Redeploy.'
+    : 'AGENTE_API_KEY não está definida. Crie auditeste-a11y/.env (veja .env.example) ou chave.txt e reinicie a ponte.');
   e.semChave = true;
   throw e;
-}
-
-function clienteOpenAI() {
-  exigirChave();
-  const OpenAI = require('openai');
-  return new OpenAI({
-    apiKey: process.env.AGENTE_API_KEY,
-    baseURL: BASE_URL
-  });
 }
 
 function tratarErroAgente(err) {
@@ -198,6 +192,63 @@ function tratarErroAgente(err) {
     throw new Error('Modelo não disponível (' + MODELO + '). Defina AGENTE_MODELO com um modelo válido da sua conta NVIDIA.');
   }
   throw err;
+}
+
+function modelosTentativa() {
+  const lista = [MODELO];
+  if (MODELO_FALLBACK && MODELO_FALLBACK !== MODELO) lista.push(MODELO_FALLBACK);
+  return lista;
+}
+
+/** Chamada no formato oficial NVIDIA (chat/completions), sem SDK. */
+async function chamarNvidia({ messages, maxTokens, temperature }) {
+  exigirChave();
+  let ultimo = null;
+  for (const model of modelosTentativa()) {
+    try {
+      const resp = await fetch(BASE_URL + '/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + process.env.AGENTE_API_KEY,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messages,
+          model,
+          frequency_penalty: 0,
+          max_tokens: maxTokens || 512,
+          presence_penalty: 0,
+          stream: false,
+          temperature: temperature == null ? 0.2 : temperature,
+          top_p: 1
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      });
+      const dados = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const bruto = (dados.error && (dados.error.message || dados.error)) || dados.erro || ('HTTP ' + resp.status);
+        const err = new Error(typeof bruto === 'string' ? bruto : JSON.stringify(bruto));
+        err.status = resp.status;
+        throw err;
+      }
+      const choice = dados.choices && dados.choices[0];
+      const texto = choice && choice.message && choice.message.content;
+      if (!texto) throw new Error('a resposta veio sem texto');
+      return {
+        texto,
+        model: dados.model || model,
+        usage: dados.usage || {},
+        finish_reason: choice.finish_reason
+      };
+    } catch (err) {
+      ultimo = err;
+      if (err.status === 401 || /invalid.?api.?key|unauthorized/i.test(err.message || '')) {
+        tratarErroAgente(err);
+      }
+    }
+  }
+  tratarErroAgente(ultimo || new Error('falha na API NVIDIA'));
 }
 
 function parseDescricaoTela(texto) {
@@ -220,20 +271,12 @@ function parseDescricaoTela(texto) {
 }
 
 async function chamarVisao(conteudo) {
-  const cliente = clienteOpenAI();
-  let r;
-  try {
-    r = await cliente.chat.completions.create({
-      model: MODELO,
-      max_tokens: 220,
-      temperature: 0.2,
-      messages: [{ role: 'user', content: conteudo }]
-    });
-  } catch (err) {
-    tratarErroAgente(err);
-  }
-  const texto = r && r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content;
-  return parseDescricaoTela(texto);
+  const r = await chamarNvidia({
+    messages: [{ role: 'user', content: conteudo }],
+    maxTokens: 220,
+    temperature: 0.2
+  });
+  return parseDescricaoTela(r.texto);
 }
 
 async function descreverTela(entrada) {
@@ -270,35 +313,25 @@ async function gerarCenarios({ ficha, passos, quadros }) {
   exigirChave();
   if (!Array.isArray(passos) || !passos.length) throw new Error('nenhum passo enviado');
 
-  const cliente = clienteOpenAI();
   const { partes, imagens } = montarConteudoUsuario({ ficha, passos, quadros });
+  const r = await chamarNvidia({
+    messages: [{ role: 'user', content: partes }],
+    maxTokens: MAX_TOKENS,
+    temperature: 0.2
+  });
 
-  let r;
-  try {
-    r = await cliente.chat.completions.create({
-      model: MODELO,
-      max_tokens: MAX_TOKENS,
-      temperature: 0.2,
-      messages: [{ role: 'user', content: partes }]
-    });
-  } catch (err) {
-    tratarErroAgente(err);
-  }
-
-  const choice = r.choices && r.choices[0];
-  if (choice && choice.finish_reason === 'content_filter') {
+  if (r.finish_reason === 'content_filter') {
     const e = new Error('O modelo recusou gerar a partir dessas evidências (filtro de conteúdo).');
     e.recusa = true;
     throw e;
   }
 
-  const texto = choice && choice.message && choice.message.content;
-  const { cenarios, mapeamento } = extrairBlocos(texto);
+  const { cenarios, mapeamento } = extrairBlocos(r.texto);
 
   return {
     cenarios,
     mapeamento,
-    modelo: (r.model || MODELO),
+    modelo: r.model || MODELO,
     imagens,
     uso: {
       entrada: (r.usage && r.usage.prompt_tokens) || 0,

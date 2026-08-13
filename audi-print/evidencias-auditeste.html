@@ -2044,7 +2044,7 @@
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
           body: JSON.stringify({ imagem: depois, antes: antes || undefined }),
-          signal: AbortSignal.timeout(30000)
+          signal: AbortSignal.timeout(45000)
         });
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));

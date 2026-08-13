@@ -224,9 +224,11 @@ const servidor = http.createServer(async (req, res) => {
       cenarios: !!process.env.AGENTE_API_KEY,
       modelo: MODELO,
       base: BASE_URL,
-      aviso: EXPOSTO_SEM_TOKEN
-        ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
-        : undefined
+      aviso: !process.env.AGENTE_API_KEY && !ehLoopback
+        ? 'IA desligada: defina AGENTE_API_KEY (NVIDIA nvapi-...) nas Variables da Railway e faça Redeploy.'
+        : EXPOSTO_SEM_TOKEN
+          ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
+          : undefined
     }, origem);
   }
 

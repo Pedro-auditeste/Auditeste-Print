@@ -40,6 +40,16 @@ function carregarEnvs() {
   ]) {
     if (carregarEnv(arq)) carregados.push(arq);
   }
+  const chaveTxt = path.join(aqui, 'chave.txt');
+  if (!process.env.AGENTE_API_KEY && fs.existsSync(chaveTxt)) {
+    try {
+      const v = fs.readFileSync(chaveTxt, 'utf8').trim().split(/\r?\n/)[0].trim();
+      if (v && !v.startsWith('#')) {
+        process.env.AGENTE_API_KEY = v;
+        carregados.push(chaveTxt);
+      }
+    } catch (e) { /* ignore */ }
+  }
   return carregados;
 }
 
