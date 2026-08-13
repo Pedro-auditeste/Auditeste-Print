@@ -1,13 +1,10 @@
-/* Teste autônomo: abre a URL, percorre a página, grava vídeo e printa antes/depois. */
+/* Teste: abre a URL no Chrome da ponte, percorre Home/abas/menu, printa antes/depois. */
 const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { chromium } = require('playwright');
+const puppeteer = require('puppeteer');
 const { caminhoChrome } = require('./a11y.js');
 
-const MAX_CLIQUES = Number(process.env.TESTE_IA_CLIQUES || 12);
-const MAX_VIDEO = 16 * 1024 * 1024;
-const MAX_QUADROS = 70;
+const MAX_CLIQUES = Number(process.env.TESTE_IA_CLIQUES || 8);
+const MAX_QUADROS = 24;
 const PERIGOSOS = /sair|logout|log off|excluir|deletar|apagar|comprar agora|finalizar compra|pagar|checkout|remover|cancelar conta|unsubscribe|delete account/i;
 
 const ROTEIRO = [
@@ -29,6 +26,17 @@ function casarRoteiro(texto, href) {
     if ((t && r.texto.test(t)) || (h && r.href.test(h))) return r;
   }
   return null;
+}
+
+function mesmaOrigem(href, base) {
+  if (!href || href.startsWith('#') || /^javascript:/i.test(href) || /^(mailto|tel):/i.test(href)) return false;
+  try {
+    const u = new URL(href, base);
+    const b = new URL(base);
+    return u.host === b.host && (u.protocol === 'http:' || u.protocol === 'https:');
+  } catch (_) {
+    return false;
+  }
 }
 
 function escolherDaRota(lista, rota, usados, base) {
@@ -71,7 +79,7 @@ function candidatosChrome() {
   const viaA11y = caminhoChrome();
   if (viaA11y) lista.push(viaA11y);
   try {
-    const p = require('puppeteer').executablePath();
+    const p = puppeteer.executablePath();
     if (p && fs.existsSync(p)) lista.push(p);
   } catch (_) { /* ok */ }
   [
@@ -86,16 +94,14 @@ function candidatosChrome() {
 }
 
 async function lancarBrowser() {
-  const args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
-  const tentativas = candidatosChrome().map((executablePath) => ({ executablePath, args }));
-  tentativas.push({ channel: 'chrome', args });
-  tentativas.push({ channel: 'msedge', args });
-  tentativas.push({ args });
+  const args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--window-size=1366,768'];
+  const exe = candidatosChrome()[0];
+  const tentativas = [];
+  if (exe) tentativas.push({ executablePath: exe, headless: true, args });
+  tentativas.push({ headless: true, args });
   let ultimo;
   for (const opt of tentativas) {
-    try {
-      return await chromium.launch({ headless: true, ...opt });
-    } catch (e) { ultimo = e; }
+    try { return await puppeteer.launch(opt); } catch (e) { ultimo = e; }
   }
   throw ultimo || new Error('Chrome não encontrado. Rode: npx puppeteer browsers install chrome');
 }
@@ -105,19 +111,30 @@ function jpegDataUrl(buf) {
 }
 
 async function printTela(pagina, qualidade) {
-  const buf = await pagina.screenshot({ type: 'jpeg', quality: qualidade || 68, fullPage: false });
+  const buf = await pagina.screenshot({ type: 'jpeg', quality: qualidade || 60, fullPage: false, captureBeyondViewport: false });
   return jpegDataUrl(buf);
 }
 
-function mesmaOrigem(href, base) {
-  if (!href || href.startsWith('#') || /^javascript:/i.test(href) || /^(mailto|tel):/i.test(href)) return false;
-  try {
-    const u = new URL(href, base);
-    const b = new URL(base);
-    return u.host === b.host && (u.protocol === 'http:' || u.protocol === 'https:');
-  } catch (_) {
-    return false;
-  }
+async function destacar(pagina, seletor) {
+  await pagina.evaluate((sel) => {
+    document.querySelectorAll('[data-audi-destaque]').forEach((el) => {
+      el.style.outline = el.getAttribute('data-audi-outline') || '';
+      el.removeAttribute('data-audi-destaque');
+      el.removeAttribute('data-audi-outline');
+    });
+    let el = null;
+    if (sel && (sel.startsWith('/') || sel.startsWith('('))) {
+      el = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    } else {
+      try { el = document.querySelector(sel); } catch (_) { /* ok */ }
+    }
+    if (!el) return;
+    el.setAttribute('data-audi-destaque', '1');
+    el.setAttribute('data-audi-outline', el.style.outline || '');
+    el.style.outline = '4px solid #e23c3c';
+    el.style.outlineOffset = '3px';
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }, seletor).catch(() => {});
 }
 
 async function listarCandidatos(pagina) {
@@ -126,7 +143,7 @@ async function listarCandidatos(pagina) {
     function visivel(el) {
       const r = el.getBoundingClientRect();
       if (r.width < 8 || r.height < 8) return false;
-      if (r.bottom < -40 || r.top > innerHeight * 1.4 || r.right < 0 || r.left > innerWidth) return false;
+      if (r.bottom < -20 || r.top > innerHeight * 1.3 || r.right < 0 || r.left > innerWidth) return false;
       const st = getComputedStyle(el);
       if (st.visibility === 'hidden' || st.display === 'none' || Number(st.opacity) === 0) return false;
       return true;
@@ -157,7 +174,13 @@ async function listarCandidatos(pagina) {
       }
       return partes.length ? '//' + partes.join('').replace(/^\//, '') : '';
     }
-    const sel = 'a[href], button, [role="button"], [role="menuitem"], input[type="submit"], input[type="button"], summary, nav a, header a, footer a';
+    const sel = [
+      '[role="tab"]', '[role="tablist"] a', '[role="tablist"] button',
+      '[data-toggle="tab"]', '.nav-tabs a', '.nav-tabs button', '[aria-controls]',
+      'a[href]', 'button', '[role="button"]', '[role="menuitem"]',
+      'input[type="submit"]', 'input[type="button"]', 'summary',
+      'nav a', 'header a', 'footer a'
+    ].join(',');
     const vistos = new Set();
     return [...document.querySelectorAll(sel)].filter(visivel).map((el) => {
       const texto = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
@@ -165,18 +188,19 @@ async function listarCandidatos(pagina) {
       const seletor = seletorDe(el);
       if (!seletor || vistos.has(seletor)) return null;
       vistos.add(seletor);
-      const noNav = !!(el.closest('nav, header, [role="navigation"], [role="menubar"]'));
+      const eAba = el.getAttribute('role') === 'tab'
+        || !!el.closest('[role="tablist"], .nav-tabs, .tabs, [data-tabs]')
+        || /tab/i.test(el.className || '')
+        || el.hasAttribute('aria-controls');
       return {
         seletor,
         id: el.id || '',
-        testid: el.getAttribute('data-testid') || '',
-        name: el.getAttribute('name') || '',
-        tag: el.tagName.toLowerCase(),
         texto: texto.slice(0, 80),
         href,
-        html: (el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 280),
+        html: (el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 240),
         temId: !!el.id,
-        noNav,
+        noNav: !!(el.closest('nav, header, [role="navigation"], [role="menubar"]')),
+        eAba,
         perigoso: perigosos.test(texto + ' ' + href)
       };
     }).filter((c) => c && !c.perigoso && !/^javascript:/i.test(c.href) && !/\.(pdf|zip|exe)(\?|$)/i.test(c.href));
@@ -185,59 +209,57 @@ async function listarCandidatos(pagina) {
 
 function pontuar(c) {
   let s = 0;
-  if (c.temId) s += 40;
-  if (c.testid) s += 24;
-  if (c.noNav) s += 28;
-  if (c.name) s += 10;
-  if (/entrar|login|menu|buscar|pesquisar|saiba|ver mais|produtos|cadastro|aceitar|aceito|concordo|home|início|inicio|sobre|contato|serviços|servicos/i.test(c.texto)) s += 26;
-  if (c.tag === 'button' || c.tag === 'a') s += 4;
+  if (c.eAba) s += 45;
+  if (c.temId) s += 20;
+  if (c.noNav) s += 22;
+  if (/entrar|login|menu|home|inicio|quem|sobre|funcional|servic|contato|aba|tab/i.test(c.texto)) s += 18;
   return s;
 }
 
 async function clicarSeletor(pagina, seletor) {
-  const loc = (seletor.startsWith('/') || seletor.startsWith('('))
-    ? pagina.locator('xpath=' + seletor)
-    : pagina.locator(seletor);
-  await loc.first().scrollIntoViewIfNeeded().catch(() => {});
-  await new Promise((r) => setTimeout(r, 350));
   try {
-    await loc.first().click({ timeout: 7000 });
-  } catch (_) {
-    await loc.first().click({ timeout: 5000, force: true });
+    if (seletor.startsWith('/') || seletor.startsWith('(')) {
+      await pagina.locator('xpath=' + seletor).first().click({ timeout: 7000 });
+    } else {
+      await pagina.locator(seletor).first().click({ timeout: 7000 });
+    }
+    return;
+  } catch (e1) {
+    const ok = await pagina.evaluate((sel) => {
+      let el = null;
+      if (sel.startsWith('/') || sel.startsWith('(')) {
+        el = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      } else {
+        try { el = document.querySelector(sel); } catch (_) { /* ok */ }
+      }
+      if (!el) return false;
+      el.click();
+      return true;
+    }, seletor);
+    if (!ok) throw e1;
   }
 }
 
 async function esperarAssentar(pagina) {
-  await pagina.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
-  await pagina.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
-  await new Promise((r) => setTimeout(r, 1400));
+  await pagina.waitForNetworkIdle({ idleTime: 600, timeout: 8000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 900));
 }
 
-function passoBase({ titulo, obs, acao, elemento, valor, html, imagens }) {
+function passoBase(p) {
   return {
-    titulo,
-    obs,
-    acao,
-    elemento: elemento || '',
-    valor: valor || '',
-    html: html || '',
-    imagens: imagens || []
+    titulo: p.titulo,
+    obs: p.obs,
+    acao: p.acao,
+    elemento: p.elemento || '',
+    valor: p.valor || '',
+    html: p.html || '',
+    imagens: p.imagens || []
   };
-}
-
-function optsContexto(pasta, comVideo) {
-  const opts = {
-    viewport: { width: 1366, height: 768 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Auditeste-Teste/1.0',
-    locale: 'pt-BR'
-  };
-  if (comVideo) opts.recordVideo = { dir: pasta, size: { width: 1366, height: 768 } };
-  return opts;
 }
 
 async function voltarBase(pagina, base) {
   if (pagina.url() === base) return;
-  await pagina.goBack({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null);
+  await pagina.goBack({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
   if (pagina.url() !== base) await pagina.goto(base, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
   await esperarAssentar(pagina);
 }
@@ -248,40 +270,24 @@ async function testarUrl(alvo) {
   let parsed;
   try { parsed = new URL(url); } catch (_) { throw new Error('url inválida: ' + url); }
 
-  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'audi-teste-ia-'));
   const navegador = await lancarBrowser();
-  let contexto;
-  let pagina;
-  let comVideo = true;
-  try {
-    contexto = await navegador.newContext(optsContexto(pasta, true));
-    pagina = await contexto.newPage();
-  } catch (e) {
-    if (!/ffmpeg/i.test((e && e.message) || '')) {
-      await navegador.close().catch(() => {});
-      try { fs.rmSync(pasta, { recursive: true, force: true }); } catch (_) { /* ok */ }
-      throw e;
-    }
-    await contexto?.close().catch(() => {});
-    comVideo = false;
-    contexto = await navegador.newContext(optsContexto(pasta, false));
-    pagina = await contexto.newPage();
-  }
+  const pagina = await navegador.newPage();
+  await pagina.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
+  await pagina.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Auditeste-Teste/1.0');
 
   const avisos = [];
   const passos = [];
   const quadros = [];
-  let videoData = null;
   let gravandoQuadros = true;
   const timerQuadros = setInterval(() => {
-    if (!gravandoQuadros || !pagina || quadros.length >= MAX_QUADROS) return;
-    printTela(pagina, 42).then((u) => {
+    if (!gravandoQuadros || quadros.length >= MAX_QUADROS) return;
+    printTela(pagina, 38).then((u) => {
       if (gravandoQuadros && quadros.length < MAX_QUADROS) quadros.push(u);
     }).catch(() => {});
-  }, 500);
+  }, 600);
 
   try {
-    await pagina.goto(url, { waitUntil: 'load', timeout: 45000 });
+    await pagina.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     const printChegando = await printTela(pagina);
     await esperarAssentar(pagina);
     const base = pagina.url();
@@ -292,13 +298,11 @@ async function testarUrl(alvo) {
       obs: 'Antes: abrindo o site. Depois: "' + tituloHome + '" em ' + base,
       acao: 'Acessar',
       elemento: url,
-      html: '',
       imagens: [
         { dataUrl: printChegando, legenda: '1 — tela do clique' },
         { dataUrl: printHome, legenda: '2 — tela que abriu' }
       ]
     }));
-    await new Promise((r) => setTimeout(r, 800));
 
     const usados = new Set();
     let cliques = 0;
@@ -309,13 +313,8 @@ async function testarUrl(alvo) {
       usados.add(cand.seletor);
       if (cand.href) usados.add(cand.href);
       const urlAntes = pagina.url();
-      try {
-        const loc = (cand.seletor.startsWith('/') || cand.seletor.startsWith('('))
-          ? pagina.locator('xpath=' + cand.seletor)
-          : pagina.locator(cand.seletor);
-        await loc.first().scrollIntoViewIfNeeded().catch(() => {});
-        await new Promise((r) => setTimeout(r, 400));
-      } catch (_) { /* segue o print mesmo assim */ }
+      await destacar(pagina, cand.seletor);
+      await new Promise((r) => setTimeout(r, 350));
       const antes = await printTela(pagina);
       try {
         await clicarSeletor(pagina, cand.seletor);
@@ -326,23 +325,24 @@ async function testarUrl(alvo) {
       await esperarAssentar(pagina);
       const depois = await printTela(pagina);
       const heading = await pagina.evaluate(() => {
-        const h = document.querySelector('h1, h2, [role="heading"]');
+        const h = document.querySelector('h1, h2, [role="heading"], [role="tabpanel"]');
         return (h && (h.innerText || '').trim().slice(0, 80)) || document.title || '';
       }).catch(() => '');
       const rotulo = cand.texto || cand.id || cand.seletor;
+      const tipo = cand.eAba ? 'aba' : 'item';
       passos.push(passoBase({
-        titulo: 'Clicou em "' + rotulo + '"',
-        obs: 'Antes: ' + rotulo + '. Depois: ' + (heading || pagina.url()) + (cand.html ? '. HTML: ' + cand.html : ''),
+        titulo: cand.eAba ? 'Clicou na aba "' + rotulo + '"' : 'Clicou em "' + rotulo + '"',
+        obs: 'Antes: ' + tipo + ' "' + rotulo + '". Depois: ' + (heading || pagina.url()) + (cand.html ? '. HTML: ' + cand.html : ''),
         acao: 'Clicar',
         elemento: cand.seletor,
         html: cand.html,
         imagens: [
-          { dataUrl: antes || depois, legenda: '1 — tela do clique' },
+          { dataUrl: antes, legenda: '1 — tela do clique' },
           { dataUrl: depois, legenda: '2 — tela que abriu' }
         ]
       }));
       cliques++;
-      await new Promise((r) => setTimeout(r, 1100));
+      await new Promise((r) => setTimeout(r, 700));
       const soAncora = cand.href && (cand.href.startsWith('#') || (() => {
         try {
           const u = new URL(cand.href, urlAntes);
@@ -350,90 +350,66 @@ async function testarUrl(alvo) {
           return u.hash && u.pathname === a.pathname && u.host === a.host;
         } catch (_) { return false; }
       })());
-      if (soAncora) {
-        await pagina.evaluate(() => window.scrollTo(0, 0));
-        await new Promise((r) => setTimeout(r, 400));
-      } else if (pagina.url() !== urlAntes && pagina.url() !== base) {
-        await voltarBase(pagina, base);
-      }
+      if (cand.eAba || soAncora || pagina.url() === urlAntes) return true;
+      if (pagina.url() !== base) await voltarBase(pagina, base);
       return true;
     }
 
-    async function abrirMenuSeHouver() {
-      const clicou = await pagina.evaluate(() => {
+    try {
+      const cookie = (await listarCandidatos(pagina)).find((c) => /aceitar|aceito|concordo|entendi|ok,?\s*continuar/i.test(c.texto));
+      if (cookie) await executarClique(cookie);
+
+      /* abas da tela atual */
+      const abas = (await listarCandidatos(pagina)).filter((c) => c.eAba).sort((a, b) => pontuar(b) - pontuar(a));
+      for (const aba of abas) {
+        if (cliques >= MAX_CLIQUES) break;
+        await executarClique(aba);
+      }
+
+      await pagina.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
+      await new Promise((r) => setTimeout(r, 300));
+      await pagina.evaluate(() => {
         const b = [...document.querySelectorAll('button, [role="button"], summary')].find((el) => {
           const t = ((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '')).toLowerCase();
           return /menu|abrir navega|hamburguer|☰|≡/.test(t);
         });
-        if (!b) return false;
-        b.click();
-        return true;
-      }).catch(() => false);
-      if (clicou) await new Promise((r) => setTimeout(r, 700));
-    }
+        if (b) b.click();
+      }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 500));
 
-    /* 1) cookies */
-    const cookie = (await listarCandidatos(pagina)).find((c) => /aceitar|aceito|concordo|entendi|ok,?\s*continuar/i.test(c.texto));
-    if (cookie) await executarClique(cookie);
-
-    /* 2) roteiro de funcionalidades: Home, Quem somos, Funcionalidades, Entrar, Contato */
-    await pagina.evaluate(() => window.scrollTo(0, 0));
-    await new Promise((r) => setTimeout(r, 400));
-    await abrirMenuSeHouver();
-    for (const rota of ROTEIRO) {
-      if (cliques >= MAX_CLIQUES) break;
-      if (rota.chave === 'home' && /\/(home|inicio|index)?\/?$/i.test(new URL(pagina.url()).pathname) && new URL(pagina.url()).pathname.replace(/\/$/, '') === new URL(base).pathname.replace(/\/$/, '')) {
-        continue;
+      for (const rota of ROTEIRO) {
+        if (cliques >= MAX_CLIQUES) break;
+        const lista = await listarCandidatos(pagina);
+        const cand = escolherDaRota(lista, rota, usados, base);
+        if (cand) await executarClique(cand);
       }
-      const lista = await listarCandidatos(pagina);
-      const cand = escolherDaRota(lista, rota, usados, base);
-      if (cand) await executarClique(cand);
+
+      const resto = (await listarCandidatos(pagina))
+        .filter((c) => c.noNav || c.eAba)
+        .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#'))
+        .sort((a, b) => pontuar(b) - pontuar(a));
+      for (const cand of resto) {
+        if (cliques >= MAX_CLIQUES) break;
+        await executarClique(cand);
+      }
+    } catch (e) {
+      avisos.push(e.message || String(e));
     }
 
-    /* 3) demais itens do menu ainda não visitados */
-    await abrirMenuSeHouver();
-    const restoNav = (await listarCandidatos(pagina))
-      .filter((c) => c.noNav || /menu|nav/i.test(c.html))
-      .filter((c) => !c.href || mesmaOrigem(c.href, base) || c.href.startsWith('/') || c.href.startsWith('#'))
-      .sort((a, b) => pontuar(b) - pontuar(a));
-    for (const cand of restoNav) {
-      if (cliques >= MAX_CLIQUES) break;
-      await executarClique(cand);
-    }
-
-    if (cliques < 2) avisos.push('poucos elementos clicáveis nesta página');
-    if (!comVideo) avisos.push('vídeo montado por quadros');
+    if (passos.length < 1) throw new Error('não foi possível abrir o site para printar');
   } finally {
     gravandoQuadros = false;
     clearInterval(timerQuadros);
-    await new Promise((r) => setTimeout(r, 600));
-    const handleVideo = comVideo && pagina && typeof pagina.video === 'function' ? pagina.video() : null;
-    await contexto?.close().catch(() => {});
+    await new Promise((r) => setTimeout(r, 400));
     await navegador.close().catch(() => {});
-    try {
-      if (handleVideo) {
-        const arq = await handleVideo.path();
-        if (arq && fs.existsSync(arq)) {
-          const buf = fs.readFileSync(arq);
-          if (buf.length >= 80 * 1024 && buf.length <= MAX_VIDEO) {
-            videoData = 'data:video/webm;base64,' + buf.toString('base64');
-          } else if (buf.length > MAX_VIDEO) {
-            avisos.push('vídeo grande demais; usando os quadros da sessão');
-          }
-        }
-      }
-    } catch (e) {
-      avisos.push('vídeo: ' + e.message);
-    }
-    try { fs.rmSync(pasta, { recursive: true, force: true }); } catch (_) { /* ok */ }
   }
 
   return {
     url: parsed.href,
     titulo: parsed.hostname,
     passos,
-    video: videoData,
-    quadros: videoData ? quadros.slice(0, 24) : quadros,
+    video: null,
+    quadros,
     avisos
   };
 }

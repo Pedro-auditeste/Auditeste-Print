@@ -988,7 +988,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v24 · teste: Home, Quem somos, Entrar, Funcionalidades</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v25 · teste printa abas e menu</p>
       </div>
     </div>
 
@@ -2753,7 +2753,7 @@
     for(const base of candidatasPonte()){
       const info = await pingUmaPonte(base);
       if(!info) continue;
-      if(info.cenarios){
+      if(info.cenarios || info.testeIa){
         ponteIACache = { url: base, t: Date.now(), info };
         return ponteIACache;
       }
@@ -2927,7 +2927,12 @@
   async function testeIaUrl(){
     const input = document.getElementById('urlTesteIa');
     const estadoEl = document.getElementById('estadoTesteIa');
-    const urlSite = (input && input.value || '').trim();
+    const urlSite = (
+      (input && input.value) ||
+      (document.getElementById('urlTesteIaHome') && document.getElementById('urlTesteIaHome').value) ||
+      (document.getElementById('urlTesteIaProjeto') && document.getElementById('urlTesteIaProjeto').value) ||
+      ''
+    ).trim();
     const dizer = (txt, ruim) => {
       if(!estadoEl) return;
       estadoEl.textContent = txt;
@@ -2950,7 +2955,7 @@
     }
 
     testeIaAbort = new AbortController();
-    const timeoutId = setTimeout(() => { try{ testeIaAbort.abort(); }catch(_){ } }, 240000);
+    const timeoutId = setTimeout(() => { try{ testeIaAbort.abort(); }catch(_){ } }, 300000);
     segundos = 0; relogio.textContent = '00:00';
     mudarEstado('gravando');
     btnPausar.disabled = true;
@@ -2966,12 +2971,16 @@
         body: JSON.stringify({ url: urlSite }),
         signal: testeIaAbort.signal
       });
-      const dados = await resp.json().catch(() => ({}));
+      const dados = await resp.json().catch(() => null);
+      if(!dados) throw new Error('A ponte não devolveu o teste. Tente de novo.');
       if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
+      if(!(dados.passos || []).length) throw new Error(dados.erro || 'O teste não gerou prints.');
       await aplicarTesteIa(dados);
-      const n = (dados.passos || []).length;
-      dizer('Teste concluído: ' + n + ' print(s)' + (videoBlob || dados.video || (dados.quadros||[]).length ? ' + vídeo' : '') + '. Revise e salve.', false);
-      if(statusIaEl) statusIaEl.textContent = 'Gravou ' + n + ' passo(s) com id HTML.';
+      const n = dados.passos.length;
+      const nImg = [...lista.querySelectorAll('.passo figure')].length;
+      if(!nImg) throw new Error('O teste abriu o site, mas os prints não chegaram. Tente de novo.');
+      dizer('Teste concluído: ' + n + ' passo(s), ' + nImg + ' print(s)' + (videoBlob || (dados.quadros||[]).length ? ' + vídeo' : '') + '. Revise e salve.', false);
+      if(statusIaEl) statusIaEl.textContent = 'Gravou ' + n + ' passo(s) com print antes/depois.';
       avisar('Teste gravado e printado. Revise e salve no projeto.');
     }catch(err){
       const abortou = /AbortError|aborted/i.test((err && (err.name + ' ' + err.message)) || '');

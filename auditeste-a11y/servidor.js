@@ -247,8 +247,8 @@ const servidor = http.createServer(async (req, res) => {
     if (rodando >= MAX) {
       return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
     }
-    req.setTimeout(240000);
-    res.setTimeout(240000);
+    req.setTimeout(300000);
+    res.setTimeout(300000);
     let corpo;
     try { corpo = await lerCorpo(req); } catch (err) {
       return responder(res, 400, { erro: err.message }, origem);
