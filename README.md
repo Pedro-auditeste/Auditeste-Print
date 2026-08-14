@@ -3,7 +3,7 @@
 Pacote de acessibilidade da Auditeste: gravador de evidências, extensão de scan e ponte de ferramentas (axe-core, Pa11y, Lighthouse).
 
 ```
-audi-print-scanner/   escaneia o que está na tela (extensão Chrome)
+audi-print-scanner/   registra cliques + pares Antes/Depois e roda axe (extensão Chrome)
 auditeste-a11y/       scans por linha de comando + ponte hospedável
 audi-print/           grava evidências e importa JSON de acessibilidade
 ```
@@ -15,7 +15,7 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
 1. Conecte este repositório na [Railway](https://railway.app).
 2. O `railway.toml` usa o `Dockerfile` na raiz (Playwright + Node).
 3. Variáveis no **card do serviço** (não só em Shared/projeto), com Runtime/Deploy ligado:
-   - `AGENTE_API_KEY` — **obrigatória para a IA** (NVIDIA `nvapi-...`)
+   - `NVIDIA_NIM_API_KEY` — **obrigatória para descrições e cenários** (NVIDIA `nvapi-...`; `AGENTE_API_KEY` continua aceito)
    - `AGENTE_BASE_URL` — opcional (`https://integrate.api.nvidia.com/v1`)
    - `AGENTE_MODELO` — opcional (`meta/llama-3.2-90b-vision-instruct`)
    - `PONTE_TOKEN` — para proteger scans

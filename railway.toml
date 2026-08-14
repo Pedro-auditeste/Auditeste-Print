@@ -2,7 +2,7 @@
 #
 # Variáveis no painel:
 #   PONTE_TOKEN        obrigatório para habilitar scans
-#   AGENTE_API_KEY     obrigatória para IA (descrever prints + Gherkin)
+#   NVIDIA_NIM_API_KEY obrigatória para descrições + Gherkin (AGENTE_API_KEY também é aceito)
 #   AGENTE_BASE_URL    opcional — padrão https://integrate.api.nvidia.com/v1
 #   AGENTE_MODELO      opcional — padrão meta/llama-3.2-11b-vision-instruct
 #   AGENTE_MODELO_FALLBACK  opcional — padrão meta/llama-3.2-11b-vision-instruct

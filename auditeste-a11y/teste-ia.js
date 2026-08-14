@@ -251,8 +251,13 @@ function passoBase(p) {
     obs: p.obs,
     acao: p.acao,
     elemento: p.elemento || '',
+    rotulo: p.rotulo || '',
     valor: p.valor || '',
     html: p.html || '',
+    timestampAntes: p.timestampAntes || '',
+    timestampDepois: p.timestampDepois || '',
+    urlAntes: p.urlAntes || '',
+    urlDepois: p.urlDepois || '',
     imagens: p.imagens || []
   };
 }
@@ -288,19 +293,26 @@ async function testarUrl(alvo) {
 
   try {
     await pagina.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const timestampAntes = new Date().toISOString();
     const printChegando = await printTela(pagina);
     await esperarAssentar(pagina);
     const base = pagina.url();
     const tituloHome = (await pagina.title().catch(() => '')) || parsed.hostname;
     const printHome = await printTela(pagina);
+    const timestampDepois = new Date().toISOString();
     passos.push(passoBase({
       titulo: 'Acessou ' + parsed.hostname,
       obs: 'Antes: abrindo o site. Depois: "' + tituloHome + '" em ' + base,
       acao: 'Acessar',
       elemento: url,
+      rotulo: parsed.hostname,
+      timestampAntes,
+      timestampDepois,
+      urlAntes: url,
+      urlDepois: base,
       imagens: [
-        { dataUrl: printChegando, legenda: '1 — tela do clique' },
-        { dataUrl: printHome, legenda: '2 — tela que abriu' }
+        { dataUrl: printChegando, legenda: 'Antes · ' + new Date(timestampAntes).toLocaleString('pt-BR') },
+        { dataUrl: printHome, legenda: 'Depois · ' + new Date(timestampDepois).toLocaleString('pt-BR') }
       ]
     }));
 
@@ -315,6 +327,7 @@ async function testarUrl(alvo) {
       const urlAntes = pagina.url();
       await destacar(pagina, cand.seletor);
       await new Promise((r) => setTimeout(r, 350));
+      const instanteAntes = new Date().toISOString();
       const antes = await printTela(pagina);
       try {
         await clicarSeletor(pagina, cand.seletor);
@@ -324,6 +337,7 @@ async function testarUrl(alvo) {
       }
       await esperarAssentar(pagina);
       const depois = await printTela(pagina);
+      const instanteDepois = new Date().toISOString();
       const heading = await pagina.evaluate(() => {
         const h = document.querySelector('h1, h2, [role="heading"], [role="tabpanel"]');
         return (h && (h.innerText || '').trim().slice(0, 80)) || document.title || '';
@@ -335,10 +349,15 @@ async function testarUrl(alvo) {
         obs: 'Antes: ' + tipo + ' "' + rotulo + '". Depois: ' + (heading || pagina.url()) + (cand.html ? '. HTML: ' + cand.html : ''),
         acao: 'Clicar',
         elemento: cand.seletor,
+        rotulo,
         html: cand.html,
+        timestampAntes: instanteAntes,
+        timestampDepois: instanteDepois,
+        urlAntes,
+        urlDepois: pagina.url(),
         imagens: [
-          { dataUrl: antes, legenda: '1 — tela do clique' },
-          { dataUrl: depois, legenda: '2 — tela que abriu' }
+          { dataUrl: antes, legenda: 'Antes · ' + new Date(instanteAntes).toLocaleString('pt-BR') },
+          { dataUrl: depois, legenda: 'Depois · ' + new Date(instanteDepois).toLocaleString('pt-BR') }
         ]
       }));
       cliques++;

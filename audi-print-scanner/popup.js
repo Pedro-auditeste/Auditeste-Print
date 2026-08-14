@@ -5,11 +5,96 @@
 
 const botao = document.getElementById('analisar');
 const msg = document.getElementById('msg');
+const iniciar = document.getElementById('iniciar');
+const parar = document.getElementById('parar');
+const exportar = document.getElementById('exportar');
+const limpar = document.getElementById('limpar');
 
 function avisar(texto, erro) {
   msg.innerHTML = texto;
   msg.className = erro ? 'erro' : '';
 }
+
+async function abaAtual() {
+  const [aba] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!aba || /^(chrome|edge|about|chrome-extension):/.test(aba.url || '')) {
+    throw new Error('Abra uma página HTTP(S) para registrar o teste.');
+  }
+  return aba;
+}
+
+async function comando(tipo) {
+  const aba = await abaAtual();
+  const resposta = await chrome.runtime.sendMessage({ tipo, tabId: aba.id });
+  if (resposta?.erro) throw new Error(resposta.erro);
+  return { aba, sessao: resposta?.sessao || null };
+}
+
+function mostrarStatus(sessao) {
+  const total = sessao?.passos?.length || 0;
+  iniciar.disabled = !!sessao?.ativa;
+  parar.disabled = !sessao?.ativa;
+  exportar.disabled = !total;
+  avisar(sessao?.ativa
+    ? `<b>Gravando.</b> ${total} ação(ões). Mantenha esta aba visível.`
+    : total
+      ? `<b>${total} ação(ões)</b> prontas para importar no Audi Print.`
+      : 'Nenhuma sessão em andamento.');
+}
+
+iniciar.addEventListener('click', async () => {
+  try {
+    const { sessao } = await comando('AUDI_INICIAR');
+    mostrarStatus(sessao);
+  } catch (erro) {
+    avisar(erro.message, true);
+  }
+});
+
+parar.addEventListener('click', async () => {
+  try {
+    avisar('Finalizando o último par...');
+    const { sessao } = await comando('AUDI_PARAR');
+    mostrarStatus(sessao);
+  } catch (erro) {
+    avisar(erro.message, true);
+  }
+});
+
+limpar.addEventListener('click', async () => {
+  try {
+    await comando('AUDI_LIMPAR');
+    mostrarStatus(null);
+  } catch (erro) {
+    avisar(erro.message, true);
+  }
+});
+
+exportar.addEventListener('click', async () => {
+  try {
+    const { aba, sessao } = await comando('AUDI_STATUS');
+    if (!sessao?.passos?.length) throw new Error('Nenhuma ação capturada.');
+    const dados = {
+      formato: 'audi-print-evidencia-v1',
+      url: sessao.url || aba.url,
+      titulo: sessao.titulo || aba.title || '',
+      inicio: sessao.inicio,
+      passos: sessao.passos
+    };
+    const blob = new Blob([JSON.stringify(dados)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const host = new URL(aba.url).hostname.replace(/^www\./, '') || 'site';
+    await chrome.downloads.download({
+      url,
+      filename: `audi-print-${host}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`,
+      saveAs: true
+    });
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    mostrarStatus(sessao);
+  } catch (erro) {
+    avisar(erro.message, true);
+  }
+});
 
 /* roda dentro da página sob teste */
 async function rodarAxe() {
@@ -65,4 +150,8 @@ botao.addEventListener('click', async () => {
   }
 
   botao.disabled = false;
+});
+
+comando('AUDI_STATUS').then(({ sessao }) => mostrarStatus(sessao)).catch((erro) => {
+  avisar(erro.message, true);
 });

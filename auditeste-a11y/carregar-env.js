@@ -38,9 +38,9 @@ function limparChave(v) {
     .trim();
 }
 
-/** Aceita AGENTE_API_KEY ou qualquer env cujo valor comece com nvapi-. */
+/** Aceita o nome atual, o legado ou qualquer env cujo valor comece com nvapi-. */
 function resolverChaveAgente() {
-  const nomes = ['AGENTE_API_KEY', 'NVIDIA_API_KEY', 'NVAPI_KEY', 'NVIDIA_APIKEY', 'CHAVE_NVIDIA'];
+  const nomes = ['NVIDIA_NIM_API_KEY', 'AGENTE_API_KEY', 'NVIDIA_API_KEY', 'NVAPI_KEY', 'NVIDIA_APIKEY', 'CHAVE_NVIDIA'];
   for (const n of nomes) {
     const v = limparChave(process.env[n]);
     if (v) {

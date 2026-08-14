@@ -447,15 +447,32 @@ const PROMPT_UMA = [
   'Observação: 1 frase com heading/produto/campos lidos.'
 ].join('\n');
 
-function juntarPassoAPasso(antes, depois) {
+function limparContexto(entrada) {
+  const texto = (valor, max) => String(valor || '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return {
+    elemento: texto(entrada && entrada.elemento, 300),
+    rotulo: texto(entrada && entrada.rotulo, 120),
+    urlAntes: texto(entrada && entrada.urlAntes, 1000),
+    urlDepois: texto(entrada && entrada.urlDepois, 1000)
+  };
+}
+
+function juntarPassoAPasso(antes, depois, contexto) {
   const a = antes || FALLBACK_PRINT;
   const b = depois || FALLBACK_PRINT;
   const t1 = (a.titulo || 'Tela anterior').replace(/\s+/g, ' ').trim();
   const t2 = (b.titulo || 'tela seguinte').replace(/\s+/g, ' ').trim()
     .replace(/^Entrou em /i, 'entrou em ');
-  const titulo = cortarPalavra(/→/.test(t1) ? t1 : (t1 + ' → ' + t2), 110);
+  const ctx = limparContexto(contexto);
+  const origem = ctx.rotulo || ctx.elemento;
+  const titulo = cortarPalavra(
+    origem ? `Clicou em "${origem}" → ${t2}` : (/→/.test(t1) ? t1 : (t1 + ' → ' + t2)),
+    110
+  );
   const obs = cortarPalavra(
-    'Antes: ' + (a.obs || a.titulo || '') + ' Depois: ' + (b.obs || b.titulo || ''),
+    'Antes: ' + (a.obs || a.titulo || '')
+      + (origem ? ` Ação: clique em "${origem}".` : '')
+      + ' Depois: ' + (b.obs || b.titulo || ''),
     340
   );
   return { titulo, obs };
@@ -489,10 +506,17 @@ async function chamarVisao(conteudo) {
   return out || FALLBACK_PRINT;
 }
 
-async function descreverUma(dataUrl, papel) {
+async function descreverUma(dataUrl, papel, contexto) {
   const prompt = papel === 'antes' ? PROMPT_ANTES : papel === 'depois' ? PROMPT_DEPOIS : PROMPT_UMA;
+  const ctx = limparContexto(contexto);
+  const dados = [
+    ctx.rotulo && `Rótulo do elemento acionado: ${ctx.rotulo}`,
+    ctx.elemento && `Seletor HTML real: ${ctx.elemento}`,
+    papel === 'antes' && ctx.urlAntes && `URL antes: ${ctx.urlAntes}`,
+    papel === 'depois' && ctx.urlDepois && `URL depois: ${ctx.urlDepois}`
+  ].filter(Boolean).join('\n');
   return chamarVisao([
-    { type: 'text', text: prompt },
+    { type: 'text', text: prompt + (dados ? '\n\nContexto verificado pelo navegador:\n' + dados : '') },
     { type: 'image_url', image_url: { url: dataUrl } }
   ]);
 }
@@ -501,15 +525,16 @@ async function descreverTela(entrada) {
   exigirChave();
   const depois = typeof entrada === 'string' ? entrada : (entrada && (entrada.imagem || entrada.depois || entrada.dataUrl) || '');
   const antes = typeof entrada === 'string' ? '' : (entrada && (entrada.antes || entrada.imagemAntes) || '');
+  const contexto = typeof entrada === 'string' ? {} : limparContexto(entrada);
   if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
   if (dataUrlValida(antes)) {
     const [d1, d2] = await Promise.all([
-      descreverUma(antes, 'antes'),
-      descreverUma(depois, 'depois')
+      descreverUma(antes, 'antes', contexto),
+      descreverUma(depois, 'depois', contexto)
     ]);
-    return juntarPassoAPasso(d1, d2);
+    return juntarPassoAPasso(d1, d2, contexto);
   }
-  return descreverUma(depois, 'unica');
+  return descreverUma(depois, 'unica', contexto);
 }
 
 async function gerarCenarios({ ficha, passos, quadros }) {

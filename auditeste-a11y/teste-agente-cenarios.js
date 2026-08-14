@@ -1,6 +1,7 @@
 /* Smoke do agente: parse de blocos + ausência de chave. Sem chamada de rede. */
 const assert = require('assert');
 const { extrairBlocos, gerarCenarios, parseDescricaoTela, montarCenariosDosPassos, juntarPassoAPasso } = require('./agente-cenarios.js');
+const { resolverChaveAgente } = require('./carregar-env.js');
 
 const amostra = `===GHERKIN===
 # language: pt
@@ -45,10 +46,12 @@ assert.ok(/Nike|Jordan|Luka|tênis|tenis/i.test(nike.titulo + nike.obs));
 assert.ok(!/PlayStation|PS5/i.test(nike.titulo + nike.obs));
 const passo = juntarPassoAPasso(
   { titulo: 'Clicou no card "Tênis Nike Jordan Luka 4"', obs: 'Listagem NBA Nike, clicou no card do Luka 4.' },
-  { titulo: 'Entrou na PDP do Tênis Nike Jordan Luka 4', obs: 'Página do produto com botão Comprar.' }
+  { titulo: 'Entrou na PDP do Tênis Nike Jordan Luka 4', obs: 'Página do produto com botão Comprar.' },
+  { elemento: '#card-luka-4', rotulo: 'Tênis Nike Jordan Luka 4' }
 );
 assert.ok(/Antes:/i.test(passo.obs) && /Depois:/i.test(passo.obs));
 assert.ok(/Nike|Luka/i.test(passo.obs));
+assert.ok(/Clicou em "Tênis Nike Jordan Luka 4"/i.test(passo.titulo));
 assert.ok(!/PlayStation|PS5/i.test(passo.titulo + passo.obs));
 assert.ok(!/\w{20}$/.test(nike.obs) || /[.!?]$/.test(nike.obs) || /[a-záéíóúãõç]$/i.test(nike.obs));
 let recusou = false;
@@ -105,6 +108,17 @@ const comId = montarCenariosDosPassos({
 });
 assert.ok(comId.mapeamento.includes('Elemento Web: #btn-entrar'));
 assert.ok(comId.mapeamento.includes('Ação: Clicar'));
+
+const prevNim = process.env.NVIDIA_NIM_API_KEY;
+const prevAgenteAlias = process.env.AGENTE_API_KEY;
+delete process.env.AGENTE_API_KEY;
+process.env.NVIDIA_NIM_API_KEY = 'chave-teste-unitario';
+assert.strictEqual(resolverChaveAgente(), 'NVIDIA_NIM_API_KEY');
+assert.strictEqual(process.env.AGENTE_API_KEY, 'chave-teste-unitario');
+if (prevNim === undefined) delete process.env.NVIDIA_NIM_API_KEY;
+else process.env.NVIDIA_NIM_API_KEY = prevNim;
+if (prevAgenteAlias === undefined) delete process.env.AGENTE_API_KEY;
+else process.env.AGENTE_API_KEY = prevAgenteAlias;
 
 let falhouSemChave = false;
 const prev = process.env.AGENTE_API_KEY;

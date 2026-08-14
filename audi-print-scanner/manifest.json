@@ -1,11 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "Audi Print · Scanner de acessibilidade",
-  "version": "1.0.0",
-  "description": "Roda axe-core na aba atual e baixa o JSON pronto para importar no Audi Print.",
-  "permissions": ["activeTab", "scripting", "downloads"],
+  "name": "Audi Print · Captura e acessibilidade",
+  "version": "2.0.0",
+  "description": "Registra cliques com ID e prints antes/depois, além do scan de acessibilidade.",
+  "permissions": ["activeTab", "scripting", "downloads", "storage", "tabs", "unlimitedStorage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"],
+    "run_at": "document_start",
+    "all_frames": true
+  }],
   "action": {
-    "default_title": "Analisar acessibilidade desta aba",
+    "default_title": "Audi Print",
     "default_popup": "popup.html"
   }
 }

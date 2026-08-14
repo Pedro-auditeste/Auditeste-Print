@@ -476,6 +476,14 @@
   .passo .imagens.par-antes-depois{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   @media (max-width:800px){.passo .imagens.par-antes-depois{grid-template-columns:1fr;}}
   .passo .legenda{color:var(--muted);font-size:.75rem;}
+  .passo .gerar-desc{
+    border:1px solid var(--green-dark);background:#fff;color:var(--green-dark);
+    border-radius:999px;padding:6px 12px;font:inherit;font-size:.72rem;font-weight:700;
+    cursor:pointer;margin:0 0 8px;
+  }
+  .passo .gerar-desc:hover{background:#eef6e6;}
+  .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
+  .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
   .passo .meta-qa{
     font-family:'Cascadia Code','Consolas',monospace;font-size:.72rem;color:var(--muted);
     margin:0 0 8px;background:#f4f7f4;border:1px solid var(--line);border-radius:8px;padding:6px 10px;
@@ -527,6 +535,14 @@
     .barra-rec .acoes{margin-left:0;width:100%;}
     .passo{padding:20px;}
     .passo .num{position:static;margin-bottom:8px;}
+    .rodape-fixo .btn{flex:1 1 145px;}
+  }
+
+  @media (max-width:420px){
+    main{padding-left:12px;padding-right:12px;}
+    .passo{padding:16px;}
+    .linha-scan{display:grid;grid-template-columns:1fr;}
+    .linha-scan .btn,.linha-scan input{width:100%;min-width:0;}
   }
 
 
@@ -988,7 +1004,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v25 · teste printa abas e menu</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v26 · pares Antes/Depois com descrição</p>
       </div>
     </div>
 
@@ -1134,7 +1150,7 @@
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
-      <button class="btn" data-acao="importarA11y">+ Importar acessibilidade</button>
+      <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
     </div>
@@ -2092,7 +2108,7 @@
           capturaEmAndamento = false;
           return;
         }
-        capturar(false, vsAntes, escolhido && escolhido.canvas);
+        capturar(false, vsAntes, escolhido && escolhido.canvas, escolhido && escolhido.t);
         capturaEmAndamento = false;
         return;
       }
@@ -2101,7 +2117,7 @@
     capturaPendente = setTimeout(tentar, 400);
   }
 
-  function capturar(forcado, pctMudanca, canvasAntes){
+  function capturar(forcado, pctMudanca, canvasAntes, timestampAntesMs){
     if(!video.videoWidth) return;
     if(lista.querySelectorAll('.passo').length >= LIMITE){
       if(forcado) avisar('Limite de ' + LIMITE + ' passos atingido. Encerre e salve a evidência.');
@@ -2133,6 +2149,10 @@
     }
     const passo = novoPasso(desc.titulo, desc.obs);
     passo.classList.add('passo-auto');
+    marcarQa(passo, {
+      timestampAntes: antesSnap ? new Date(timestampAntesMs || Date.now()).toISOString() : '',
+      timestampDepois: new Date().toISOString()
+    });
     const caixaImgs = passo.querySelector('.imagens');
     if(antesSnap) caixaImgs.classList.add('par-antes-depois');
     const statusIA = document.getElementById('statusIA');
@@ -2213,14 +2233,16 @@
     if(!blobDepois) return;
     const tit = passo.querySelector('.titulo');
     const obs = passo.querySelector('.obs');
+    const botao = passo.querySelector('.gerar-desc');
     const statusIA = document.getElementById('statusIA');
     if(!tit) return;
+    const tituloAnterior = tit.textContent.trim();
     tit.dataset.auto = '1';
     if(obs) obs.dataset.auto = '1';
     if(!tit.textContent.trim()) tit.textContent = 'Lendo o print...';
-    if(obs && (!obs.textContent.trim() || /ação executada|resultado observado/i.test(obs.textContent))){
-      obs.textContent = 'Aguarde: lendo o print 1 (clique) e o print 2 (destino).';
-    }
+    if(obs) obs.textContent = 'Gerando descrição do antes e depois...';
+    if(botao){ botao.hidden = true; botao.disabled = true; }
+    passo.dataset.descricaoEstado = 'gerando';
     const job = (async () => {
       while(descricaoAtivas >= 1) await new Promise(r => setTimeout(r, 250));
       descricaoAtivas++;
@@ -2232,12 +2254,26 @@
         const depois = await encolherLeve(blobDepois, 1000, 0.78, 280000);
         const antes = blobAntes ? await encolherLeve(blobAntes, 1000, 0.78, 280000) : null;
         if(!depois) throw new Error('não consegui reduzir a captura');
-        const resp = await fetch(alvo.url + '/descrever', {
-          method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
-          body: JSON.stringify({ imagem: depois, antes: antes || undefined }),
+        const corpo = JSON.stringify({
+          imagem: depois,
+          antes: antes || undefined,
+          elemento: passo.dataset.elemento || '',
+          rotulo: passo.dataset.rotulo || '',
+          urlAntes: passo.dataset.urlAntes || '',
+          urlDepois: passo.dataset.urlDepois || ''
+        });
+        const cab = Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho());
+        let resp = await fetch(alvo.url + '/descrever', {
+          method: 'POST', headers: cab, body: corpo,
           signal: AbortSignal.timeout(100000)
         });
+        if(resp.status === 429 || resp.status >= 500){
+          await new Promise(r => setTimeout(r, 1200));
+          resp = await fetch(alvo.url + '/descrever', {
+            method: 'POST', headers: cab, body: corpo,
+            signal: AbortSignal.timeout(100000)
+          });
+        }
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
         const cortarPalavra = (t, max) => {
@@ -2261,23 +2297,28 @@
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;
+        passo.dataset.descricaoEstado = 'pronta';
+        if(botao) botao.hidden = true;
         if(statusIA) statusIA.textContent = 'Passo descrito: ' + titulo;
       }catch(err){
-        const recusa = /não posso|cannot help|can't help|unable to|recusa|content.?filter/i.test((err && err.message) || '');
-        if(recusa){
-          if(tit.dataset.auto === '1') tit.textContent = 'Ação na tela';
-          if(obs && obs.dataset.auto === '1') obs.textContent = 'O cliente avançou da tela anterior para a tela seguinte.';
-          if(statusIA) statusIA.textContent = 'Passo descrito.';
-        } else {
-          const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
-          if(obs && obs.dataset.auto === '1') obs.textContent = 'Não descreveu: ' + msg;
-          if(statusIA) statusIA.textContent = 'Não descreveu: ' + msg;
-        }
+        const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
+        if(tit.dataset.auto === '1') tit.textContent = tituloAnterior || 'Ação registrada';
+        if(obs && obs.dataset.auto === '1') obs.textContent = 'Descrição indisponível. Os prints foram preservados.';
+        passo.dataset.descricaoEstado = 'falhou';
+        if(botao){ botao.hidden = false; botao.title = msg; }
+        if(statusIA) statusIA.textContent = 'Não descreveu: ' + msg;
       }finally{
         descricaoAtivas--;
+        if(botao) botao.disabled = false;
       }
     })();
     return job;
+  }
+
+  async function gerarDescricaoPasso(passo){
+    const figs = [...passo.querySelectorAll('figure')].filter(f => f._blob);
+    if(figs.length < 2){ avisar('Este passo precisa do par Antes e Depois.'); return; }
+    await descreverTelaIA(passo, figs[0]._blob, figs[1]._blob);
   }
 
   function juntarImagem(passo, blob, legenda){
@@ -2651,6 +2692,11 @@
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
     catch(err){ avisar('Arquivo invalido: ' + err.message); return 0; }
+    if(bruto && bruto.formato === 'audi-print-evidencia-v1' && Array.isArray(bruto.passos)){
+      await aplicarTesteIa(bruto);
+      avisar(bruto.passos.length + ' ação(ões) com antes/depois importadas.');
+      return bruto.passos.length;
+    }
     return aplicarAchados(bruto, arquivo.name, detectarFerramenta(bruto));
   }
 
@@ -2882,6 +2928,8 @@
       <div class="carimbo">${dataHora()} &nbsp;·&nbsp; ${mmss(segundos)} de gravação</div>
       <div class="titulo" contenteditable data-vazio="Ação executada nesta tela"></div>
       <div class="obs" contenteditable data-vazio="Resultado observado, dado utilizado ou observação relevante."></div>
+      <button type="button" class="gerar-desc" data-acao="gerarDescricao" hidden>Gerar descrição</button>
+      <div class="meta-evento" hidden></div>
       <div class="meta-qa" hidden></div>
       <div class="imagens"></div>`;
     const elTitulo = el.querySelector('.titulo');
@@ -2904,13 +2952,38 @@
     if(!passo || !dados) return;
     passo.dataset.acao = dados.acao || '';
     passo.dataset.elemento = dados.elemento || '';
+    passo.dataset.rotulo = dados.rotulo || '';
     passo.dataset.valor = dados.valor || '';
     passo.dataset.html = dados.html || '';
+    passo.dataset.timestampAntes = dados.timestampAntes || '';
+    passo.dataset.timestampDepois = dados.timestampDepois || '';
+    passo.dataset.urlAntes = dados.urlAntes || '';
+    passo.dataset.urlDepois = dados.urlDepois || '';
+    passo.dataset.frameUrl = dados.frameUrl || '';
+    const evento = passo.querySelector('.meta-evento');
+    const instante = (v) => {
+      if(!v) return '';
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? String(v) : d.toLocaleString('pt-BR');
+    };
+    const detalhes = [
+      dados.timestampAntes && 'Antes: ' + instante(dados.timestampAntes),
+      dados.timestampDepois && 'Depois: ' + instante(dados.timestampDepois),
+      dados.urlAntes && 'URL antes: ' + dados.urlAntes,
+      dados.urlDepois && 'URL depois: ' + dados.urlDepois,
+      dados.frameUrl && 'Iframe: ' + dados.frameUrl
+    ].filter(Boolean);
+    if(evento){
+      evento.hidden = !detalhes.length;
+      evento.textContent = detalhes.join(' · ');
+    }
     const box = passo.querySelector('.meta-qa');
     if(!box) return;
     if(!(dados.acao || dados.elemento)){ box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
-    box.innerHTML = '<b>' + esc(dados.acao || '') + '</b> · <code>' + esc(dados.elemento || '') + '</code>'
+    box.innerHTML = '<b>' + esc(dados.acao || '') + '</b>'
+      + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')
+      + ' · <code>' + esc(dados.elemento || '') + '</code>'
       + (dados.html ? '<div class="html-insp">' + esc(String(dados.html).slice(0, 220)) + '</div>' : '');
   }
 
@@ -3046,6 +3119,8 @@
         const blob = dataUrlParaBlob(im.dataUrl || im);
         if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
       });
+      const capturas = [...el.querySelectorAll('figure')].filter(f => f._blob);
+      if(capturas.length >= 2) descreverTelaIA(el, capturas[0]._blob, capturas[1]._blob);
     });
     const campoMod = document.querySelector('[data-campo="modulo"]');
     if(campoMod && !campoMod.textContent.trim() && dados.titulo) campoMod.textContent = dados.titulo.slice(0, 80);
@@ -3140,8 +3215,14 @@
       obs: p.querySelector('.obs').textContent.trim(),
       acao: p.dataset.acao || '',
       elemento: p.dataset.elemento || '',
+      rotulo: p.dataset.rotulo || '',
       valor: p.dataset.valor || '',
       html: p.dataset.html || '',
+      timestampAntes: p.dataset.timestampAntes || '',
+      timestampDepois: p.dataset.timestampDepois || '',
+      urlAntes: p.dataset.urlAntes || '',
+      urlDepois: p.dataset.urlDepois || '',
+      frameUrl: p.dataset.frameUrl || '',
       imagens: [...p.querySelectorAll('figure')].filter(f=>f._blob).map(f => ({
         blob: f._blob, legenda: f.querySelector('figcaption').textContent.trim()
       }))
@@ -3266,10 +3347,21 @@
       partes.push('<div class="carimbo">' + esc(p.carimbo) + '</div>');
       partes.push('<div class="titulo">' + (esc(p.titulo) || 'Passo sem descrição') + '</div>');
       if(p.obs) partes.push('<div class="obs">' + esc(p.obs) + '</div>');
+      if(p.elemento || p.urlAntes || p.urlDepois || p.frameUrl){
+        partes.push('<div class="meta-tecnica">'
+          + (p.rotulo ? esc(p.rotulo) + ' · ' : '')
+          + (p.elemento ? '<code>' + esc(p.elemento) + '</code>' : '')
+          + (p.urlAntes ? '<br>Antes: ' + esc(p.urlAntes) : '')
+          + (p.urlDepois ? '<br>Depois: ' + esc(p.urlDepois) : '')
+          + (p.frameUrl ? '<br>Iframe: ' + esc(p.frameUrl) : '')
+          + '</div>');
+      }
+      if(imagens[i].length >= 2) partes.push('<div class="par-evidencia">');
       imagens[i].forEach(im => {
         partes.push('<figure><img src="' + im.dados + '" alt="Evidência do passo ' + (i+1) + '" loading="lazy">' +
           '<figcaption>' + esc(im.legenda) + '</figcaption></figure>');
       });
+      if(imagens[i].length >= 2) partes.push('</div>');
       partes.push('</article>');
     });
 
@@ -3315,6 +3407,8 @@
       ".passo .carimbo{font-family:'Cascadia Code',Consolas,monospace;font-size:.75rem;color:var(--muted);margin-bottom:4px}",
       '.passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px;overflow-wrap:break-word}',
       '.passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4;overflow-wrap:break-word}',
+      '.meta-tecnica{font:12px Consolas,monospace;color:var(--muted);background:#f4f7f4;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:9px;overflow-wrap:anywhere}',
+      '.par-evidencia{display:grid;grid-template-columns:1fr 1fr;gap:10px}',
       'figure{margin:0 0 10px}',
       'figure img{width:100%;border:1px solid var(--line);border-radius:10px;display:block;cursor:zoom-in;transition:box-shadow .2s ease}',
       'figure img:hover{box-shadow:0 10px 24px rgba(13,52,70,.16)}',
@@ -3323,7 +3417,7 @@
       '.lupa{position:fixed;inset:0;background:rgba(9,40,56,.92);display:none;align-items:center;justify-content:center;padding:24px;z-index:50;cursor:zoom-out}',
       '.lupa.aberta{display:flex}',
       '.lupa img{max-width:100%;max-height:100%;border:2px solid #fff;border-radius:6px}',
-      '@media (max-width:700px){.ficha{grid-template-columns:1fr}.ficha .largo{grid-column:span 1}.passo{padding:20px}.passo .num{position:static;margin-bottom:8px}}',
+      '@media (max-width:700px){.ficha{grid-template-columns:1fr}.ficha .largo{grid-column:span 1}.passo{padding:20px}.passo .num{position:static;margin-bottom:8px}.par-evidencia{grid-template-columns:1fr}}',
       '@page{size:A4;margin:12mm}',
       '.cenarios pre{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:Consolas,Menlo,monospace;font-size:.78rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}',
       '@media print{.cenarios{break-inside:avoid}body{background:#fff}.topo{background:#fff;border-bottom:3px solid var(--green);padding:0 0 10px}.topo img{filter:none}.acoes,.lupa,.video video{display:none}main{padding:14px 0 0}.ficha,.passo{box-shadow:none;border:1px solid var(--line)}.passo{break-inside:avoid}footer{background:#fff;color:var(--muted);border-top:3px solid var(--green)}}'
@@ -3664,6 +3758,28 @@
     }
   }
 
+  async function gerarDescricaoRegistro(indice, botao){
+    const p = registroAberto && registroAberto.passos && registroAberto.passos[indice];
+    if(!p || !p.imagens || p.imagens.length < 2){ avisar('Este passo não possui o par Antes e Depois.'); return; }
+    if(botao) botao.disabled = true;
+    const temporario = document.createElement('article');
+    temporario.innerHTML = '<div class="titulo"></div><div class="obs"></div><button class="gerar-desc" hidden></button><div class="meta-evento"></div><div class="meta-qa"></div>';
+    temporario.querySelector('.titulo').textContent = p.titulo || '';
+    temporario.querySelector('.obs').textContent = p.obs || '';
+    marcarQa(temporario, p);
+    await descreverTelaIA(temporario, p.imagens[0].blob, p.imagens[1].blob);
+    if(temporario.dataset.descricaoEstado === 'pronta'){
+      p.titulo = temporario.querySelector('.titulo').textContent.trim();
+      p.obs = temporario.querySelector('.obs').textContent.trim();
+      await gravarRegistroDB(registroAberto);
+      await abrirRegistro(registroAberto.id);
+      avisar('Descrição atualizada.');
+    } else {
+      if(botao) botao.disabled = false;
+      avisar('Não foi possível gerar a descrição. Os prints continuam salvos.');
+    }
+  }
+
   async function abrirRegistro(id){
     const r = await obterRegistro(id);
     registroAberto = r;
@@ -3709,10 +3825,12 @@
           <div class="carimbo">${esc(p.carimbo)}</div>
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
           <div class="obs">${esc(p.obs)}</div>
-          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b> · <code>${esc(p.elemento || '')}</code>${p.html ? `<div class="html-insp">${esc(p.html)}</div>` : ''}</div>` : ''}
-          ${p.imagens.map(im=>`<figure style="margin:0 0 10px">
+          ${(p.timestampAntes || p.urlAntes || p.urlDepois || p.frameUrl) ? `<div class="meta-evento">${p.timestampAntes ? `Antes: ${esc(new Date(p.timestampAntes).toLocaleString('pt-BR'))}` : ''}${p.timestampDepois ? ` · Depois: ${esc(new Date(p.timestampDepois).toLocaleString('pt-BR'))}` : ''}${p.urlAntes ? ` · URL antes: ${esc(p.urlAntes)}` : ''}${p.urlDepois ? ` · URL depois: ${esc(p.urlDepois)}` : ''}${p.frameUrl ? ` · Iframe: ${esc(p.frameUrl)}` : ''}</div>` : ''}
+          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''} · <code>${esc(p.elemento || '')}</code>${p.html ? `<div class="html-insp">${esc(p.html)}</div>` : ''}</div>` : ''}
+          ${(p.imagens || []).length >= 2 ? `<button class="gerar-desc" data-acao="gerarDescricaoRegistro" data-passo="${i}">Gerar descrição novamente</button>` : ''}
+          <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
-            <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}
+            <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}</div>
         </article>`).join('')}
 
       <div class="caixa-cenarios" id="caixaCenarios" hidden></div>
@@ -3729,6 +3847,7 @@
     if(b.dataset.acao === 'exportarHtml') exportarHtml(registroAberto);
     if(b.dataset.acao === 'salvarPdf') salvarPdf(registroAberto);
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
+    if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
     if(b.dataset.acao === 'copiarCenario') copiarBlocoCenario(b.dataset.alvo);
     if(b.dataset.video) baixarVideo(Number(b.dataset.video));
   });
@@ -3772,6 +3891,7 @@
     if(acao === 'novoProjeto') novoProjeto();
     if(acao === 'iniciarTesteHome') iniciarTesteDaTela('urlTesteIaHome');
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
+    if(acao === 'gerarDescricao') gerarDescricaoPasso(a.closest('.passo'));
     if(acao === 'removerBlocoA11y'){
       e.preventDefault();
       e.stopPropagation();

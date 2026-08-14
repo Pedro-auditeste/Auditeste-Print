@@ -61,14 +61,14 @@ A chave fica **na ponte, nunca no Print**. O **Teste IA** (gravador) não precis
 ### Local
 
 1. Copie `auditeste-a11y/.env.example` para `auditeste-a11y/.env`
-2. Cole a chave NVIDIA (`nvapi-...`) em `AGENTE_API_KEY=`
+2. Cole a chave NVIDIA (`nvapi-...`) em `NVIDIA_NIM_API_KEY=`
 3. Reinicie: `npm run servidor`
 
 ### Railway
 
 Clique no **card do serviço** (não só no projeto / Shared) → Variables → New:
 
-- `AGENTE_API_KEY` = sua chave NVIDIA (`nvapi-...`), disponível em **Runtime**
+- `NVIDIA_NIM_API_KEY` = sua chave NVIDIA (`nvapi-...`), disponível em **Runtime**
 - opcional: `AGENTE_BASE_URL` = `https://integrate.api.nvidia.com/v1`
 - opcional: `AGENTE_MODELO` = `meta/llama-3.2-90b-vision-instruct`
 
@@ -76,7 +76,7 @@ Shared/projeto sozinho não entra no container. Depois **Redeploy**. `/ping` dev
 
 | Variável | Padrão |
 |---|---|
-| `AGENTE_API_KEY` | obrigatória para o agente de cenários |
+| `NVIDIA_NIM_API_KEY` | obrigatória para descrições e cenários (`AGENTE_API_KEY` também é aceito) |
 | `AGENTE_BASE_URL` | `https://integrate.api.nvidia.com/v1` |
 | `AGENTE_MODELO` | `meta/llama-3.2-11b-vision-instruct` |
 | `AGENTE_MAX_IMAGENS` | `20` |
@@ -103,7 +103,7 @@ Conecte o repositório e defina as variáveis:
 | Variável | Valor |
 |---|---|
 | `PONTE_TOKEN` | **obrigatória** — string longa e aleatória. Sem ela o servidor se recusa a subir exposto |
-| `AGENTE_API_KEY` | habilita o agente NVIDIA de cenários. Sem ela, só o montador local funciona |
+| `NVIDIA_NIM_API_KEY` | habilita descrições e cenários. Sem ela, os prints continuam funcionando |
 | `PONTE_DOMINIOS` | allowlist dos domínios que podem ser escaneados — a defesa mais forte contra SSRF |
 | `PORT` | a Railway injeta sozinha; o servidor já lê |
 

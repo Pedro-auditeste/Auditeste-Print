@@ -64,6 +64,8 @@ srv.listen(0, '127.0.0.1', async () => {
     const quem = r.passos.find((p) => /Quem somos/i.test(p.titulo));
     assert.ok(quem && quem.imagens.length >= 2, 'quem somos com antes/depois');
     assert.ok(quem.elemento === '#nav-quem' || /quem/i.test(quem.elemento), quem.elemento);
+    assert.ok(quem.timestampAntes && quem.timestampDepois, 'timestamps antes/depois');
+    assert.ok(quem.urlAntes && quem.urlDepois, 'URLs antes/depois');
     assert.ok(r.passos.every((p) => (p.imagens || []).length >= 2), 'todo passo com 2 prints');
     console.log('OK  passos:', titulos);
     console.log('OK  prints:', r.passos.reduce((n, p) => n + p.imagens.length, 0));
