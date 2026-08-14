@@ -410,6 +410,20 @@ function textoLinha(t) {
   return textoLimpo(String(t || '').replace(/\s+/g, ' '));
 }
 
+/** Fecha a frase com ponto para os trechos não emendarem ao concatenar. */
+function frase(t) {
+  const s = String(t || '').trim().replace(/\s+/g, ' ');
+  return !s || /[.!?…:]$/.test(s) ? s : s + '.';
+}
+
+/** Corta a última frase quando o modelo parou no meio dela. */
+function semFraseIncompleta(t) {
+  const s = String(t || '').trim();
+  if (!s || /[.!?…]$/.test(s)) return s;
+  const corte = Math.max(s.lastIndexOf('.'), s.lastIndexOf('!'), s.lastIndexOf('?'));
+  return corte > 20 ? s.slice(0, corte + 1) : s;
+}
+
 function parseDescricaoTela(texto) {
   const bruto = String(texto || '')
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ''))
@@ -487,7 +501,8 @@ function parseAnaliseQa(texto) {
     legenda_curta: campo('legenda_curta'),
     descricao_detalhada: campo('descricao_detalhada'),
     titulo_cenario: campo('titulo_cenario'),
-    gherkin: /Dado que[\s\S]*Quando[\s\S]*Então/i.test(gherkin) ? gherkin : '',
+    // Aceita "Dado" sem "que" e "Entao" sem acento; antes o Gherkin sumia calado.
+    gherkin: /\bDado\b[\s\S]*\bQuando\b[\s\S]*\bEnt[aã]o\b/i.test(gherkin) ? gherkin : '',
     cenarios_alternativos: Array.isArray(dados.cenarios_alternativos)
       ? dados.cenarios_alternativos.filter((v) => typeof v === 'string')
         .map(textoLinha).filter(Boolean).slice(0, 2)
@@ -541,11 +556,11 @@ function juntarPassoAPasso(antes, depois, contexto) {
   const titulo = textoLinha(
     origem ? `Clicou em "${origem}" → ${t2}` : (/→/.test(t1) ? t1 : (t1 + ' → ' + t2))
   );
-  const obs = textoLinha(
-    'Antes: ' + (a.obs || a.titulo || '')
-      + (origem ? ` Ação: clique em "${origem}".` : '')
-      + ' Depois: ' + (b.obs || b.titulo || '')
-  );
+  const obs = textoLinha([
+    'Antes: ' + frase(a.obs || a.titulo || ''),
+    origem ? `Ação: clique em "${origem}".` : '',
+    'Depois: ' + frase(b.obs || b.titulo || '')
+  ].filter(Boolean).join(' '));
   return { titulo, obs };
 }
 
@@ -631,6 +646,12 @@ async function descreverParQa(antes, depois, contexto, par) {
   const analise = parseAnaliseQa(r.texto);
   if (!analise.legenda_curta && !analise.descricao_detalhada && !analise.gherkin) {
     throw new Error('JSON de análise inválido');
+  }
+  // Mesmo apos o retry a resposta pode vir cortada; fecharJson remenda o JSON,
+  // mas o texto ficaria terminando no meio da palavra.
+  if (r.finish_reason === 'length') {
+    analise.legenda_curta = semFraseIncompleta(analise.legenda_curta);
+    analise.descricao_detalhada = semFraseIncompleta(analise.descricao_detalhada);
   }
   return {
     ...analise,
@@ -774,6 +795,8 @@ module.exports = {
   parseDescricaoTela,
   parseAnaliseQa,
   juntarPassoAPasso,
+  frase,
+  semFraseIncompleta,
   montarCenariosDosPassos,
   MODELO,
   BASE_URL,

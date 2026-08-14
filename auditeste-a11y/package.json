@@ -14,6 +14,7 @@
     "teste-agente": "node teste-agente-cenarios.js",
     "teste-ia": "node teste-ia-seletores.js",
     "teste-pares": "node teste-pares-ui.js",
+    "teste-texto": "node teste-texto-descricao.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {
