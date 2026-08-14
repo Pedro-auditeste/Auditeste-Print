@@ -2363,7 +2363,11 @@
           });
         }
         const dados = await resp.json().catch(() => ({}));
-        if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
+        if(!resp.ok){
+          const e = new Error(dados.erro || ('HTTP ' + resp.status));
+          e.status = resp.status;
+          throw e;
+        }
         const analise = normalizarAnaliseQa(dados);
         let titulo = String(analise.legenda_curta || dados.titulo || '').replace(/\s+/g, ' ').trim();
         let observ = String(analise.descricao_detalhada || dados.obs || '').replace(/\s+/g, ' ').trim();
@@ -2381,7 +2385,8 @@
       }catch(err){
         const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
         if(tit.dataset.auto === '1') tit.textContent = tituloAnterior || 'Ação registrada';
-        if(obs && obs.dataset.auto === '1') obs.textContent = 'Descrição indisponível. Os prints foram preservados.';
+        // O motivo ficava só no tooltip: o QA lia "indisponível" e não sabia o que fazer.
+        if(obs && obs.dataset.auto === '1') obs.textContent = motivoDescricao(err, msg);
         passo.dataset.descricaoEstado = 'falhou';
         if(botao){ botao.hidden = false; botao.title = msg; }
         if(statusIA) statusIA.textContent = 'Não descreveu: ' + msg;
@@ -2846,6 +2851,22 @@
   function ponteCabecalho(){
     const t = ponteToken();
     return t ? { Authorization: 'Bearer ' + t } : {};
+  }
+
+  /** Diz ao QA o que fazer, em vez de só "indisponível". Os prints ficam sempre. */
+  function motivoDescricao(err, msg){
+    const status = err && err.status;
+    const fim = ' Os prints foram preservados.';
+    if(status === 401){
+      return ponteToken()
+        ? 'O token informado não confere. Corrija no campo "token" da tela inicial e clique em Descrever de novo.' + fim
+        : 'Esta ponte exige token. Cole o token no campo "token" da tela inicial e clique em Descrever de novo.' + fim;
+    }
+    if(status === 429) return 'A ponte está ocupada com outra descrição. Tente de novo em alguns segundos.' + fim;
+    if(status >= 500) return 'A ponte falhou ao descrever (' + msg + '). Tente de novo.' + fim;
+    if(/abort|timeout|timed out|tempo esgotado/i.test(msg)) return 'A descrição demorou demais e foi cancelada. Tente de novo.' + fim;
+    if(/failed to fetch|networkerror|load failed/i.test(msg)) return 'Não alcancei a ponte. Confira o endereço na tela inicial.' + fim;
+    return 'Não descrevi este passo: ' + msg + '.' + fim;
   }
 
   let ponteIACache = { url: '', t: 0, info: null };
