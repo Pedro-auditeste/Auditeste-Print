@@ -18,7 +18,7 @@ ENV HOST=0.0.0.0
 COPY auditeste-a11y/package.json auditeste-a11y/package-lock.json ./
 RUN npm ci --omit=dev && npx puppeteer browsers install chrome && npx playwright install ffmpeg
 
-COPY auditeste-a11y/a11y.js auditeste-a11y/agente-cenarios.js auditeste-a11y/cenarios.js auditeste-a11y/servidor.js auditeste-a11y/traducoes-pa11y.js auditeste-a11y/carregar-env.js auditeste-a11y/gravador.js ./
+COPY auditeste-a11y/a11y.js auditeste-a11y/agente-cenarios.js auditeste-a11y/cenarios.js auditeste-a11y/servidor.js auditeste-a11y/traducoes-pa11y.js auditeste-a11y/carregar-env.js ./
 COPY auditeste-a11y/publico ./publico
 
 EXPOSE 8900

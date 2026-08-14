@@ -478,16 +478,6 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
-  .painel-clicando{background:var(--card);border:2px solid var(--green);border-radius:12px;
-    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);}
-  .painel-clicando label{display:block;color:var(--navy);margin-bottom:8px;}
-  .painel-clicando .dica-captura{margin:8px 0 0;}
-  .barra-remota{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 8px;}
-  .barra-remota input{flex:1;min-width:180px;}
-  .barra-remota #urlRemota{font-size:.72rem;color:var(--muted);overflow-wrap:anywhere;}
-  #imgRemota{display:block;width:100%;border:2px solid var(--navy);border-radius:8px;
-    cursor:crosshair;background:#0d3446;}
-  #telaRemota.ocupado #imgRemota{cursor:progress;opacity:.75;}
   .meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
     font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
@@ -1147,33 +1137,12 @@
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
-    <div class="painel-clicando" id="painelClicando">
-      <label for="urlClicando"><b>Gravar clicando</b> — a ponte abre o site aqui e cada clique vira evidência</label>
-      <div class="linha-scan">
-        <input type="url" id="urlClicando" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site">
-        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir site</button>
-        <button type="button" class="btn perigo" data-acao="encerrarClicando" id="btnEncerrarClicando" hidden>Encerrar</button>
-        <button type="button" class="btn" data-acao="fecharClicando">Fechar</button>
-      </div>
-      <p class="dica-captura" id="estadoClicando">Cada clique registra <b>id, HTML e URL</b> do elemento, com print antes e depois. Não precisa instalar nada.</p>
-      <div id="telaRemota" hidden>
-        <div class="barra-remota">
-          <button type="button" class="btn pequeno" data-acao="rolarCima">↑ Subir</button>
-          <button type="button" class="btn pequeno" data-acao="rolarBaixo">↓ Descer</button>
-          <input type="text" id="textoRemoto" placeholder="Texto para o campo clicado" aria-label="Texto para digitar">
-          <button type="button" class="btn pequeno" data-acao="digitarRemoto">Digitar</button>
-          <span id="urlRemota"></span>
-        </div>
-        <img id="imgRemota" alt="Tela do site — clique nela para registrar o passo">
-      </div>
-    </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
     <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Clique em Iniciar gravação e escolha a aba do site.</div>
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
-      <button class="btn primario" data-acao="gravarClicando">Gravar clicando</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
@@ -2875,153 +2844,6 @@
     }
   }
 
-  /* Gravar clicando: a ponte abre a página num Chrome do servidor e manda a
-   * imagem. O clique volta com a coordenada, e lá existe DOM — então o elemento
-   * é inspecionado de verdade: id, HTML e URL. Funciona pelo Print hospedado,
-   * sem instalar nada, que é como o cliente usa. */
-  let sessaoClicando = null, baseClicando = null, lidosClicando = 0, ocupadoClicando = false;
-
-  const elClicando = (id) => document.getElementById(id);
-  function dizerClicando(html){
-    const el = elClicando('estadoClicando');
-    if(el) el.innerHTML = html;
-  }
-
-  function abrirPainelClicando(){
-    const p = elClicando('painelClicando');
-    if(!p) return;
-    p.hidden = false;
-    p.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const campo = elClicando('urlClicando');
-    if(campo){ if(!campo.value) campo.value = 'https://'; campo.focus(); }
-  }
-
-  async function chamarGravar(rota, corpo, ms){
-    const base = baseClicando || (await resolverPonteIA()).url;
-    baseClicando = base;
-    const get = corpo == null;
-    const resp = await fetch(base + '/gravar/' + rota, {
-      method: get ? 'GET' : 'POST',
-      headers: Object.assign(get ? {} : { 'Content-Type':'application/json' }, ponteCabecalho()),
-      body: get ? undefined : JSON.stringify(corpo),
-      signal: AbortSignal.timeout(ms || 60000)
-    });
-    const dados = await resp.json().catch(() => ({}));
-    if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-    return dados;
-  }
-
-  function pintarTela(dados){
-    if(dados.tela) elClicando('imgRemota').src = dados.tela;
-    if(dados.url) elClicando('urlRemota').textContent = dados.url;
-  }
-
-  async function abrirClicando(){
-    const campo = elClicando('urlClicando');
-    const url = ((campo && campo.value) || '').trim();
-    if(!url || url === 'https://'){ avisar('Cole o link do site.'); if(campo) campo.focus(); return; }
-    try{ new URL(url); }catch(_){ avisar('URL inválida.'); return; }
-
-    const btn = elClicando('btnAbrirClicando');
-    if(btn) btn.disabled = true;
-    dizerClicando('Abrindo o site...');
-    try{
-      const d = await chamarGravar('abrir', { url }, 90000);
-      sessaoClicando = d.id;
-      lidosClicando = 0;
-      elClicando('telaRemota').hidden = false;
-      elClicando('btnEncerrarClicando').hidden = false;
-      pintarTela(d);
-      dizerClicando('<b>Site aberto.</b> Clique na tela abaixo: cada clique vira um passo com id e HTML.');
-      avisar('Site aberto. Clique na tela para registrar os passos.');
-    }catch(err){
-      const m = (err && err.message) || 'erro';
-      dizerClicando('Não abriu: ' + esc(m));
-      informar('Não consegui abrir o site: ' + m, 'Falha ao abrir');
-    }finally{
-      if(btn) btn.disabled = false;
-    }
-  }
-
-  function marcarOcupado(v){
-    ocupadoClicando = v;
-    elClicando('telaRemota').classList.toggle('ocupado', v);
-  }
-
-  /** Converte o clique na imagem para a coordenada real da página. */
-  async function clicarNaTela(ev){
-    if(!sessaoClicando || ocupadoClicando) return;
-    const img = elClicando('imgRemota');
-    const r = img.getBoundingClientRect();
-    if(!r.width || !img.naturalWidth) return;
-    const x = (ev.clientX - r.left) * (img.naturalWidth / r.width);
-    const y = (ev.clientY - r.top) * (img.naturalHeight / r.height);
-
-    marcarOcupado(true);
-    dizerClicando('Clicando e capturando...');
-    try{
-      const d = await chamarGravar('clicar', { id: sessaoClicando, x, y }, 90000);
-      pintarTela(d);
-      if(d.semAlvo){
-        dizerClicando('Aí não há elemento clicável — nada foi registrado. Clique num botão, link ou campo.');
-        return;
-      }
-      if(d.passo) aplicarPassoRemoto(d.passo);
-      lidosClicando = d.total || lidosClicando;
-      dizerClicando('<b>' + lidosClicando + ' passo(s)</b> registrados. Continue clicando na tela.');
-    }catch(err){
-      const m = (err && err.message) || 'erro';
-      dizerClicando('Falhou: ' + esc(m));
-      if(/encerrada|não encontrada/i.test(m)) encerrarClicando(true);
-    }finally{
-      marcarOcupado(false);
-    }
-  }
-
-  function aplicarPassoRemoto(p){
-    const el = novoPasso(p.titulo, p.obs);
-    marcarQa(el, p);
-    const figs = p.imagens || [];
-    el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
-    figs.forEach(im => {
-      const blob = dataUrlParaBlob(im.dataUrl);
-      if(blob) juntarImagem(el, blob, im.legenda || 'Captura');
-    });
-    const caps = [...el.querySelectorAll('figure')].filter(f => f._blob);
-    if(caps.length >= 2) descreverTelaIA(el, caps[0]._blob, caps[1]._blob);
-  }
-
-  async function rolarRemoto(dy){
-    if(!sessaoClicando || ocupadoClicando) return;
-    marcarOcupado(true);
-    try{ pintarTela(await chamarGravar('rolar', { id: sessaoClicando, dy }, 30000)); }
-    catch(_){ }
-    finally{ marcarOcupado(false); }
-  }
-
-  async function digitarRemoto(){
-    if(!sessaoClicando || ocupadoClicando) return;
-    const campo = elClicando('textoRemoto');
-    const texto = ((campo && campo.value) || '').trim();
-    if(!texto){ avisar('Escreva o texto e clique antes no campo do site.'); return; }
-    marcarOcupado(true);
-    try{
-      pintarTela(await chamarGravar('digitar', { id: sessaoClicando, texto }, 30000));
-      dizerClicando('Texto digitado no campo em foco.');
-      if(campo) campo.value = '';
-    }catch(err){ dizerClicando('Não digitou: ' + esc((err && err.message) || 'erro')); }
-    finally{ marcarOcupado(false); }
-  }
-
-  async function encerrarClicando(jaCaiu){
-    const id = sessaoClicando;
-    sessaoClicando = null;
-    elClicando('btnEncerrarClicando').hidden = true;
-    elClicando('telaRemota').hidden = true;
-    if(id && !jaCaiu){ try{ await chamarGravar('fechar', { id }, 20000); }catch(_){ } }
-    dizerClicando('Gravação encerrada. Revise os passos e salve no projeto.');
-  }
-
   async function importarA11y(arquivo){
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
@@ -4213,8 +4035,6 @@
   btnIniciar.addEventListener('click', iniciar);
   const btnIniciarManual = document.getElementById('btnIniciarManual');
   if(btnIniciarManual) btnIniciarManual.addEventListener('click', iniciarManual);
-  const imgRem = document.getElementById('imgRemota');
-  if(imgRem) imgRem.addEventListener('click', clicarNaTela);
   btnParar.addEventListener('click', ()=> parar(false));
   btnCapturar.addEventListener('click', ()=> capturar(true));
   btnPausar.addEventListener('click', ()=>{
@@ -4252,13 +4072,6 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
-    if(acao === 'gravarClicando') return abrirPainelClicando();
-    if(acao === 'abrirClicando') return abrirClicando();
-    if(acao === 'encerrarClicando') return encerrarClicando();
-    if(acao === 'rolarCima') return rolarRemoto(-500);
-    if(acao === 'rolarBaixo') return rolarRemoto(500);
-    if(acao === 'digitarRemoto') return digitarRemoto();
-    if(acao === 'fecharClicando'){ document.getElementById('painelClicando').hidden = true; return; }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
