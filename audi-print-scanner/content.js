@@ -8,14 +8,24 @@
       : String(valor).replace(/([^\w-])/g, '\\$1');
   }
 
+  /* Só serve se apontar para UM elemento: loja grande repete data-testid
+   * generico em dezenas de nos, e o script de automacao nao usa isso. */
+  function unico(sel) {
+    try { return document.querySelectorAll(sel).length === 1; } catch (e) { return false; }
+  }
+
   function seletorDe(el) {
-    if (el.id) return '#' + escapeCss(el.id);
+    const tag = el.tagName.toLowerCase();
+    if (el.id && unico('#' + escapeCss(el.id))) return '#' + escapeCss(el.id);
     for (const atributo of ['data-testid', 'data-qa', 'data-test']) {
       const valor = el.getAttribute(atributo);
-      if (valor) return `[${atributo}="${escapeCss(valor)}"]`;
+      if (!valor) continue;
+      for (const cand of [`[${atributo}="${escapeCss(valor)}"]`, `${tag}[${atributo}="${escapeCss(valor)}"]`]) {
+        if (unico(cand)) return cand;
+      }
     }
     const name = el.getAttribute('name');
-    if (name) return `${el.tagName.toLowerCase()}[name="${escapeCss(name)}"]`;
+    if (name && unico(`${tag}[name="${escapeCss(name)}"]`)) return `${tag}[name="${escapeCss(name)}"]`;
 
     const partes = [];
     let atual = el;

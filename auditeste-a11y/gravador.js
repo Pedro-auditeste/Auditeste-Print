@@ -43,14 +43,25 @@ function inspecionarPonto(x, y) {
   const escapa = (v) => (window.CSS && CSS.escape)
     ? CSS.escape(v) : String(v).replace(/([^\w-])/g, '\\$1');
 
+  /* Só serve se apontar para UM elemento. Loja grande repete data-testid
+   * generico em dezenas de nos: devolver isso daria um seletor que o script
+   * de automacao nao consegue usar. */
+  const unico = (sel) => {
+    try { return document.querySelectorAll(sel).length === 1; } catch (_) { return false; }
+  };
+
   function seletorDe(el) {
-    if (el.id) return '#' + escapa(el.id);
+    const tag = el.tagName.toLowerCase();
+    if (el.id && unico('#' + escapa(el.id))) return '#' + escapa(el.id);
     for (const a of ['data-testid', 'data-qa', 'data-test']) {
       const v = el.getAttribute(a);
-      if (v) return `[${a}="${escapa(v)}"]`;
+      if (!v) continue;
+      for (const cand of [`[${a}="${escapa(v)}"]`, `${tag}[${a}="${escapa(v)}"]`]) {
+        if (unico(cand)) return cand;
+      }
     }
     const name = el.getAttribute('name');
-    if (name) return `${el.tagName.toLowerCase()}[name="${escapa(name)}"]`;
+    if (name && unico(`${tag}[name="${escapa(name)}"]`)) return `${tag}[name="${escapa(name)}"]`;
     const partes = [];
     let at = el;
     while (at && at.nodeType === 1) {
