@@ -216,6 +216,42 @@
     if (msg && msg.tipo === 'AUDI_SESSAO') ligarRealce(msg.ativa);
   });
 
+  /* Ponte para o Print puxar a gravacao sem exportar e importar arquivo.
+   *
+   * So nas origens do Print: as sessoes contem prints de outras abas, entao
+   * qualquer site poder pedi-las seria vazamento. Se voce hospedar o Print em
+   * outro endereco, acrescente-o aqui. */
+  const ORIGENS_PRINT = ['https://audiprint.up.railway.app'];
+
+  /** Local e a maquina do proprio usuario, entao qualquer porta serve. */
+  function paginaDoPrint() {
+    if (ORIGENS_PRINT.includes(location.origin)) return true;
+    if (location.protocol === 'file:') return true;
+    return location.hostname === '127.0.0.1' || location.hostname === 'localhost'
+      || location.hostname === '[::1]';
+  }
+
+  if (window === window.top && paginaDoPrint()) {
+    window.addEventListener('message', async (ev) => {
+      if (ev.source !== window) return;
+      const d = ev.data;
+      if (!d || d.tipo !== 'AUDI_PRINT_PEDE') return;
+      const responder = (corpo) => window.postMessage(
+        Object.assign({ tipo: 'AUDI_PRINT_RESPONDE', pedido: d.pedido }, corpo), location.origin
+      );
+      try {
+        const r = d.deTab == null
+          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_EVIDENCIAS' })
+          : await chrome.runtime.sendMessage({ tipo: 'AUDI_EVIDENCIA', deTab: d.deTab });
+        responder(r || { erro: 'A extensão não respondeu.' });
+      } catch (e) {
+        responder({ erro: e.message || 'A extensão não respondeu.' });
+      }
+    });
+    // Anuncia a presenca: o Print mostra o botao so quando ha extensao.
+    window.postMessage({ tipo: 'AUDI_EXTENSAO_PRESENTE' }, location.origin);
+  }
+
   // Navegar recarrega o content script no meio da sessao: pergunta como esta.
   chrome.runtime.sendMessage({ tipo: 'AUDI_STATUS' })
     .then((r) => ligarRealce(r && r.sessao && r.sessao.ativa))

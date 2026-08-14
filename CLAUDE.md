@@ -81,8 +81,25 @@ devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).
 ## Gravação: quem tem DOM
 
 A gravação do Print usa `getDisplayMedia` — **pixels, sem DOM**. Seletor e HTML do
-elemento só existem pela **extensão Chrome**, que exporta JSON e é importado aqui
-(`aplicarEvidenciaImportada`). Não tente tirar seletor da gravação de tela.
+elemento só existem pela **extensão Chrome**. Não tente tirar seletor da gravação
+de tela.
+
+A extensão entrega de dois jeitos, ambos caindo em `aplicarEvidenciaImportada`:
+
+1. **Direto** (botão "Trazer gravação da extensão"): o content script da extensão
+   roda na própria página do Print e faz ponte por `window.postMessage` —
+   por isso não é preciso saber o id da extensão nem declarar
+   `externally_connectable`. Mensagens: `AUDI_EVIDENCIAS` (resumo) e
+   `AUDI_EVIDENCIA` (payload inteiro).
+2. **Arquivo**: exportar JSON no popup e importar aqui.
+
+A ponte só responde nas origens do Print (`audiprint.up.railway.app`, qualquer
+localhost, `file:`) — as sessões contêm prints de outras abas, então liberar
+geral seria vazamento. Hospedou em outro endereço? Acrescente em `ORIGENS_PRINT`
+no `content.js`.
+
+Fechar a aba testada **não** apaga mais a gravação: as 5 mais recentes ficam
+guardadas, senão gravar-fechar-abrir-o-Print perdia tudo.
 
 ## Idioma
 

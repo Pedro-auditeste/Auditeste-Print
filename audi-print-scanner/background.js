@@ -121,7 +121,10 @@ function avisarAba(tabId, ativa) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, responder) => {
-  const tabId = sender.tab?.id ?? msg.tabId;
+  /* O alvo explicito vence o remetente: o popup manda tabId dizendo qual aba
+   * gravar, e content script nao manda tabId nenhum. Ao contrario, uma pagina
+   * de extensao aberta como aba comum criava a sessao nela mesma. */
+  const tabId = msg.tabId ?? sender.tab?.id;
   if (!tabId) return;
 
   const executar = async () => {
@@ -185,6 +188,40 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       agendarFinalizacao(tabId);
       return { ok: true };
     }
+
+    /* Resumo de todas as gravacoes, para o Print listar sem carregar as
+     * imagens: uma sessao com 40 passos passa de 20 MB. */
+    if (msg.tipo === 'AUDI_EVIDENCIAS') {
+      const sessoes = await todas();
+      return {
+        evidencias: Object.entries(sessoes)
+          .filter(([, s]) => s && (s.passos || []).length)
+          .map(([id, s]) => ({
+            tabId: Number(id),
+            url: s.url || '',
+            titulo: s.titulo || '',
+            inicio: s.inicio || '',
+            ativa: !!s.ativa,
+            passos: s.passos.length
+          }))
+          .sort((a, b) => String(b.inicio).localeCompare(String(a.inicio)))
+      };
+    }
+
+    // A evidencia inteira, no mesmo formato que o botao Exportar gera.
+    if (msg.tipo === 'AUDI_EVIDENCIA') {
+      const s = (await todas())[msg.deTab];
+      if (!s || !(s.passos || []).length) return { erro: 'Nenhuma ação capturada nessa aba.' };
+      return {
+        evidencia: {
+          formato: 'audi-print-evidencia-v1',
+          url: s.url || '',
+          titulo: s.titulo || '',
+          inicio: s.inicio,
+          passos: s.passos
+        }
+      };
+    }
   };
 
   executar().then(responder).catch((erro) => responder({ erro: erro.message }));
@@ -200,8 +237,25 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   });
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => {
+/* Fechar a aba testada nao pode jogar a gravacao fora: o fluxo normal e gravar,
+ * fechar e abrir o Print para importar. Guarda as ultimas e descarta o resto. */
+const SESSOES_GUARDADAS = 5;
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
   limparTimer(tabId);
   prazos.delete(tabId);
-  gravar(tabId, null);
+  const sessoes = await todas();
+  const s = sessoes[tabId];
+  if (!s || !(s.passos || []).length) return gravar(tabId, null);
+
+  s.ativa = false;
+  s.encerrada = new Date().toISOString();
+  sessoes[tabId] = s;
+
+  const comPassos = Object.entries(sessoes)
+    .filter(([, v]) => v && (v.passos || []).length)
+    .sort((a, b) => String(b[1].inicio).localeCompare(String(a[1].inicio)));
+  for (const [id] of comPassos.slice(SESSOES_GUARDADAS)) delete sessoes[id];
+
+  await chrome.storage.local.set({ [CHAVE]: sessoes });
 });

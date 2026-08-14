@@ -1142,6 +1142,7 @@
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
+      <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
@@ -2733,6 +2734,76 @@
     return achados.length;
   }
 
+  /* Caminho direto: a extensao entrega a gravacao sem baixar e reabrir arquivo.
+   * Quem responde e o content script da extensao, na mesma pagina, por
+   * postMessage — por isso nao e preciso saber o id da extensao. */
+  let extensaoPresente = false;
+
+  function pedirAExtensao(deTab, msTimeout){
+    return new Promise((ok) => {
+      const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
+      const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
+      function ouvir(ev){
+        if(ev.source !== window) return;
+        const d = ev.data;
+        if(!d || d.tipo !== 'AUDI_PRINT_RESPONDE' || d.pedido !== pedido) return;
+        clearTimeout(fim);
+        window.removeEventListener('message', ouvir);
+        ok(d);
+      }
+      window.addEventListener('message', ouvir);
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab }, location.origin);
+    });
+  }
+
+  window.addEventListener('message', (ev) => {
+    if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_EXTENSAO_PRESENTE') return;
+    extensaoPresente = true;
+    const b = document.getElementById('btnPuxarExtensao');
+    if(b) b.hidden = false;
+  });
+
+  async function puxarDaExtensao(){
+    const btn = document.getElementById('btnPuxarExtensao');
+    if(btn) btn.disabled = true;
+    try{
+      const lista = await pedirAExtensao(null, 3000);
+      if(!lista){
+        informar('A extensão não respondeu. Confira se ela está instalada e ativa, e recarregue esta página.',
+          'Extensão não encontrada');
+        return;
+      }
+      if(lista.erro){ avisar(lista.erro); return; }
+      const evid = lista.evidencias || [];
+      if(!evid.length){
+        avisar('Nenhuma gravação na extensão. Abra o site, inicie a sessão e clique nos elementos.');
+        return;
+      }
+      // Mais de uma gravação: o QA escolhe qual trazer.
+      let escolhida = evid[0];
+      if(evid.length > 1){
+        const opcoes = evid.map((e, i) =>
+          (i + 1) + ') ' + (e.titulo || e.url || 'sem título') + ' — ' + e.passos + ' passo(s)'
+          + (e.ativa ? ' (gravando)' : ''));
+        const resp = prompt('Qual gravação você quer trazer?\n\n' + opcoes.join('\n') + '\n\nDigite o número:', '1');
+        const n = Number(resp);
+        if(!resp || !Number.isInteger(n) || n < 1 || n > evid.length) return;
+        escolhida = evid[n - 1];
+      }
+      const cheia = await pedirAExtensao(escolhida.tabId, 30000);
+      if(!cheia){ avisar('A extensão demorou a responder. Tente de novo.'); return; }
+      if(cheia.erro){ avisar(cheia.erro); return; }
+      const dados = cheia.evidencia;
+      if(!dados || !(dados.passos || []).length){ avisar('A gravação veio vazia.'); return; }
+      await aplicarEvidenciaImportada(dados);
+      avisar(dados.passos.length + ' ação(ões) trazidas da extensão.');
+    }catch(err){
+      informar('Não consegui trazer a gravação: ' + ((err && err.message) || 'erro'), 'Falha na importação');
+    }finally{
+      if(btn) btn.disabled = false;
+    }
+  }
+
   async function importarA11y(arquivo){
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
@@ -3954,6 +4025,7 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
+    if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
   });

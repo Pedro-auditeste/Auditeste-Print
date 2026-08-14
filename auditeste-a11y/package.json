@@ -19,6 +19,7 @@
     "teste-cenarios": "node teste-cenarios-dos-textos.js",
     "teste-inspecao": "node teste-inspecao-elemento.js",
     "teste-abre": "node teste-print-abre.js",
+    "teste-extensao": "node teste-extensao-para-print.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {
