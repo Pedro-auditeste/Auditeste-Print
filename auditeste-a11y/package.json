@@ -15,6 +15,7 @@
     "teste-ia": "node teste-ia-seletores.js",
     "teste-pares": "node teste-pares-ui.js",
     "teste-texto": "node teste-texto-descricao.js",
+    "teste-agendamento": "node teste-agendamento-print.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {

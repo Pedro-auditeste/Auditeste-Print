@@ -286,7 +286,7 @@ const servidor = http.createServer(async (req, res) => {
       return responder(res, 200, dados, origem);
     } catch (err) {
       console.log('descrever FALHOU: ' + err.message);
-      return responder(res, err.semChave ? 503 : 500, { erro: err.message }, origem);
+      return responder(res, err.semChave ? 503 : err.pedidoInvalido ? 400 : 500, { erro: err.message }, origem);
     } finally {
       rodando--;
     }
@@ -309,7 +309,7 @@ const servidor = http.createServer(async (req, res) => {
       return responder(res, 200, dados, origem);
     } catch (err) {
       console.log('FALHOU: ' + err.message);
-      return responder(res, err.semChave ? 503 : err.recusa ? 422 : 500, { erro: err.message }, origem);
+      return responder(res, err.semChave ? 503 : err.recusa ? 422 : err.pedidoInvalido ? 400 : 500, { erro: err.message }, origem);
     } finally {
       rodando--;
     }

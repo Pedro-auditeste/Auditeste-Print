@@ -1,11 +1,14 @@
 const CHAVE = 'sessoesAudiPrint';
 const ESPERA_DEPOIS_MS = 900;
+// Teto para a tela assentar: navegacao lenta adia o print "depois" ate aqui.
+const ESPERA_MAX_MS = 8000;
 const INTERVALO_PRINT_MS = 550;
 const MAX_PASSOS = 40;
 
 let ultimoPrint = 0;
 let filaPrint = Promise.resolve();
 const timers = new Map();
+const prazos = new Map();
 const locks = new Map();
 
 function comLock(tabId, tarefa) {
@@ -57,6 +60,7 @@ function limparTimer(tabId) {
 
 async function finalizar(tabId) {
   limparTimer(tabId);
+  prazos.delete(tabId);
   return comLock(tabId, async () => {
     const sessao = await obter(tabId);
     if (!sessao?.ativa || !sessao.pendente || sessao.finalizando) return;
@@ -98,9 +102,15 @@ async function finalizar(tabId) {
   });
 }
 
+/* Cada evento adia o print "depois" em ESPERA_DEPOIS_MS, para pegar a tela ja
+ * assentada. O prazo impede que uma pagina que nunca para de mexer (ticker,
+ * banner rotativo) adie o passo para sempre. */
 function agendarFinalizacao(tabId) {
   limparTimer(tabId);
-  timers.set(tabId, setTimeout(() => finalizar(tabId), ESPERA_DEPOIS_MS));
+  if (!prazos.has(tabId)) prazos.set(tabId, Date.now() + ESPERA_MAX_MS);
+  const restante = prazos.get(tabId) - Date.now();
+  const espera = Math.max(0, Math.min(ESPERA_DEPOIS_MS, restante));
+  timers.set(tabId, setTimeout(() => finalizar(tabId), espera));
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, responder) => {
@@ -171,13 +181,17 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
   return true;
 });
 
+// 'loading' tambem adia: sem isso, uma navegacao que comeca depois dos 900 ms
+// pegava o print "depois" na tela velha ou em branco.
 chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (info.status === 'complete') obter(tabId).then((s) => {
+  if (info.status !== 'loading' && info.status !== 'complete') return;
+  obter(tabId).then((s) => {
     if (s?.ativa && s.pendente) agendarFinalizacao(tabId);
   });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   limparTimer(tabId);
+  prazos.delete(tabId);
   gravar(tabId, null);
 });

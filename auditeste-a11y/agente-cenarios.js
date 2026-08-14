@@ -253,7 +253,7 @@ function linhaGherkin(acao, alvo, i, valor) {
 
 function montarCenariosDosPassos({ ficha, passos }) {
   const lista = (passos || []).filter((p) => (p.titulo || p.obs || p.acao || p.elemento));
-  if (!lista.length) throw new Error('nenhum passo enviado');
+  if (!lista.length) throw erroPedido('nenhum passo enviado');
   const mod = slugModulo(ficha);
   const nomeMod = String((ficha && ficha.modulo) || 'Fluxo').trim() || 'Fluxo';
   const primeiroAlvo = extrairAlvo(lista[0]);
@@ -408,6 +408,13 @@ function textoLimpo(t) {
 /** Mantém o texto inteiro em uma linha só. */
 function textoLinha(t) {
   return textoLimpo(String(t || '').replace(/\s+/g, ' '));
+}
+
+/** Erro de quem chamou, não da ponte: vira 400 em vez de 500. */
+function erroPedido(mensagem) {
+  const err = new Error(mensagem);
+  err.pedidoInvalido = true;
+  return err;
 }
 
 /** Fecha a frase com ponto para os trechos não emendarem ao concatenar. */
@@ -709,7 +716,7 @@ async function descreverTela(entrada) {
   const antes = typeof entrada === 'string' ? '' : (entrada && (entrada.antes || entrada.imagemAntes) || '');
   const par = typeof entrada === 'string' ? '' : (entrada && entrada.par || '');
   const contexto = typeof entrada === 'string' ? {} : limparContexto(entrada);
-  if (!dataUrlValida(depois)) throw new Error('imagem inválida para descrever');
+  if (!dataUrlValida(depois)) throw erroPedido('imagem inválida para descrever');
   if (dataUrlValida(antes)) {
     try {
       return await descreverParQa(antes, depois, contexto, par);
@@ -727,7 +734,7 @@ async function descreverTela(entrada) {
 
 async function gerarCenarios({ ficha, passos, quadros }) {
   exigirChave();
-  if (!Array.isArray(passos) || !passos.length) throw new Error('nenhum passo enviado');
+  if (!Array.isArray(passos) || !passos.length) throw erroPedido('nenhum passo enviado');
 
   const local = montarCenariosDosPassos({ ficha, passos });
   const { partes, imagens } = montarConteudoUsuario({ ficha, passos, quadros });
