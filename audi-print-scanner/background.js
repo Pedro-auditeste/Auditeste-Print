@@ -113,6 +113,13 @@ function agendarFinalizacao(tabId) {
   timers.set(tabId, setTimeout(() => finalizar(tabId), espera));
 }
 
+/* O content script nao sabe sozinho se a sessao esta gravando, e o realce so
+ * pode existir durante a gravacao. Avisar falha de proposito calado em aba sem
+ * content script (chrome://, PDF, aba recem-aberta). */
+function avisarAba(tabId, ativa) {
+  chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_SESSAO', ativa }).catch(() => {});
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, responder) => {
   const tabId = sender.tab?.id ?? msg.tabId;
   if (!tabId) return;
@@ -132,6 +139,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         erro: ''
       };
       await gravar(tabId, sessao);
+      avisarAba(tabId, true);
       return { sessao };
     }
 
@@ -142,11 +150,13 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         sessao.ativa = false;
         await gravar(tabId, sessao);
       }
+      avisarAba(tabId, false);
       return { sessao };
     }
 
     if (msg.tipo === 'AUDI_LIMPAR') {
       limparTimer(tabId);
+      avisarAba(tabId, false);
       await gravar(tabId, null);
       return { sessao: null };
     }

@@ -1,5 +1,6 @@
 (() => {
   let ultimaAcao = 0;
+  let gravando = false;
 
   function escapeCss(valor) {
     return globalThis.CSS?.escape
@@ -54,17 +55,82 @@
 
   // Rede de seguranca: se o print nunca vier, a marca nao fica presa na tela.
   const MARCA_MAX_MS = 4000;
+  const AMBAR = '#e8901f';
+  const VERMELHO = '#e23c3c';
 
-  /** Marca o elemento em vermelho. Devolve a funcao que tira a marca. */
+  /* Realce estilo inspetor: uma sobreposicao propria, nunca o style do elemento.
+   * Mudar o style do alvo contaminaria o outerHTML capturado e poderia empurrar
+   * o layout da pagina testada. A sobreposicao nao recebe clique. */
+  let caixa = null;
+  let etiqueta = null;
+  let alvoAtual = null;
+  let travado = false;   // durante a captura o realce nao segue o mouse
+  let quadro = 0;
+
+  function criarRealce() {
+    if (caixa) return;
+    const base = 'position:fixed;z-index:2147483647;pointer-events:none;'
+      + 'box-sizing:border-box;display:none;';
+    caixa = document.createElement('div');
+    caixa.style.cssText = base + 'border-radius:4px;';
+    etiqueta = document.createElement('div');
+    etiqueta.style.cssText = base
+      + 'font:600 12px/1.4 ui-monospace,Consolas,monospace;color:#fff;'
+      + 'padding:2px 7px;border-radius:4px;max-width:60vw;overflow:hidden;'
+      + 'text-overflow:ellipsis;white-space:nowrap;';
+    // documentElement e nao body: sobrevive a paginas que trocam o body.
+    document.documentElement.append(caixa, etiqueta);
+  }
+
+  function posicionar(el, cor, texto) {
+    criarRealce();
+    const r = el.getBoundingClientRect();
+    if (!r.width && !r.height) return esconderRealce();
+    caixa.style.display = 'block';
+    caixa.style.border = '3px solid ' + cor;
+    caixa.style.left = r.left + 'px';
+    caixa.style.top = r.top + 'px';
+    caixa.style.width = r.width + 'px';
+    caixa.style.height = r.height + 'px';
+
+    etiqueta.style.display = texto ? 'block' : 'none';
+    if (!texto) return;
+    etiqueta.textContent = texto;
+    etiqueta.style.background = cor;
+    // Acima do elemento; se nao couber, por dentro do topo.
+    const acima = r.top >= 24;
+    etiqueta.style.left = Math.max(2, r.left) + 'px';
+    etiqueta.style.top = (acima ? r.top - 22 : r.top + 3) + 'px';
+  }
+
+  function esconderRealce() {
+    if (!caixa) return;
+    caixa.style.display = 'none';
+    etiqueta.style.display = 'none';
+  }
+
+  function seguir(el) {
+    if (travado || !gravando) return;
+    if (!el) { alvoAtual = null; return esconderRealce(); }
+    alvoAtual = el;
+    posicionar(el, AMBAR, seletorDe(el));
+  }
+
+  function reposicionar() {
+    if (!alvoAtual || !gravando) return;
+    if (!alvoAtual.isConnected) { alvoAtual = null; return esconderRealce(); }
+    posicionar(alvoAtual, travado ? VERMELHO : AMBAR, seletorDe(alvoAtual));
+  }
+
+  /** Trava o realce em vermelho sobre o alvo ate o print sair. */
   function destacar(el) {
-    const anterior = el.style.outline;
-    const offset = el.style.outlineOffset;
-    // outline nao ocupa espaco, entao marcar nao empurra o layout do print.
-    el.style.outline = '4px solid #e23c3c';
-    el.style.outlineOffset = '3px';
+    travado = true;
+    alvoAtual = el;
+    posicionar(el, VERMELHO, seletorDe(el));
     return () => {
-      el.style.outline = anterior;
-      el.style.outlineOffset = offset;
+      travado = false;
+      esconderRealce();
+      alvoAtual = null;
     };
   }
 
@@ -120,4 +186,38 @@
   document.addEventListener('click', () => {
     chrome.runtime.sendMessage({ tipo: 'AUDI_ACAO_CONCLUIDA' }).catch(() => {});
   }, true);
+
+  /* Realce so existe gravando: fora da sessao a extensao nao pinta nada na
+   * pagina do usuario. */
+  document.addEventListener('pointerover', (evento) => {
+    if (!gravando || travado) return;
+    const el = clicavel(evento.composedPath()[0]);
+    if (el !== alvoAtual) seguir(el);
+  }, true);
+
+  // Um quadro por vez: scroll dispara muito e reposicionar e barato mas nao de graca.
+  const pedirReposicao = () => {
+    if (!gravando || quadro) return;
+    quadro = requestAnimationFrame(() => { quadro = 0; reposicionar(); });
+  };
+  addEventListener('scroll', pedirReposicao, true);
+  addEventListener('resize', pedirReposicao);
+
+  function ligarRealce(ativo) {
+    gravando = !!ativo;
+    if (!gravando) {
+      travado = false;
+      alvoAtual = null;
+      esconderRealce();
+    }
+  }
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.tipo === 'AUDI_SESSAO') ligarRealce(msg.ativa);
+  });
+
+  // Navegar recarrega o content script no meio da sessao: pergunta como esta.
+  chrome.runtime.sendMessage({ tipo: 'AUDI_STATUS' })
+    .then((r) => ligarRealce(r && r.sessao && r.sessao.ativa))
+    .catch(() => {});
 })();
