@@ -73,8 +73,8 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
   assert.match(r.extensao.htmlNoPre, /<button id="entrarSite"/, 'HTML não veio como texto');
   assert.strictEqual(r.extensao.virouBotaoReal, false, 'o HTML virou elemento real — escape falhou');
   assert.ok(r.extensao.temCopiarHtml, 'faltou o botão Copiar HTML');
-  assert.ok(r.gravacao.visivel, 'gravação por tela não explicou a ausência do seletor');
-  assert.match(r.gravacao.texto, /extensão|Sem seletor/i, 'aviso da gravação sem orientação');
+  // Sem seletor a caixa some: repetir explicação em todo passo poluía a evidência.
+  assert.strictEqual(r.gravacao.visivel, false, 'caixa vazia continua ocupando espaço');
   assert.strictEqual(r.manualVazio.visivel, false, 'passo manual vazio poluiu a tela');
   console.log('\nRESULTADO: PASSOU');
 })().catch((e) => { console.error('FALHA: ' + e.message); process.exit(1); });

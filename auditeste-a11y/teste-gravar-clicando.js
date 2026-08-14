@@ -13,7 +13,7 @@ const PORTA_SITE = 8952;
 const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Loja</title>
 <style>body{font-family:system-ui;margin:0;padding:40px}
 #entrarSite{position:absolute;left:100px;top:200px;width:200px;height:60px;font-size:18px}
-#vazio{position:absolute;left:900px;top:600px;width:200px;height:60px}</style></head>
+#vazio{position:absolute;left:900px;top:600px;width:200px;height:60px;cursor:pointer}</style></head>
 <body>
   <h1 id="titulo">Loja de teste</h1>
   <button id="entrarSite">Entrar</button>
@@ -66,6 +66,12 @@ const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><tit
     assert.ok(!vazio.passo, 'clique no vazio virou passo');
     assert.strictEqual(gravador.passos(id, 0).total, 1, 'contagem mudou no clique vazio');
     console.log('  OK   clique fora de controle não vira passo');
+
+    // So controle de acao vira passo: div decorativa, mesmo com cursor:pointer,
+    // nao pode entrar na evidencia.
+    const semAcao = await gravador.clicar(id, 1000, 630);
+    assert.ok(!semAcao.passo, 'div sem acao virou passo');
+    console.log('  OK   div sem ação continua fora da evidência');
 
     const rol = await gravador.rolar(id, 400);
     assert.ok(rol.tela.startsWith('data:image/jpeg'), 'rolagem não devolveu tela');

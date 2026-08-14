@@ -96,19 +96,14 @@ function inspecionarPonto(x, y) {
     rotulo,
     html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
     tag: el.tagName.toLowerCase(),
-    /* Clicavel de verdade, ou com cara de clicavel: cursor:pointer e como UI
-     * moderna sinaliza isso, e pega card em div com listener delegado, que a
-     * lista de tags sozinha perderia. */
+    /* So controle de acao vira passo: Entrar, Proximo, Salvar, um link, um campo.
+     * Nada de cursor:pointer — ele pega wrapper e div decorativa junto, e a
+     * evidencia enchia de passo que o QA nao pediu. */
     interativo: el.matches([
-      'a[href]', 'button', 'summary', '[role="button"]', '[role="tab"]',
-      '[role="menuitem"]', 'input', 'select', 'textarea', '[onclick]'
-    ].join(',')) || (() => {
-      let at = el;
-      for (let i = 0; at && i < 4; i++, at = at.parentElement) {
-        if (getComputedStyle(at).cursor === 'pointer') return true;
-      }
-      return false;
-    })(),
+      'a[href]', 'button', 'summary',
+      '[role="button"]', '[role="tab"]', '[role="menuitem"]', '[role="link"]',
+      'input:not([type="hidden"])', 'select', 'textarea', '[onclick]'
+    ].join(',')),
     url: location.href
   };
 

@@ -493,13 +493,12 @@
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
     background:#fff;border-radius:4px;margin-left:2px;}
   .insp-html{margin-top:5px;}
-  .insp-html summary{cursor:pointer;color:var(--navy);font-weight:700;font-size:.72rem;}
+  .insp-html .rotulo-html{color:var(--navy);font-weight:700;font-size:.72rem;margin-right:6px;}
   .insp-html .copiar-html{font-size:.68rem;padding:1px 7px;margin-left:6px;cursor:pointer;
     border:1px solid #cfdce3;background:#fff;border-radius:4px;font-weight:400;}
   .insp-html pre{background:#0d3446;color:#e8f2f7;border-radius:6px;padding:8px;margin:5px 0 0;
     max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
     font-family:ui-monospace,Consolas,monospace;font-size:.71rem;}
-  .sem-insp{color:var(--muted);font-style:italic;}
   .passo.alerta-qa{border:2px solid #e8a33d;}
   .legenda-ia{font-weight:700;color:var(--navy);font-size:.82rem;margin:8px 0;}
   .analise-qa{margin:10px 0;}
@@ -1095,8 +1094,8 @@
 
     <div class="dica">
       <b>Como gravar</b>
-      Cole o <b>link do site</b> e clique em <b>Iniciar gravação</b>. O site abre aqui dentro: cada clique seu vira um passo com <b>id, HTML e URL</b> do elemento, mais print antes e depois.
-      Precisa gravar a sua própria tela em vez do site? A opção está em <b>Opções de captura</b> — mas ali não há id nem HTML, porque imagem não tem DOM.
+      Clique em <b>Iniciar gravação</b> e escolha a aba do site. Um print sai a cada mudança de tela, e cada par ganha descrição.
+      Para registrar também o <b>id e o HTML</b> do que foi clicado, use a extensão Chrome e importe o JSON aqui.
       Depois salve e use <b>Gerar cenários</b>.
     </div>
 
@@ -1149,10 +1148,10 @@
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
     <div class="painel-clicando" id="painelClicando">
-      <label for="urlClicando"><b>Link do site que você vai testar</b> — ele abre aqui dentro e cada clique registra id, HTML e URL</label>
+      <label for="urlClicando"><b>Gravar clicando</b> — a ponte abre o site aqui e cada clique vira evidência</label>
       <div class="linha-scan">
         <input type="url" id="urlClicando" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site">
-        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir e gravar</button>
+        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir site</button>
         <button type="button" class="btn perigo" data-acao="encerrarClicando" id="btnEncerrarClicando" hidden>Encerrar</button>
         <button type="button" class="btn" data-acao="fecharClicando">Fechar</button>
       </div>
@@ -1170,7 +1169,7 @@
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
-    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Cole o link do site e clique em Iniciar gravação.</div>
+    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Clique em Iniciar gravação e escolha a aba do site.</div>
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
@@ -1903,11 +1902,8 @@
     vigia = setInterval(observar, 200);
   }
 
-  /* A gravacao principal e a que captura id e HTML: abre o site aqui dentro.
-   * Gravar a propria tela virou opcao secundaria, dentro de Opcoes de captura,
-   * porque imagem nao tem DOM e nunca dara seletor. */
   function iniciar(){
-    return abrirClicando();
+    return iniciarManual();
   }
 
   function parar(externo, silencioso){
@@ -3335,28 +3331,23 @@
     }
     const box = passo.querySelector('.meta-qa');
     if(!box) return;
-    if(!(dados.acao || dados.elemento)){
-      /* Gravando pela tela nao ha DOM: getDisplayMedia entrega pixels e a pagina
-       * gravada e de outra origem. Antes a caixa so sumia e o QA nao entendia
-       * por que o seletor nunca vinha. */
-      const auto = passo.classList.contains('passo-auto');
-      box.hidden = !auto;
-      box.innerHTML = auto
-        ? '<span class="sem-insp">Sem seletor: esta gravação capturou a <b>imagem</b> da sua tela, '
-          + 'e imagem não tem HTML. Para registrar <b>id e HTML</b>, use '
-          + '<b>Gravar clicando</b> — o site abre aqui dentro e cada clique traz o elemento.</span>'
-        : '';
+    /* Sem seletor a caixa some, sem sermão: o QA já sabe que aquela gravação é
+     * por imagem, e repetir explicação em todo passo só ocupa a evidência. */
+    if(!(dados.acao || dados.elemento || dados.html)){
+      box.hidden = true;
+      box.innerHTML = '';
       return;
     }
     box.hidden = false;
     const sel = String(dados.elemento || '').trim();
+    // O HTML vem aberto, logo abaixo da descrição — é o que o QA leva para o script.
     box.innerHTML = '<b>' + esc(dados.acao || '') + '</b>'
       + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')
       + (sel ? ' · <code>' + esc(sel) + '</code> <button type="button" class="copiar-sel">Copiar</button>' : '')
       + (dados.html
-          ? '<details class="insp-html" open><summary>HTML do elemento '
-            + '<button type="button" class="copiar-html">Copiar HTML</button></summary>'
-            + '<pre>' + esc(String(dados.html)) + '</pre></details>'
+          ? '<div class="insp-html"><span class="rotulo-html">HTML do elemento</span>'
+            + '<button type="button" class="copiar-html">Copiar HTML</button>'
+            + '<pre>' + esc(String(dados.html)) + '</pre></div>'
           : '');
     const aviso = (b, txt) => {
       const antes = b.textContent;
@@ -3367,7 +3358,6 @@
       const b = box.querySelector(seletorBotao);
       if(!b || !valor) return;
       b.onclick = async (ev) => {
-        ev.preventDefault();   // dentro do <summary>, o clique abriria/fecharia
         ev.stopPropagation();
         try{ await navigator.clipboard.writeText(valor); aviso(b, 'Copiado'); }
         catch(_){ aviso(b, 'Copie manualmente'); }
@@ -3740,7 +3730,7 @@
       '.meta-qa{font-size:.74rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere}',
       '.meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere}',
       '.insp-html{margin-top:5px}',
-      '.insp-html summary{cursor:pointer;color:var(--navy);font-weight:700;font-size:.72rem}',
+      '.insp-html .rotulo-html{color:var(--navy);font-weight:700;font-size:.72rem}',
       '.insp-html pre{background:#0d3446;color:#e8f2f7;border-radius:6px;padding:8px;margin:5px 0 0;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,Consolas,monospace;font-size:.71rem}',
       '.legenda-ia{font-weight:700;color:var(--navy);font-size:.84rem;margin:8px 0}',
       '.analise-qa{background:#f7faf6;border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:10px;font-size:.8rem}',
@@ -4190,7 +4180,7 @@
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
           <div class="obs">${esc(p.obs)}</div>
           ${(p.timestampAntes || p.urlAntes || p.urlDepois || p.frameUrl) ? `<div class="meta-evento">${p.timestampAntes ? `Antes: ${esc(new Date(p.timestampAntes).toLocaleString('pt-BR'))}` : ''}${p.timestampDepois ? ` · Depois: ${esc(new Date(p.timestampDepois).toLocaleString('pt-BR'))}` : ''}${p.urlAntes ? ` · URL antes: ${esc(p.urlAntes)}` : ''}${p.urlDepois ? ` · URL depois: ${esc(p.urlDepois)}` : ''}${p.frameUrl ? ` · Iframe: ${esc(p.frameUrl)}` : ''}</div>` : ''}
-          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code>` : ''}${p.html ? `<details class="insp-html"><summary>HTML do elemento</summary><pre>${esc(p.html)}</pre></details>` : ''}</div>` : ''}
+          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code>` : ''}${p.html ? `<div class="insp-html"><span class="rotulo-html">HTML do elemento</span><pre>${esc(p.html)}</pre></div>` : ''}</div>` : ''}
           ${(p.imagens || []).length >= 2 ? `<button class="gerar-desc" data-acao="gerarDescricaoRegistro" data-passo="${i}">Gerar descrição novamente</button>` : ''}
           <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
