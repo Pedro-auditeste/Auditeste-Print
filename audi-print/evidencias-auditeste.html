@@ -478,6 +478,10 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
+  .painel-clicando{background:var(--card);border:2px solid var(--green);border-radius:12px;
+    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);}
+  .painel-clicando label{display:block;color:var(--navy);margin-bottom:8px;}
+  .painel-clicando .dica-captura{margin:8px 0 0;}
   .meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
     font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
@@ -1138,12 +1142,25 @@
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
+    <div class="painel-clicando" id="painelClicando" hidden>
+      <label for="urlClicando"><b>Gravar clicando</b> — a ponte abre um navegador e você usa normalmente</label>
+      <div class="linha-scan">
+        <input type="url" id="urlClicando" placeholder="https://site-do-cliente.com"
+          autocomplete="off" aria-label="Link do site para abrir e gravar por clique">
+        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir navegador</button>
+        <button type="button" class="btn perigo" data-acao="pararClicando" id="btnPararClicando" hidden>Parar</button>
+        <button type="button" class="btn" data-acao="fecharClicando">Fechar</button>
+      </div>
+      <p class="dica-captura" id="estadoClicando">Cada clique vira um passo com <b>id, HTML e URL</b>
+        do elemento, mais print antes e depois. Precisa da ponte rodando na sua máquina.</p>
+    </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
     <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Clique em Iniciar gravação e escolha a aba do site.</div>
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
+      <button class="btn primario" data-acao="gravarClicando">Gravar clicando (abre o navegador)</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
@@ -2845,6 +2862,113 @@
     }
   }
 
+  /* Gravar clicando: a ponte abre um Chrome de verdade, o analista usa, e cada
+   * clique volta inspecionado — id, HTML e URL — porque ali existe DOM. É o que
+   * a gravação por tela não consegue: getDisplayMedia entrega pixels, sem clique. */
+  let clicandoId = null, clicandoTimer = null, clicandoLidos = 0;
+
+  function estadoClicando(txt){
+    const el = document.getElementById('estadoClicando');
+    if(el) el.innerHTML = txt;
+  }
+
+  function abrirPainelClicando(){
+    const p = document.getElementById('painelClicando');
+    if(!p) return;
+    p.hidden = !p.hidden;
+    if(p.hidden) return;
+    const campo = document.getElementById('urlClicando');
+    if(campo){ if(!campo.value) campo.value = 'https://'; campo.focus(); }
+  }
+
+  async function abrirClicando(){
+    const campo = document.getElementById('urlClicando');
+    const url = ((campo && campo.value) || '').trim();
+    if(!url || url === 'https://'){ avisar('Cole o link do site.'); if(campo) campo.focus(); return; }
+    try{ new URL(url); }catch(_){ avisar('URL inválida.'); return; }
+
+    const btn = document.getElementById('btnAbrirClicando');
+    if(btn) btn.disabled = true;
+    estadoClicando('Abrindo o navegador...');
+    try{
+      const alvo = await resolverPonteIA();
+      if(!alvo.url || !alvo.info) throw new Error('A ponte não está no ar. Rode npm run servidor.');
+      const resp = await fetch(alvo.url + '/gravar/abrir', {
+        method:'POST',
+        headers: Object.assign({ 'Content-Type':'application/json' }, ponteCabecalho()),
+        body: JSON.stringify({ url }),
+        signal: AbortSignal.timeout(90000)
+      });
+      const dados = await resp.json().catch(() => ({}));
+      if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
+      clicandoId = dados.id;
+      clicandoLidos = 0;
+      pontePreferida = alvo.url;
+      document.getElementById('btnPararClicando').hidden = false;
+      estadoClicando('<b>Navegador aberto.</b> Use o site normalmente: cada clique vira um passo aqui.');
+      avisar('Navegador aberto. Clique no site e os passos aparecem sozinhos.');
+      clicandoTimer = setInterval(puxarPassosClicando, 2000);
+    }catch(err){
+      const m = (err && err.message) || 'erro';
+      estadoClicando('Não abriu: ' + esc(m));
+      informar(/janela|container/i.test(m)
+        ? 'Esta ponte roda em servidor, sem janela. Rode a ponte na sua máquina (npm run servidor) e use o Print em http://127.0.0.1:8900.'
+        : 'Não consegui abrir o navegador: ' + m, 'Falha ao abrir');
+    }finally{
+      if(btn) btn.disabled = false;
+    }
+  }
+
+  let pontePreferida = null;
+
+  async function puxarPassosClicando(){
+    if(!clicandoId) return;
+    try{
+      const base = pontePreferida || (await resolverPonteIA()).url;
+      const resp = await fetch(base + '/gravar/passos?id=' + encodeURIComponent(clicandoId)
+        + '&desde=' + clicandoLidos, { headers: ponteCabecalho(), signal: AbortSignal.timeout(30000) });
+      const dados = await resp.json().catch(() => ({}));
+      if(!resp.ok || dados.erro) return;
+      (dados.passos || []).forEach(p => {
+        const el = novoPasso(p.titulo, p.obs);
+        marcarQa(el, p);
+        const figs = p.imagens || [];
+        el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
+        figs.forEach(im => {
+          const blob = dataUrlParaBlob(im.dataUrl);
+          if(blob) juntarImagem(el, blob, im.legenda || 'Captura');
+        });
+        const caps = [...el.querySelectorAll('figure')].filter(f => f._blob);
+        if(caps.length >= 2) descreverTelaIA(el, caps[0]._blob, caps[1]._blob);
+      });
+      clicandoLidos = dados.total || clicandoLidos;
+      if(dados.passos && dados.passos.length){
+        estadoClicando('<b>' + clicandoLidos + ' passo(s)</b> gravados. Continue clicando no navegador.');
+      }
+      if(dados.fechada) pararClicando(true);
+    }catch(_){ /* uma consulta perdida nao derruba a gravacao */ }
+  }
+
+  async function pararClicando(jaFechou){
+    if(clicandoTimer){ clearInterval(clicandoTimer); clicandoTimer = null; }
+    const id = clicandoId;
+    clicandoId = null;
+    document.getElementById('btnPararClicando').hidden = true;
+    if(!id) return;
+    if(!jaFechou){
+      try{
+        const base = pontePreferida || (await resolverPonteIA()).url;
+        await fetch(base + '/gravar/fechar', {
+          method:'POST',
+          headers: Object.assign({ 'Content-Type':'application/json' }, ponteCabecalho()),
+          body: JSON.stringify({ id })
+        });
+      }catch(_){ }
+    }
+    estadoClicando('Gravação encerrada. Revise os passos e salve no projeto.');
+    avisar('Gravação por clique encerrada.');
+  }
+
   async function importarA11y(arquivo){
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
@@ -4078,6 +4202,10 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
+    if(acao === 'gravarClicando') return abrirPainelClicando();
+    if(acao === 'abrirClicando') return abrirClicando();
+    if(acao === 'pararClicando') return pararClicando();
+    if(acao === 'fecharClicando'){ document.getElementById('painelClicando').hidden = true; return; }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));

@@ -80,9 +80,14 @@ devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).
 
 ## Gravação: quem tem DOM
 
-A gravação do Print usa `getDisplayMedia` — **pixels, sem DOM**. Seletor e HTML do
-elemento só existem pela **extensão Chrome**. Não tente tirar seletor da gravação
-de tela.
+A gravação por tela do Print usa `getDisplayMedia` — **pixels, sem DOM**. Ela não
+vê clique nenhum, nem que houve, nem em quê. Não tente tirar seletor dela.
+
+Quem tem DOM é `gravador.js` e a extensão. **`gravador.js`** (`/gravar/abrir`,
+`/gravar/passos`, `/gravar/fechar`) sobe um Chrome **visível** e injeta um
+listener de `pointerdown`: cada clique vira passo com seletor, HTML, URL e print
+antes/depois. Exige ponte **local** — o container da Railway não tem janela, e
+`/ping` avisa em `gravarClicando`.
 
 A extensão entrega de dois jeitos, ambos caindo em `aplicarEvidenciaImportada`:
 
