@@ -41,6 +41,10 @@ fs.writeFileSync(arquivo, JSON.stringify({
   }]
 }));
 
+const DESCRICAO_LONGA = 'Antes havia a tela de login com e-mail e senha. '
+  + 'Depois apareceu o painel principal com o menu lateral, os cartões de resumo e o nome do usuário no topo. '.repeat(12)
+  + 'Fim da descrição completa.';
+
 (async () => {
   const browser = await puppeteer.launch({
     headless: true,
@@ -48,15 +52,22 @@ fs.writeFileSync(arquivo, JSON.stringify({
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   const pagina = await browser.newPage();
+  pagina.on('pageerror', (erro) => console.error('ERRO NA PÁGINA:', erro.message));
+  let corpoDescricao = null;
   await pagina.setRequestInterception(true);
   pagina.on('request', (req) => {
     if (req.url().endsWith('/descrever')) {
+      try { corpoDescricao = JSON.parse(req.postData() || '{}'); } catch (_) { corpoDescricao = {}; }
       req.respond({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          titulo: 'Clicou em "Entrar" → abriu o painel',
-          obs: 'Antes: tela de login. Ação: clique em "Entrar". Depois: painel principal.'
+          legenda_curta: 'Clique em Entrar abriu o painel',
+          descricao_detalhada: DESCRICAO_LONGA,
+          titulo_cenario: 'Entrar redireciona para o painel',
+          gherkin: 'Cenário: Entrar redireciona para o painel\n  Dado que estou no login\n  Quando clico em Entrar\n  Então vejo o painel\n  E vejo o menu',
+          cenarios_alternativos: ['Entrar sem senha'],
+          alerta_qa: 'Validar se o redirecionamento está correto.'
         })
       });
     } else req.continue();
@@ -82,6 +93,22 @@ fs.writeFileSync(arquivo, JSON.stringify({
 
     assert.strictEqual(await pagina.$eval('.passo .meta-qa code', (el) => el.textContent), '#btn-entrar');
     assert.ok(await pagina.$eval('.passo .meta-evento', (el) => /URL antes:.*login.*URL depois:.*dashboard/i.test(el.textContent)));
+    assert.strictEqual(await pagina.$eval('.passo .legenda-ia', (el) => el.textContent), 'Clique em Entrar abriu o painel');
+    assert.ok(await pagina.$eval('.passo .analise-qa pre', (el) => /Dado que[\s\S]*Quando[\s\S]*Então/.test(el.textContent)));
+    assert.strictEqual(await pagina.$eval('.passo .obs', (el) => el.textContent), DESCRICAO_LONGA, 'descrição longa não pode ser cortada');
+    assert.strictEqual(
+      await pagina.$eval('.passo .analise-qa p', (el) => el.textContent),
+      DESCRICAO_LONGA,
+      'análise detalhada não pode ser cortada'
+    );
+    assert.ok(await pagina.$eval('.passo', (el) => el.classList.contains('alerta-qa')));
+    assert.strictEqual(corpoDescricao.elemento, '#btn-entrar');
+    assert.ok('modulo' in corpoDescricao && 'tipoTeste' in corpoDescricao);
+    assert.ok(/^data:image\/jpeg;base64,/.test(corpoDescricao.par), 'par visual composto enviado');
+    assert.strictEqual(await pagina.$eval('.passo', (el) => JSON.parse(el.dataset.analiseQa).cenarios_alternativos.length), 1);
+    await pagina.$eval('.passo [data-acao="adicionarAlternativo"]', (el) => el.click());
+    await pagina.waitForFunction(() => document.querySelectorAll('#lista > .passo').length === 2);
+    assert.strictEqual(await pagina.$$eval('#lista > .passo', (els) => els.length), 2, 'cenário alternativo manual');
 
     await pagina.setViewport({ width: 320, height: 800 });
     const mobile = await pagina.evaluate(() => ({
@@ -107,7 +134,7 @@ fs.writeFileSync(arquivo, JSON.stringify({
     assert.ok(desktop.semScroll, 'sem scroll horizontal em 1920px');
     assert.strictEqual(desktop.colunas, 2, 'par lado a lado em desktop');
     console.log('OK  JSON da extensão importado com #id e metadados');
-    console.log('OK  descrição assíncrona aplicada');
+    console.log('OK  JSON QA, Gherkin, alerta e cenário alternativo aplicados');
     console.log('OK  responsivo em 320px, 768px e 1920px');
     console.log('RESULTADO: PASSOU');
   } finally {

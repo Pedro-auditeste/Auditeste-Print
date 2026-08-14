@@ -484,6 +484,17 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
+  .passo.alerta-qa{border:2px solid #e8a33d;}
+  .legenda-ia{font-weight:700;color:var(--navy);font-size:.82rem;margin:8px 0;}
+  .analise-qa{margin:10px 0;}
+  .analise-qa details{background:#f7faf6;border:1px solid var(--line);border-radius:9px;padding:9px 11px;}
+  .analise-qa summary{cursor:pointer;color:var(--navy);font-weight:700;font-size:.8rem;}
+  .analise-qa pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid var(--line);border-radius:7px;padding:9px;margin:8px 0;font-size:.75rem;}
+  .analise-qa .acoes-qa{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0;}
+  .analise-qa .alternativos{font-size:.78rem;margin:8px 0 0;padding-left:20px;}
+  .analise-qa .alternativos li{margin:5px 0;}
+  .analise-qa .mais-cenario{border:0;border-radius:50%;width:24px;height:24px;background:var(--green);color:#fff;font-weight:800;cursor:pointer;margin-left:5px;}
+  .alerta-qa-msg{background:#fff4dc;border-left:4px solid #e8a33d;padding:8px 10px;margin-top:8px;font-size:.78rem;color:#704b0e;}
   .passo .meta-qa{
     font-family:'Cascadia Code','Consolas',monospace;font-size:.72rem;color:var(--muted);
     margin:0 0 8px;background:#f4f7f4;border:1px solid var(--line);border-radius:8px;padding:6px 10px;
@@ -1004,7 +1015,7 @@
       <div>
         <h1>Nova gravação</h1>
         <p id="alvoGravacao"></p>
-        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v26 · pares Antes/Depois com descrição</p>
+        <p id="printBuild" style="font-size:.78rem;color:var(--green-dark);font-weight:700;margin-top:4px">Captura v28 · descrição completa, sem cortes</p>
       </div>
     </div>
 
@@ -2229,6 +2240,78 @@
     }
   }
 
+  function normalizarAnaliseQa(dados){
+    const texto = v => typeof v === 'string' ? v.trim() : '';
+    return {
+      legenda_curta: texto(dados && (dados.legenda_curta || dados.titulo)),
+      descricao_detalhada: texto(dados && (dados.descricao_detalhada || dados.obs)),
+      titulo_cenario: texto(dados && dados.titulo_cenario),
+      gherkin: texto(dados && dados.gherkin),
+      cenarios_alternativos: Array.isArray(dados && dados.cenarios_alternativos)
+        ? dados.cenarios_alternativos.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean).slice(0,2)
+        : [],
+      alerta_qa: texto(dados && dados.alerta_qa)
+    };
+  }
+
+  function analiseDoPasso(passo){
+    try{ return normalizarAnaliseQa(JSON.parse(passo.dataset.analiseQa || '{}')); }
+    catch(_){ return normalizarAnaliseQa({}); }
+  }
+
+  function htmlAnaliseQa(a, indiceRegistro){
+    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa)) return '';
+    const reg = Number.isInteger(indiceRegistro);
+    const sufixo = reg ? ` data-passo="${indiceRegistro}"` : '';
+    const alternativas = a.cenarios_alternativos.length
+      ? `<ul class="alternativos">${a.cenarios_alternativos.map((c,i)=>`<li>${esc(c)} <button type="button" class="mais-cenario" data-acao="${reg ? 'adicionarAlternativoRegistro' : 'adicionarAlternativo'}" data-alternativo="${i}"${sufixo} title="Adicionar como cenário manual">+</button></li>`).join('')}</ul>`
+      : '';
+    return `${a.legenda_curta ? `<div class="legenda-ia">${esc(a.legenda_curta)}</div>` : ''}
+      <details>
+        <summary>${esc(a.titulo_cenario || 'Detalhes e Gherkin do cenário')}</summary>
+        ${a.descricao_detalhada ? `<p>${esc(a.descricao_detalhada)}</p>` : ''}
+        ${a.gherkin ? `<pre>${esc(a.gherkin)}</pre><div class="acoes-qa"><button type="button" class="gerar-desc" data-acao="${reg ? 'copiarGherkinRegistro' : 'copiarGherkin'}"${sufixo}>Copiar Gherkin</button></div>` : ''}
+        ${alternativas}
+        ${a.alerta_qa ? `<div class="alerta-qa-msg"><b>Alerta QA:</b> ${esc(a.alerta_qa)}</div>` : ''}
+      </details>`;
+  }
+
+  function aplicarAnaliseQa(passo, dados){
+    const a = normalizarAnaliseQa(dados);
+    passo.dataset.analiseQa = JSON.stringify(a);
+    passo.classList.toggle('alerta-qa', !!a.alerta_qa);
+    const legenda = passo.querySelector(':scope > .legenda-ia');
+    if(legenda){
+      legenda.hidden = !a.legenda_curta;
+      legenda.textContent = a.legenda_curta;
+    }
+    const caixa = passo.querySelector(':scope > .analise-qa');
+    if(caixa){
+      caixa.hidden = !(a.descricao_detalhada || a.gherkin || a.alerta_qa);
+      caixa.innerHTML = htmlAnaliseQa({ ...a, legenda_curta: '' });
+    }
+    return a;
+  }
+
+  async function copiarTextoQa(texto, mensagem){
+    if(!texto) return;
+    try{ await navigator.clipboard.writeText(texto); avisar(mensagem); }
+    catch(_){ avisar('Não foi possível copiar. Selecione o texto manualmente.'); }
+  }
+
+  function gherkinAlternativo(ideia){
+    return `Cenário: ${ideia}\n  Dado que [informe o contexto]\n  Quando [informe a ação]\n  Então [informe o resultado esperado]`;
+  }
+
+  function adicionarAlternativoPasso(origem, indice){
+    const ideia = analiseDoPasso(origem).cenarios_alternativos[indice];
+    if(!ideia) return;
+    const novo = novoPasso('Cenário alternativo: ' + ideia, 'Sugestão criada para o QA revisar e completar.');
+    aplicarAnaliseQa(novo, { titulo_cenario: ideia, gherkin: gherkinAlternativo(ideia) });
+    novo.scrollIntoView({ behavior:'smooth', block:'center' });
+    avisar('Cenário alternativo adicionado como passo manual.');
+  }
+
   async function descreverTelaIA(passo, blobAntes, blobDepois){
     if(!blobDepois) return;
     const tit = passo.querySelector('.titulo');
@@ -2253,14 +2336,19 @@
         }
         const depois = await encolherLeve(blobDepois, 1000, 0.78, 280000);
         const antes = blobAntes ? await encolherLeve(blobAntes, 1000, 0.78, 280000) : null;
+        const parBlob = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
+        const par = parBlob ? await encolherLeve(parBlob, 1480, 0.76, 520000) : null;
         if(!depois) throw new Error('não consegui reduzir a captura');
         const corpo = JSON.stringify({
           imagem: depois,
           antes: antes || undefined,
+          par: par || undefined,
           elemento: passo.dataset.elemento || '',
           rotulo: passo.dataset.rotulo || '',
           urlAntes: passo.dataset.urlAntes || '',
-          urlDepois: passo.dataset.urlDepois || ''
+          urlDepois: passo.dataset.urlDepois || '',
+          modulo: passo.dataset.modulo || document.querySelector('[data-campo="modulo"]')?.textContent.trim() || '',
+          tipoTeste: passo.dataset.tipoTeste || document.querySelector('[data-campo="tipo"]')?.value || ''
         });
         const cab = Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho());
         let resp = await fetch(alvo.url + '/descrever', {
@@ -2276,27 +2364,17 @@
         }
         const dados = await resp.json().catch(() => ({}));
         if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-        const cortarPalavra = (t, max) => {
-          const s = String(t || '').replace(/\s+/g, ' ').trim();
-          if(s.length <= max) return s;
-          const c = s.slice(0, max);
-          const sp = c.lastIndexOf(' ');
-          return (sp > 12 ? c.slice(0, sp) : c).replace(/[.,;:]+$/, '');
-        };
-        let titulo = cortarPalavra(dados.titulo || '', 90);
-        let observ = String(dados.obs || '').replace(/\s+/g, ' ').trim();
+        const analise = normalizarAnaliseQa(dados);
+        let titulo = String(analise.legenda_curta || dados.titulo || '').replace(/\s+/g, ' ').trim();
+        let observ = String(analise.descricao_detalhada || dados.obs || '').replace(/\s+/g, ' ').trim();
         const recusa = /não posso ajudar|cannot help|can't help|i am unable|unable to (help|assist)/i.test(titulo + ' ' + observ);
         if(recusa || !titulo){
           titulo = 'Ação na tela';
           observ = 'O cliente avançou da tela anterior para a tela seguinte.';
-        } else if(/Antes:|Depois:|Onde clicou:|Onde entrou:|Imagem\s*1\s*:/i.test(observ)){
-          observ = cortarPalavra(observ, 340);
-        } else {
-          const uma = observ.match(/^[\s\S]{8,240}?[.!?…](?=\s|$)/);
-          observ = cortarPalavra(uma ? uma[0] : observ, 240);
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;
+        aplicarAnaliseQa(passo, { ...analise, legenda_curta: titulo, descricao_detalhada: observ });
         passo.dataset.descricaoEstado = 'pronta';
         if(botao) botao.hidden = true;
         if(statusIA) statusIA.textContent = 'Passo descrito: ' + titulo;
@@ -2931,7 +3009,9 @@
       <button type="button" class="gerar-desc" data-acao="gerarDescricao" hidden>Gerar descrição</button>
       <div class="meta-evento" hidden></div>
       <div class="meta-qa" hidden></div>
-      <div class="imagens"></div>`;
+      <div class="imagens"></div>
+      <div class="legenda-ia" hidden></div>
+      <div class="analise-qa" hidden></div>`;
     const elTitulo = el.querySelector('.titulo');
     const elObs = el.querySelector('.obs');
     if(arguments.length){
@@ -2960,6 +3040,9 @@
     passo.dataset.urlAntes = dados.urlAntes || '';
     passo.dataset.urlDepois = dados.urlDepois || '';
     passo.dataset.frameUrl = dados.frameUrl || '';
+    passo.dataset.modulo = dados.modulo || '';
+    passo.dataset.tipoTeste = dados.tipoTeste || '';
+    if(dados.analiseQa) aplicarAnaliseQa(passo, dados.analiseQa);
     const evento = passo.querySelector('.meta-evento');
     const instante = (v) => {
       if(!v) return '';
@@ -2984,7 +3067,7 @@
     box.innerHTML = '<b>' + esc(dados.acao || '') + '</b>'
       + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')
       + ' · <code>' + esc(dados.elemento || '') + '</code>'
-      + (dados.html ? '<div class="html-insp">' + esc(String(dados.html).slice(0, 220)) + '</div>' : '');
+      + (dados.html ? '<div class="html-insp">' + esc(String(dados.html)) + '</div>' : '');
   }
 
   function dataUrlParaBlob(dataUrl){
@@ -3223,6 +3306,7 @@
       urlAntes: p.dataset.urlAntes || '',
       urlDepois: p.dataset.urlDepois || '',
       frameUrl: p.dataset.frameUrl || '',
+      analiseQa: analiseDoPasso(p),
       imagens: [...p.querySelectorAll('figure')].filter(f=>f._blob).map(f => ({
         blob: f._blob, legenda: f.querySelector('figcaption').textContent.trim()
       }))
@@ -3343,6 +3427,7 @@
 
     partes.push('<h2>Passos capturados</h2>');
     r.passos.forEach((p, i) => {
+      const analise = normalizarAnaliseQa(p.analiseQa);
       partes.push('<article class="passo"><div class="num">' + (i+1) + '</div>');
       partes.push('<div class="carimbo">' + esc(p.carimbo) + '</div>');
       partes.push('<div class="titulo">' + (esc(p.titulo) || 'Passo sem descrição') + '</div>');
@@ -3362,6 +3447,15 @@
           '<figcaption>' + esc(im.legenda) + '</figcaption></figure>');
       });
       if(imagens[i].length >= 2) partes.push('</div>');
+      if(analise.legenda_curta) partes.push('<div class="legenda-ia">' + esc(analise.legenda_curta) + '</div>');
+      if(analise.descricao_detalhada || analise.gherkin || analise.alerta_qa){
+        partes.push('<section class="analise-qa"><h3>' + esc(analise.titulo_cenario || 'Análise QA') + '</h3>');
+        if(analise.descricao_detalhada) partes.push('<p>' + esc(analise.descricao_detalhada) + '</p>');
+        if(analise.gherkin) partes.push('<pre>' + esc(analise.gherkin) + '</pre>');
+        if(analise.cenarios_alternativos.length) partes.push('<ul>' + analise.cenarios_alternativos.map(c=>'<li>'+esc(c)+'</li>').join('') + '</ul>');
+        if(analise.alerta_qa) partes.push('<div class="alerta-qa-msg"><b>Alerta QA:</b> ' + esc(analise.alerta_qa) + '</div>');
+        partes.push('</section>');
+      }
       partes.push('</article>');
     });
 
@@ -3407,6 +3501,10 @@
       ".passo .carimbo{font-family:'Cascadia Code',Consolas,monospace;font-size:.75rem;color:var(--muted);margin-bottom:4px}",
       '.passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px;overflow-wrap:break-word}',
       '.passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4;overflow-wrap:break-word}',
+      '.legenda-ia{font-weight:700;color:var(--navy);font-size:.84rem;margin:8px 0}',
+      '.analise-qa{background:#f7faf6;border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:10px;font-size:.8rem}',
+      '.analise-qa h3{color:var(--navy);font-size:.88rem;margin-bottom:6px}.analise-qa pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid var(--line);border-radius:7px;padding:9px;margin:8px 0}.analise-qa ul{padding-left:20px}',
+      '.alerta-qa-msg{background:#fff4dc;border-left:4px solid #e8a33d;padding:8px 10px;margin-top:8px;color:#704b0e}',
       '.meta-tecnica{font:12px Consolas,monospace;color:var(--muted);background:#f4f7f4;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:9px;overflow-wrap:anywhere}',
       '.par-evidencia{display:grid;grid-template-columns:1fr 1fr;gap:10px}',
       'figure{margin:0 0 10px}',
@@ -3763,14 +3861,17 @@
     if(!p || !p.imagens || p.imagens.length < 2){ avisar('Este passo não possui o par Antes e Depois.'); return; }
     if(botao) botao.disabled = true;
     const temporario = document.createElement('article');
-    temporario.innerHTML = '<div class="titulo"></div><div class="obs"></div><button class="gerar-desc" hidden></button><div class="meta-evento"></div><div class="meta-qa"></div>';
+    temporario.innerHTML = '<div class="titulo"></div><div class="obs"></div><button class="gerar-desc" hidden></button><div class="meta-evento"></div><div class="meta-qa"></div><div class="legenda-ia"></div><div class="analise-qa"></div>';
     temporario.querySelector('.titulo').textContent = p.titulo || '';
     temporario.querySelector('.obs').textContent = p.obs || '';
     marcarQa(temporario, p);
+    temporario.dataset.modulo = registroAberto.ficha?.modulo || '';
+    temporario.dataset.tipoTeste = registroAberto.ficha?.tipo || '';
     await descreverTelaIA(temporario, p.imagens[0].blob, p.imagens[1].blob);
     if(temporario.dataset.descricaoEstado === 'pronta'){
       p.titulo = temporario.querySelector('.titulo').textContent.trim();
       p.obs = temporario.querySelector('.obs').textContent.trim();
+      p.analiseQa = analiseDoPasso(temporario);
       await gravarRegistroDB(registroAberto);
       await abrirRegistro(registroAberto.id);
       avisar('Descrição atualizada.');
@@ -3778,6 +3879,24 @@
       if(botao) botao.disabled = false;
       avisar('Não foi possível gerar a descrição. Os prints continuam salvos.');
     }
+  }
+
+  async function adicionarAlternativoRegistro(indicePasso, indiceAlternativo){
+    const origem = registroAberto?.passos?.[indicePasso];
+    const ideia = normalizarAnaliseQa(origem?.analiseQa).cenarios_alternativos[indiceAlternativo];
+    if(!ideia) return;
+    registroAberto.passos.push({
+      carimbo: new Date().toLocaleString('pt-BR') + ' · cenário manual',
+      titulo: 'Cenário alternativo: ' + ideia,
+      obs: 'Sugestão criada para o QA revisar e completar.',
+      acao: '', elemento: '', rotulo: '', valor: '', html: '',
+      timestampAntes: '', timestampDepois: '', urlAntes: '', urlDepois: '', frameUrl: '',
+      analiseQa: normalizarAnaliseQa({ titulo_cenario: ideia, gherkin: gherkinAlternativo(ideia) }),
+      imagens: []
+    });
+    await gravarRegistroDB(registroAberto);
+    await abrirRegistro(registroAberto.id);
+    avisar('Cenário alternativo adicionado ao registro.');
   }
 
   async function abrirRegistro(id){
@@ -3820,7 +3939,7 @@
 
       <h2 class="bloco">Passos capturados</h2>
       ${r.passos.map((p,i)=>`
-        <article class="passo">
+        <article class="passo ${normalizarAnaliseQa(p.analiseQa).alerta_qa ? 'alerta-qa' : ''}">
           <div class="num">${i+1}</div>
           <div class="carimbo">${esc(p.carimbo)}</div>
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
@@ -3831,6 +3950,7 @@
           <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
             <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}</div>
+          ${htmlAnaliseQa(normalizarAnaliseQa(p.analiseQa), i)}
         </article>`).join('')}
 
       <div class="caixa-cenarios" id="caixaCenarios" hidden></div>
@@ -3848,6 +3968,8 @@
     if(b.dataset.acao === 'salvarPdf') salvarPdf(registroAberto);
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
     if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
+    if(b.dataset.acao === 'copiarGherkinRegistro') copiarTextoQa(normalizarAnaliseQa(registroAberto?.passos?.[Number(b.dataset.passo)]?.analiseQa).gherkin, 'Gherkin copiado.');
+    if(b.dataset.acao === 'adicionarAlternativoRegistro') adicionarAlternativoRegistro(Number(b.dataset.passo), Number(b.dataset.alternativo));
     if(b.dataset.acao === 'copiarCenario') copiarBlocoCenario(b.dataset.alvo);
     if(b.dataset.video) baixarVideo(Number(b.dataset.video));
   });
@@ -3892,6 +4014,8 @@
     if(acao === 'iniciarTesteHome') iniciarTesteDaTela('urlTesteIaHome');
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
     if(acao === 'gerarDescricao') gerarDescricaoPasso(a.closest('.passo'));
+    if(acao === 'copiarGherkin') copiarTextoQa(analiseDoPasso(a.closest('.passo')).gherkin, 'Gherkin copiado.');
+    if(acao === 'adicionarAlternativo') adicionarAlternativoPasso(a.closest('.passo'), Number(a.dataset.alternativo));
     if(acao === 'removerBlocoA11y'){
       e.preventDefault();
       e.stopPropagation();

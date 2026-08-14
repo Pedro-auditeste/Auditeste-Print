@@ -195,9 +195,9 @@ async function listarCandidatos(pagina) {
       return {
         seletor,
         id: el.id || '',
-        texto: texto.slice(0, 80),
+        texto: texto.slice(0, 300),
         href,
-        html: (el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 240),
+        html: (el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 800),
         temId: !!el.id,
         noNav: !!(el.closest('nav, header, [role="navigation"], [role="menubar"]')),
         eAba,
@@ -340,7 +340,7 @@ async function testarUrl(alvo) {
       const instanteDepois = new Date().toISOString();
       const heading = await pagina.evaluate(() => {
         const h = document.querySelector('h1, h2, [role="heading"], [role="tabpanel"]');
-        return (h && (h.innerText || '').trim().slice(0, 80)) || document.title || '';
+        return (h && (h.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 300)) || document.title || '';
       }).catch(() => '');
       const rotulo = cand.texto || cand.id || cand.seletor;
       const tipo = cand.eAba ? 'aba' : 'item';

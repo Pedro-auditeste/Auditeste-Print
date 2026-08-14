@@ -49,7 +49,7 @@
       el.value ||
       el.id ||
       el.tagName
-    ).replace(/\s+/g, ' ').trim().slice(0, 100);
+    ).replace(/\s+/g, ' ').trim().slice(0, 300);
   }
 
   function destacar(el) {
@@ -76,7 +76,7 @@
         id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         seletor,
         rotulo: rotuloDe(el),
-        html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 500),
+        html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
         urlAntes: location.href,
         frameUrl: window === window.top ? '' : location.href
       }

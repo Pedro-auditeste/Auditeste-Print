@@ -1,6 +1,6 @@
 /* Smoke do agente: parse de blocos + ausência de chave. Sem chamada de rede. */
 const assert = require('assert');
-const { extrairBlocos, gerarCenarios, parseDescricaoTela, montarCenariosDosPassos, juntarPassoAPasso } = require('./agente-cenarios.js');
+const { extrairBlocos, gerarCenarios, parseDescricaoTela, parseAnaliseQa, montarCenariosDosPassos, juntarPassoAPasso } = require('./agente-cenarios.js');
 const { resolverChaveAgente } = require('./carregar-env.js');
 
 const amostra = `===GHERKIN===
@@ -40,7 +40,7 @@ assert.ok(!cenarios.includes('===MAPEAMENTO==='));
 const desc = parseDescricaoTela('Título: Clicou em "Entrar" no centro do formulário\nObservação: Estava na tela de login da loja. Clicou no botão Entrar no centro. Entrou na home logada com o menu no topo.');
 assert.ok(desc.titulo.includes('Entrar'));
 assert.ok(/login|loja/i.test(desc.obs));
-assert.ok(desc.obs.length <= 220);
+assert.ok(/menu no topo\.$/.test(desc.obs), 'a observação não pode voltar cortada');
 const nike = parseDescricaoTela('Título: Clicou no card "Tênis Nike Jordan Luka 4"\nObservação: Estava na listagem NBA Nike e clicou no tênis Jordan Luka 4 para abrir a página do produto com botão Comprar e opções de tamanho.');
 assert.ok(/Nike|Jordan|Luka|tênis|tenis/i.test(nike.titulo + nike.obs));
 assert.ok(!/PlayStation|PS5/i.test(nike.titulo + nike.obs));
@@ -57,6 +57,28 @@ assert.ok(!/\w{20}$/.test(nike.obs) || /[.!?]$/.test(nike.obs) || /[a-záéíó�
 let recusou = false;
 try { parseDescricaoTela('I cannot help with that.'); } catch (e) { recusou = /recusa/i.test(e.message); }
 assert.ok(recusou, 'recusa do modelo deve falhar o parse');
+
+const analise = parseAnaliseQa('```json\n{"legenda_curta":"Clique em Entrar abre o painel","descricao_detalhada":"Antes havia login. Depois apareceu o painel.","titulo_cenario":"Entrar abre o painel","gherkin":"Cenário: Entrar abre o painel\\n  Dado que estou no login\\n  Quando clico em Entrar\\n  Então vejo o painel\\n  E vejo o menu","cenarios_alternativos":["Entrar sem senha","Entrar com usuário bloqueado","ignorar terceiro"],"alerta_qa":""}\n```');
+assert.strictEqual(analise.legenda_curta, 'Clique em Entrar abre o painel');
+assert.ok(/Dado que[\s\S]*Quando[\s\S]*Então/.test(analise.gherkin));
+assert.strictEqual(analise.cenarios_alternativos.length, 2);
+assert.deepStrictEqual(parseAnaliseQa('fora do formato').cenarios_alternativos, []);
+assert.strictEqual(parseAnaliseQa('{"gherkin":"Given x"}').gherkin, '');
+assert.ok(analise.gherkin.includes('\n  Quando clico em Entrar'), 'o Gherkin mantém as quebras de linha');
+
+const longo = 'Detalhe do fluxo. '.repeat(120).trim();
+assert.strictEqual(
+  parseAnaliseQa(JSON.stringify({ legenda_curta: 'ok', descricao_detalhada: longo })).descricao_detalhada,
+  longo,
+  'texto longo não pode ser cortado'
+);
+
+const truncada = parseAnaliseQa('{"legenda_curta":"Clique em Entrar abre o painel do cliente","descricao_detalhada":"Antes o login estava vazio. Depois o painel apare');
+assert.strictEqual(truncada.legenda_curta, 'Clique em Entrar abre o painel do cliente');
+assert.ok(/^Antes o login estava vazio\./.test(truncada.descricao_detalhada), 'JSON incompleto deve ser recuperado');
+
+const truncadaLista = parseAnaliseQa('{"legenda_curta":"Painel abre","cenarios_alternativos":["Entrar sem senha","Entrar com usuário bl');
+assert.strictEqual(truncadaLista.cenarios_alternativos[0], 'Entrar sem senha');
 
 const bagunca = `===GHERKIN===
 e
