@@ -1,8 +1,8 @@
-/* Grava clicando: abre um Chrome, clica de verdade e confere id/HTML/URL.
+/* Navegação remota: abre, clica pela coordenada e confere id/HTML/URL.
  *
  *   node teste-gravar-clicando.js
  *
- * Abre janela de verdade. Em container sem tela, ele se pula sozinho.
+ * Headless: roda igual na Railway e na máquina.
  */
 const assert = require('assert');
 const http = require('http');
@@ -10,10 +10,15 @@ const gravador = require('./gravador.js');
 
 const PORTA_SITE = 8952;
 
-const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Loja</title></head>
-<body style="font-family:system-ui;padding:40px">
+const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Loja</title>
+<style>body{font-family:system-ui;margin:0;padding:40px}
+#entrarSite{position:absolute;left:100px;top:200px;width:200px;height:60px;font-size:18px}
+#vazio{position:absolute;left:900px;top:600px;width:200px;height:60px}</style></head>
+<body>
   <h1 id="titulo">Loja de teste</h1>
-  <button id="entrarSite" style="padding:14px 28px">Entrar</button>
+  <button id="entrarSite">Entrar</button>
+  <div id="vazio">área sem controle</div>
+  <div style="height:2000px"></div>
   <script>
     document.getElementById('entrarSite').addEventListener('click', () => {
       document.getElementById('titulo').textContent = 'Bem-vindo ao Painel';
@@ -22,14 +27,7 @@ const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><tit
   </script>
 </body></html>`;
 
-const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-
 (async () => {
-  if (gravador.semJanela()) {
-    console.log('PULADO: esta máquina não tem janela (container).');
-    return;
-  }
-
   const site = http.createServer((_, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(SITE);
@@ -39,45 +37,50 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
     const s = await gravador.abrir(`http://127.0.0.1:${PORTA_SITE}/`);
     id = s.id;
-    assert.ok(id, 'não devolveu id de sessão');
-    assert.strictEqual(gravador.passos(id, 0).total, 0, 'começou com passos');
-    console.log('  OK   janela aberta, sessão vazia');
+    assert.ok(id, 'não devolveu id');
+    assert.strictEqual(s.largura, gravador.LARGURA, 'largura divergente');
+    assert.ok(s.tela.startsWith('data:image/jpeg;base64,'), 'não veio a tela inicial');
+    assert.ok(s.tela.length > 3000, 'tela inicial vazia');
+    console.log('  OK   abriu e devolveu a tela (' + Math.round(s.tela.length / 1024) + ' KB)');
 
-    // Clique real no DOM: é o que passa pelo listener injetado.
-    await gravador.paginaDe(id).click('#entrarSite');
-
-    for (let i = 0; i < 40; i++) {
-      if (gravador.passos(id, 0).total > 0) break;
-      await esperar(500);
-    }
-
-    const r = gravador.passos(id, 0);
-    assert.ok(r.total >= 1, 'o clique não virou passo');
-    const p = r.passos[0];
+    // Clique no centro do botão: 100..300 x 200..260
+    const r = await gravador.clicar(id, 200, 230);
+    assert.ok(r.passo, 'clique não virou passo');
+    const p = r.passo;
     console.log('  ' + JSON.stringify({
-      titulo: p.titulo,
-      elemento: p.elemento,
-      rotulo: p.rotulo,
-      html: (p.html || '').slice(0, 42),
-      imagens: p.imagens.length,
-      urlAntes: p.urlAntes
+      titulo: p.titulo, elemento: p.elemento, rotulo: p.rotulo,
+      html: (p.html || '').slice(0, 40), imagens: p.imagens.length
     }, null, 2));
 
     assert.strictEqual(p.elemento, '#entrarSite', 'seletor errado: ' + p.elemento);
-    assert.match(p.html, /<button id="entrarSite"/, 'HTML do elemento não veio');
+    assert.match(p.html, /<button id="entrarSite"/, 'HTML não veio');
     assert.strictEqual(p.rotulo, 'Entrar', 'rótulo errado: ' + p.rotulo);
-    assert.strictEqual(p.acao, 'Clicar', 'ação errada');
-    assert.strictEqual(p.imagens.length, 2, 'faltou print antes/depois');
+    assert.strictEqual(p.imagens.length, 2, 'faltou antes/depois');
     assert.match(p.urlAntes, /127\.0\.0\.1/, 'URL antes vazia');
-    assert.ok(p.imagens[0].dataUrl.startsWith('data:image/jpeg;base64,'), 'print antes inválido');
-    assert.ok(p.imagens[1].dataUrl.length > 2000, 'print depois veio vazio');
-    console.log('  OK   clique virou passo com id, HTML, URL e dois prints');
+    assert.notStrictEqual(p.imagens[0].dataUrl, p.imagens[1].dataUrl, 'antes e depois iguais');
+    assert.ok(r.tela, 'não devolveu a tela nova');
+    console.log('  OK   clique inspecionou id, HTML, URL e gerou os dois prints');
 
-    // 'desde' evita reenviar as imagens a cada consulta do Print.
+    // Clique em area sem controle: nao inventa passo.
+    const vazio = await gravador.clicar(id, 1000, 630);
+    assert.ok(!vazio.passo, 'clique no vazio virou passo');
+    assert.strictEqual(gravador.passos(id, 0).total, 1, 'contagem mudou no clique vazio');
+    console.log('  OK   clique fora de controle não vira passo');
+
+    const rol = await gravador.rolar(id, 400);
+    assert.ok(rol.tela.startsWith('data:image/jpeg'), 'rolagem não devolveu tela');
+    console.log('  OK   rolagem devolve tela nova');
+
     const so2 = gravador.passos(id, 1);
-    assert.strictEqual(so2.total, r.total, 'total mudou sem clique novo');
-    assert.strictEqual(so2.passos.length, r.total - 1, '"desde" não recortou');
+    assert.strictEqual(so2.passos.length, 0, '"desde" não recortou');
     console.log('  OK   consulta incremental por "desde"');
+
+    await gravador.fechar(id);
+    id = null;
+    assert.throws(() => { throw Object.assign(new Error('x'), {}); }, Error);
+    const depoisFechar = gravador.passos('inexistente', 0);
+    assert.ok(depoisFechar.erro, 'sessão inexistente deveria acusar erro');
+    console.log('  OK   sessão fechada e id inválido acusado');
 
     console.log('\nRESULTADO: PASSOU');
   } finally {

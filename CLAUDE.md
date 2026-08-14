@@ -83,11 +83,26 @@ devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).
 A gravação por tela do Print usa `getDisplayMedia` — **pixels, sem DOM**. Ela não
 vê clique nenhum, nem que houve, nem em quê. Não tente tirar seletor dela.
 
-Quem tem DOM é `gravador.js` e a extensão. **`gravador.js`** (`/gravar/abrir`,
-`/gravar/passos`, `/gravar/fechar`) sobe um Chrome **visível** e injeta um
-listener de `pointerdown`: cada clique vira passo com seletor, HTML, URL e print
-antes/depois. Exige ponte **local** — o container da Railway não tem janela, e
-`/ping` avisa em `gravarClicando`.
+Quem tem DOM é o `gravador.js` e a extensão.
+
+**`gravador.js` — o caminho do cliente.** Rotas `/gravar/abrir|tela|clicar|rolar|digitar|fechar`.
+A ponte abre a página num Chrome **headless** e manda a imagem; o Print mostra e o
+analista clica nela. A coordenada volta, `elementFromPoint` acha o elemento, e saem
+seletor, rótulo, HTML e URL com print antes/depois. Roda no container, então
+**funciona pelo Print hospedado sem instalar nada** — é assim que o cliente usa.
+
+Não tente fazer isso com uma ponte local: página HTTPS não alcança `http://127.0.0.1`
+(conteúdo misto), e container não tem janela para Chrome visível.
+
+Três armadilhas já pagas ali, todas confirmadas por teste:
+
+- Leia o `outerHTML` **antes** de pintar a marca vermelha, senão o `style` entra na
+  evidência técnica.
+- Tire a marca por chamada explícita, nunca por timer: um timer a remove no meio do
+  passo seguinte e a tela parece ter mudado sozinha.
+- Não use "a tela mudou" para decidir se o clique vira passo — anel de foco sumindo
+  já basta para falsear. O critério é `cursor:pointer` ou casar a lista de tags
+  interativas, que ainda pega card em div com listener delegado.
 
 A extensão entrega de dois jeitos, ambos caindo em `aplicarEvidenciaImportada`:
 
