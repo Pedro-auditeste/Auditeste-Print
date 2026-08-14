@@ -1,10 +1,10 @@
 .git
 .gitignore
 *.md
+!audi-print-scanner/README.md
 index.html
 relatorio-teste.html
 audi-print
-audi-print-scanner
 auditeste-a11y/node_modules
 auditeste-a11y/saida
 auditeste-a11y/_teste
