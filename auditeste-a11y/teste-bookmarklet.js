@@ -68,6 +68,15 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('  OK   código ' + preparo.codigo + ' · bookmarklet de '
       + Math.round(preparo.href.length / 1024) + ' KB');
 
+    // Clicar no favorito DENTRO do Print rodaria o marcador na pagina errada:
+    // e o engano mais facil de cometer, entao tem que ser barrado.
+    const aoClicar = await print.evaluate(() => {
+      document.getElementById('linkMarcador').click();
+      return { marcando: !!window.__audiMarcando };
+    });
+    assert.strictEqual(aoClicar.marcando, false, 'clicar no favorito marcou a propria pagina do Print');
+    console.log('  OK   clicar no favorito dentro do Print não executa nada');
+
     // 2) O favorito roda no site, com o CSP ligado.
     const loja = await nav.newPage();
     const cspBloqueou = [];

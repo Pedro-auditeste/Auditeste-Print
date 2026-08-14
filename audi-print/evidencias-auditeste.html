@@ -1149,8 +1149,11 @@
     <div class="painel-marca" id="painelMarca" hidden>
       <label><b>Marcar cliques no seu navegador</b> — sem instalar nada, usando a sua sessão</label>
       <ol class="passos-marca">
-        <li>Arraste este botão para a barra de favoritos:
-          <a id="linkMarcador" class="bookmarklet" href="#" title="Arraste para a barra de favoritos">Audi Print · marcar</a></li>
+        <li><b>Arraste</b> este botão para a barra de favoritos (não clique nele):
+          <a id="linkMarcador" class="bookmarklet" href="#" title="Arraste para a barra de favoritos">Audi Print · marcar</a>
+          <br><span class="dica-captura">Barra escondida? <b>Ctrl+Shift+B</b> mostra ela.
+          Prefere não arrastar? <button type="button" class="btn pequeno" data-acao="copiarMarcador">Copiar comando</button>
+          e cole no console (<b>F12</b> → Console) já no site do cliente.</span></li>
         <li>Abra o site do cliente e clique nesse favorito.</li>
         <li>Cole o código quando ele pedir: <code id="codigoMarca">—</code></li>
         <li>Navegue e clique normalmente. Os passos aparecem aqui.</li>
@@ -2947,7 +2950,32 @@
     if(p.hidden) return;
     const alvo = await resolverPonteIA();
     const link = document.getElementById('linkMarcador');
-    if(link) link.href = 'javascript:' + encodeURIComponent(corpoDoMarcador(alvo.url || ponteUrl()));
+    if(link){
+      link.href = 'javascript:' + encodeURIComponent(corpoDoMarcador(alvo.url || ponteUrl()));
+      /* Clicar aqui rodaria o marcador na propria pagina do Print, que nao e o
+       * site testado — e daria a impressao de que nao funcionou. So arrastar vale. */
+      link.onclick = (ev) => {
+        ev.preventDefault();
+        informar('Este botão é para <b>arrastar</b> até a barra de favoritos, não para clicar aqui.<br><br>'
+          + 'Clicar nele agora rodaria o marcador nesta página do Print, e não no site do cliente.<br><br>'
+          + 'Barra de favoritos escondida? <b>Ctrl+Shift+B</b>. Ou use <b>Copiar comando</b> e cole no console do site.',
+          'Arraste, não clique');
+      };
+    }
+  }
+
+  async function copiarMarcador(){
+    try{
+      const alvo = await resolverPonteIA();
+      // Sem o prefixo javascript:, que o console nao aceita.
+      await navigator.clipboard.writeText(corpoDoMarcador(alvo.url || ponteUrl()));
+      informar('Comando copiado.<br><br><b>1.</b> Abra o site do cliente.<br>'
+        + '<b>2.</b> Aperte <b>F12</b> e vá na aba <b>Console</b>.<br>'
+        + '<b>3.</b> Cole e aperte Enter. Se o Chrome pedir, digite <b>allow pasting</b> antes.<br>'
+        + '<b>4.</b> Cole o código quando ele perguntar.', 'Comando copiado');
+    }catch(err){
+      informar('Não consegui copiar: ' + ((err && err.message) || 'erro'), 'Falha ao copiar');
+    }
   }
 
   async function gerarCodigoMarca(){
@@ -4240,6 +4268,7 @@
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
     if(acao === 'marcarCliques') return abrirPainelMarca();
+    if(acao === 'copiarMarcador') return copiarMarcador();
     if(acao === 'gerarCodigoMarca') return gerarCodigoMarca();
     if(acao === 'pararMarca') return pararMarca();
     if(acao === 'fecharMarca'){ document.getElementById('painelMarca').hidden = true; return; }
