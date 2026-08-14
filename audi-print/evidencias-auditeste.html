@@ -478,6 +478,18 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
+  .painel-seletores{background:var(--card);border:2px solid var(--green);border-radius:12px;
+    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);}
+  .painel-seletores label{display:block;color:var(--navy);margin-bottom:8px;}
+  .painel-seletores .dica-captura{margin:8px 0 0;}
+  #listaSeletores{margin-top:12px;max-height:320px;overflow:auto;}
+  #listaSeletores table{width:100%;border-collapse:collapse;font-size:.74rem;}
+  #listaSeletores th{text-align:left;color:var(--navy);border-bottom:1px solid #cfdce3;padding:5px 6px;}
+  #listaSeletores td{border-bottom:1px solid #eef3f6;padding:5px 6px;vertical-align:top;overflow-wrap:anywhere;}
+  #listaSeletores code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
+    font-family:ui-monospace,Consolas,monospace;}
+  #listaSeletores .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
+    background:#fff;border-radius:4px;}
   .meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
     font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
@@ -1135,6 +1147,18 @@
     <div class="cabecalho-passos">
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
+    </div>
+    <div class="painel-seletores" id="painelSeletores" hidden>
+      <label for="urlSeletores"><b>Link da página testada</b></label>
+      <div class="linha-scan">
+        <input type="url" id="urlSeletores" placeholder="https://site-do-cliente.com/pagina"
+          autocomplete="off" aria-label="Link da página para ler os ids">
+        <button type="button" class="btn primario" data-acao="lerSeletores">Ler ids da página</button>
+        <button type="button" class="btn" data-acao="fecharSeletores">Fechar</button>
+      </div>
+      <p class="dica-captura">A ponte abre a página e lê os ids. Passos sem seletor são
+        preenchidos pelo rótulo. Página com login não é alcançada — nessa use a extensão.</p>
+      <div id="listaSeletores"></div>
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
@@ -2839,25 +2863,64 @@
       || null;
   }
 
-  async function buscarSeletores(){
-    const passos = [...lista.querySelectorAll('.passo')];
-    if(!passos.length){ avisar('Não há passos para completar.'); return; }
-    const faltando = passos.filter(p => !(p.dataset.elemento || '').trim());
-    if(!faltando.length){ avisar('Todos os passos já têm seletor.'); return; }
+  let catalogoAtual = [];
 
-    const sugestao = (document.querySelector('[data-campo="observacoes"]')?.textContent || '')
-      .match(/https?:\/\/[^\s"']+/);
-    const url = (prompt('Link da página testada (ela será aberta para ler os ids):',
-      sugestao ? sugestao[0] : 'https://') || '').trim();
-    if(!url) return;
+  function abrirPainelSeletores(){
+    const painel = document.getElementById('painelSeletores');
+    if(!painel) return;
+    painel.hidden = !painel.hidden;
+    if(painel.hidden) return;
+    const campo = document.getElementById('urlSeletores');
+    if(campo && !campo.value){
+      // Aproveita a URL que a gravacao ja registrou, para nao digitar de novo.
+      const dosPassos = [...lista.querySelectorAll('.passo')]
+        .map(p => p.dataset.urlAntes || p.dataset.urlDepois).find(Boolean);
+      const daFicha = (document.querySelector('[data-campo="observacoes"]')?.textContent || '')
+        .match(/https?:\/\/[^\s"']+/);
+      campo.value = dosPassos || (daFicha ? daFicha[0] : '');
+    }
+    if(campo) campo.focus();
+  }
+
+  function mostrarCatalogo(elementos, url){
+    const caixa = document.getElementById('listaSeletores');
+    if(!caixa) return;
+    catalogoAtual = elementos;
+    if(!elementos.length){ caixa.textContent = ''; return; }
+    const linhas = elementos.slice(0, 200).map((e, i) =>
+      '<tr><td>' + esc(e.rotulo || '(sem rótulo)') + '</td>'
+      + '<td><code>' + esc(e.seletor) + '</code></td>'
+      + '<td><button type="button" class="copiar-sel" data-i="' + i + '">Copiar</button></td></tr>'
+    ).join('');
+    caixa.innerHTML = '<p class="dica-captura">' + elementos.length + ' elemento(s) em '
+      + esc(url) + (elementos.length > 200 ? ' — mostrando os 200 primeiros' : '') + '</p>'
+      + '<table><thead><tr><th>Rótulo</th><th>Seletor</th><th></th></tr></thead><tbody>'
+      + linhas + '</tbody></table>';
+    caixa.querySelectorAll('.copiar-sel').forEach(b => {
+      b.onclick = async () => {
+        const alvo = catalogoAtual[Number(b.dataset.i)];
+        if(!alvo) return;
+        try{ await navigator.clipboard.writeText(alvo.seletor); b.textContent = 'Copiado'; }
+        catch(_){ b.textContent = 'Copie manualmente'; }
+        setTimeout(()=>{ b.textContent = 'Copiar'; }, 1500);
+      };
+    });
+  }
+
+  async function lerSeletores(){
+    const campo = document.getElementById('urlSeletores');
+    const url = ((campo && campo.value) || '').trim();
+    if(!url){ avisar('Cole o link da página testada.'); if(campo) campo.focus(); return; }
     try{ new URL(url); }catch(_){ avisar('URL inválida.'); return; }
 
     const statusIA = document.getElementById('statusIA');
-    if(statusIA) statusIA.textContent = 'Abrindo a página e lendo os ids...';
+    const dizer = (t2) => { if(statusIA) statusIA.textContent = t2; };
+    dizer('Abrindo a página e lendo os ids...');
     try{
       const alvo = await resolverPonteIA();
       if(!alvo.url || !alvo.info){
         informar('A ponte precisa estar no ar para ler os ids da página.', 'Ponte fora do ar');
+        dizer('');
         return;
       }
       const resp = await fetch(alvo.url + '/elementos', {
@@ -2871,6 +2934,11 @@
       const elementos = dados.elementos || [];
       if(!elementos.length) throw new Error('A página não devolveu elementos. Ela pode exigir login.');
 
+      mostrarCatalogo(elementos, dados.url || url);
+
+      // Preenche os passos que estao sem seletor; sem passos, fica so o catalogo.
+      const faltando = [...lista.querySelectorAll('.passo')]
+        .filter(p => !(p.dataset.elemento || '').trim());
       let achou = 0;
       faltando.forEach(passo => {
         const el = acharElemento(rotuloDoPasso(passo), elementos);
@@ -2891,17 +2959,18 @@
         });
       });
 
-      const msg = achou + ' de ' + faltando.length + ' passo(s) ganharam seletor'
-        + ' (a página tinha ' + elementos.length + ' elementos).';
-      if(statusIA) statusIA.textContent = msg;
-      avisar(achou ? msg : 'Nenhum rótulo do print bateu com os elementos da página. '
-        + 'Confira se o link é o da tela testada.');
+      const msg = !faltando.length
+        ? elementos.length + ' elemento(s) lidos. Nenhum passo estava sem seletor.'
+        : achou + ' de ' + faltando.length + ' passo(s) ganharam seletor, de '
+          + elementos.length + ' elemento(s) na página.';
+      dizer(msg);
+      avisar(msg);
     }catch(err){
       const m = (err && err.message) || 'erro';
-      if(statusIA) statusIA.textContent = 'Não consegui ler os ids: ' + m;
+      dizer('Não consegui ler os ids: ' + m);
       informar(/timeout|abort/i.test(m)
         ? 'A página demorou demais para abrir. Tente de novo.'
-        : 'Não consegui ler os ids da página: ' + m, 'Falha ao buscar seletores');
+        : 'Não consegui ler os ids da página: ' + m, 'Falha ao ler os ids');
     }
   }
 
@@ -4127,7 +4196,9 @@
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
-    if(acao === 'buscarSeletores') return buscarSeletores();
+    if(acao === 'buscarSeletores') return abrirPainelSeletores();
+    if(acao === 'lerSeletores') return lerSeletores();
+    if(acao === 'fecharSeletores'){ document.getElementById('painelSeletores').hidden = true; return; }
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
   });
