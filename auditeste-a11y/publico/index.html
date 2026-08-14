@@ -484,6 +484,16 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
+  .meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
+    font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
+  .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
+    background:#fff;border-radius:4px;margin-left:2px;}
+  .insp-html{margin-top:5px;}
+  .insp-html summary{cursor:pointer;color:var(--navy);font-weight:700;font-size:.72rem;}
+  .insp-html pre{background:#0d3446;color:#e8f2f7;border-radius:6px;padding:8px;margin:5px 0 0;
+    max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+    font-family:ui-monospace,Consolas,monospace;font-size:.71rem;}
+  .sem-insp{color:var(--muted);font-style:italic;}
   .passo.alerta-qa{border:2px solid #e8a33d;}
   .legenda-ia{font-weight:700;color:var(--navy);font-size:.82rem;margin:8px 0;}
   .analise-qa{margin:10px 0;}
@@ -3109,12 +3119,33 @@
     }
     const box = passo.querySelector('.meta-qa');
     if(!box) return;
-    if(!(dados.acao || dados.elemento)){ box.hidden = true; box.innerHTML = ''; return; }
+    if(!(dados.acao || dados.elemento)){
+      /* Gravando pela tela nao ha DOM: getDisplayMedia entrega pixels e a pagina
+       * gravada e de outra origem. Antes a caixa so sumia e o QA nao entendia
+       * por que o seletor nunca vinha. */
+      const auto = passo.classList.contains('passo-auto');
+      box.hidden = !auto;
+      box.innerHTML = auto
+        ? '<span class="sem-insp">Sem seletor: a gravação por tela captura imagem, não o HTML. '
+          + 'Para ter id e HTML do elemento, use a extensão Chrome do Audi Print e importe o JSON.</span>'
+        : '';
+      return;
+    }
     box.hidden = false;
+    const sel = String(dados.elemento || '').trim();
     box.innerHTML = '<b>' + esc(dados.acao || '') + '</b>'
       + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')
-      + ' · <code>' + esc(dados.elemento || '') + '</code>'
-      + (dados.html ? '<div class="html-insp">' + esc(String(dados.html)) + '</div>' : '');
+      + (sel ? ' · <code>' + esc(sel) + '</code> <button type="button" class="copiar-sel">Copiar</button>' : '')
+      + (dados.html
+          ? '<details class="insp-html"><summary>HTML do elemento</summary>'
+            + '<pre>' + esc(String(dados.html)) + '</pre></details>'
+          : '');
+    const copiar = box.querySelector('.copiar-sel');
+    if(copiar) copiar.onclick = async () => {
+      try{ await navigator.clipboard.writeText(sel); copiar.textContent = 'Copiado'; }
+      catch(_){ copiar.textContent = 'Copie manualmente'; }
+      setTimeout(()=>{ copiar.textContent = 'Copiar'; }, 1600);
+    };
   }
 
   function dataUrlParaBlob(dataUrl){
@@ -3548,6 +3579,12 @@
       ".passo .carimbo{font-family:'Cascadia Code',Consolas,monospace;font-size:.75rem;color:var(--muted);margin-bottom:4px}",
       '.passo .titulo{color:var(--navy);font-weight:700;font-size:.88rem;margin-bottom:5px;overflow-wrap:break-word}',
       '.passo .obs{font-size:.8rem;margin-bottom:9px;line-height:1.4;overflow-wrap:break-word}',
+      // Inspecao do elemento: sem isto o seletor e o HTML saiam sem formatacao.
+      '.meta-qa{font-size:.74rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere}',
+      '.meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere}',
+      '.insp-html{margin-top:5px}',
+      '.insp-html summary{cursor:pointer;color:var(--navy);font-weight:700;font-size:.72rem}',
+      '.insp-html pre{background:#0d3446;color:#e8f2f7;border-radius:6px;padding:8px;margin:5px 0 0;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,Consolas,monospace;font-size:.71rem}',
       '.legenda-ia{font-weight:700;color:var(--navy);font-size:.84rem;margin:8px 0}',
       '.analise-qa{background:#f7faf6;border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:10px;font-size:.8rem}',
       '.analise-qa h3{color:var(--navy);font-size:.88rem;margin-bottom:6px}.analise-qa pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid var(--line);border-radius:7px;padding:9px;margin:8px 0}.analise-qa ul{padding-left:20px}',
@@ -3996,7 +4033,7 @@
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
           <div class="obs">${esc(p.obs)}</div>
           ${(p.timestampAntes || p.urlAntes || p.urlDepois || p.frameUrl) ? `<div class="meta-evento">${p.timestampAntes ? `Antes: ${esc(new Date(p.timestampAntes).toLocaleString('pt-BR'))}` : ''}${p.timestampDepois ? ` · Depois: ${esc(new Date(p.timestampDepois).toLocaleString('pt-BR'))}` : ''}${p.urlAntes ? ` · URL antes: ${esc(p.urlAntes)}` : ''}${p.urlDepois ? ` · URL depois: ${esc(p.urlDepois)}` : ''}${p.frameUrl ? ` · Iframe: ${esc(p.frameUrl)}` : ''}</div>` : ''}
-          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''} · <code>${esc(p.elemento || '')}</code>${p.html ? `<div class="html-insp">${esc(p.html)}</div>` : ''}</div>` : ''}
+          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code>` : ''}${p.html ? `<details class="insp-html"><summary>HTML do elemento</summary><pre>${esc(p.html)}</pre></details>` : ''}</div>` : ''}
           ${(p.imagens || []).length >= 2 ? `<button class="gerar-desc" data-acao="gerarDescricaoRegistro" data-passo="${i}">Gerar descrição novamente</button>` : ''}
           <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
