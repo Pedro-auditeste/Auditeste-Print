@@ -410,6 +410,12 @@ function textoLinha(t) {
   return textoLimpo(String(t || '').replace(/\s+/g, ' '));
 }
 
+/** O modelo às vezes escreve "\n" literal no JSON em vez da quebra de verdade,
+ *  e o Gherkin chega ao QA com \n no meio do texto. */
+function quebrasReais(t) {
+  return String(t || '').replace(/\\r\\n|\\r|\\n/g, '\n').replace(/\\t/g, ' ');
+}
+
 /** Erro de quem chamou, não da ponte: vira 400 em vez de 500. */
 function erroPedido(mensagem) {
   const err = new Error(mensagem);
@@ -502,8 +508,8 @@ function parseAnaliseQa(texto) {
   const bruto = String(texto || '').replace(/```(?:json)?|```/gi, '').trim();
   const dados = lerJsonAnalise(bruto);
   if (!dados) return vazio;
-  const campo = (nome) => typeof dados[nome] === 'string' ? textoLinha(dados[nome]) : '';
-  const gherkin = typeof dados.gherkin === 'string' ? textoLimpo(dados.gherkin) : '';
+  const campo = (nome) => typeof dados[nome] === 'string' ? textoLinha(quebrasReais(dados[nome])) : '';
+  const gherkin = typeof dados.gherkin === 'string' ? textoLimpo(quebrasReais(dados.gherkin)) : '';
   return {
     legenda_curta: campo('legenda_curta'),
     descricao_detalhada: campo('descricao_detalhada'),

@@ -67,6 +67,22 @@ caso('ainda recusa texto que não é Gherkin', () => {
   assert.strictEqual(comGherkin('Só uma frase solta sem passos.'), '');
 });
 
+caso('troca "\\n" literal por quebra de verdade', () => {
+  // Foi o que a NVIDIA devolveu de fato: o QA copiava o Gherkin com \n no meio.
+  const g = comGherkin('Cenário: Entrar\\n Dado que estou no login\\n Quando clico\\n Então entro');
+  assert.ok(g, 'o Gherkin com \\n literal foi descartado');
+  assert.ok(!/\\n/.test(g), 'sobrou \\n literal: ' + g);
+  assert.strictEqual(g.split('\n').length, 4, 'não virou 4 linhas: ' + JSON.stringify(g));
+});
+
+caso('legenda também não carrega "\\n" literal', () => {
+  const r = parseAnaliseQa(JSON.stringify({
+    legenda_curta: 'Entrou no login\\ne viu o formulário',
+    descricao_detalhada: 'x'
+  }));
+  assert.ok(!/\\n/.test(r.legenda_curta), r.legenda_curta);
+});
+
 console.log('--- corte de frase incompleta ---');
 
 caso('corta a frase que parou no meio', () => {
