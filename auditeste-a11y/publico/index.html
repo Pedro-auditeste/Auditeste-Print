@@ -1025,7 +1025,7 @@
       <div class="relogio" id="relogio">00:00</div>
       <div class="contagem"><b id="qtd">0</b> passo(s)</div>
       <div class="acoes">
-        <button class="btn primario" id="btnIniciar">Iniciar gravação</button>
+        <button class="btn primario" id="btnIniciar">Gravar minha tela (sem id/HTML)</button>
         <button class="btn" id="btnCapturar" disabled>Capturar agora</button>
         <button class="btn" id="btnPausar" disabled>Pausar</button>
         <button class="btn perigo" id="btnParar" disabled>Parar</button>
@@ -1148,7 +1148,7 @@
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
-    <div class="painel-clicando" id="painelClicando" hidden>
+    <div class="painel-clicando" id="painelClicando">
       <label for="urlClicando"><b>Gravar clicando</b> — a ponte abre o site aqui e cada clique vira evidência</label>
       <div class="linha-scan">
         <input type="url" id="urlClicando" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site">
@@ -1174,7 +1174,7 @@
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
-      <button class="btn primario" data-acao="gravarClicando">Gravar clicando (abre o navegador)</button>
+      <button class="btn primario" data-acao="gravarClicando">Gravar clicando</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
@@ -2891,8 +2891,8 @@
   function abrirPainelClicando(){
     const p = elClicando('painelClicando');
     if(!p) return;
-    p.hidden = !p.hidden;
-    if(p.hidden) return;
+    p.hidden = false;
+    p.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const campo = elClicando('urlClicando');
     if(campo){ if(!campo.value) campo.value = 'https://'; campo.focus(); }
   }
@@ -3339,8 +3339,9 @@
       const auto = passo.classList.contains('passo-auto');
       box.hidden = !auto;
       box.innerHTML = auto
-        ? '<span class="sem-insp">Sem seletor: a gravação por tela captura imagem, não o HTML. '
-          + 'Para ter id e HTML do elemento, use a extensão Chrome do Audi Print e importe o JSON.</span>'
+        ? '<span class="sem-insp">Sem seletor: esta gravação capturou a <b>imagem</b> da sua tela, '
+          + 'e imagem não tem HTML. Para registrar <b>id e HTML</b>, use '
+          + '<b>Gravar clicando</b> — o site abre aqui dentro e cada clique traz o elemento.</span>'
         : '';
       return;
     }

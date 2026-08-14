@@ -56,7 +56,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     await p.evaluate(() => {
       document.querySelectorAll('.tela').forEach((el) => el.classList.remove('ativa'));
       document.getElementById('telaGravador').classList.add('ativa');
-      document.querySelector('[data-acao="gravarClicando"]').click();
+      // painel ja nasce visivel; o botao so rola ate ele
     });
     await esperar(300);
     assert.ok(await p.evaluate(() => !document.getElementById('painelClicando').hidden),

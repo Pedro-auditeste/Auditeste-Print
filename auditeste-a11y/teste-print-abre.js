@@ -42,7 +42,9 @@ const ESSENCIAIS = [
 
   assert.deepStrictEqual(r.faltando, [], 'sumiram elementos essenciais');
   assert.ok(r.telas >= 3, 'faltam telas: ' + r.telas);
-  assert.match(r.rotuloIniciar, /gravação/i, 'botão ainda fala em teste');
+  // O que importa: nao promete teste automatico, e diz que e a tela.
+  assert.ok(!/teste/i.test(r.rotuloIniciar), 'botão ainda fala em teste: ' + r.rotuloIniciar);
+  assert.match(r.rotuloIniciar, /grav/i, 'botão não fala em gravar: ' + r.rotuloIniciar);
   assert.strictEqual(r.sobrouTesteAutomatico, false, 'sobrou peça do teste automático');
   assert.strictEqual(erros.length, 0, 'a página deu erro de JS');
   console.log('\nRESULTADO: PASSOU');
