@@ -71,11 +71,4 @@ caso('o que servidor.js requer está entre os COPY', () => {
   assert.deepStrictEqual(fora, [], 'servidor.js requer, mas o Dockerfile não copia: ' + fora.join(', '));
 });
 
-caso('a pasta da extensão entra na imagem', () => {
-  // Sem ela, /extensao.zip existe e o arquivo não.
-  assert.ok(origens.includes('audi-print-scanner'), 'a extensão não é copiada');
-  assert.ok(!ignorado('audi-print-scanner', r), '.dockerignore bloqueia a extensão');
-  assert.ok(fs.existsSync(path.join(RAIZ, 'audi-print-scanner', 'manifest.json')), 'sem manifest.json');
-});
-
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

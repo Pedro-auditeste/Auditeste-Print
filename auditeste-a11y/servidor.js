@@ -34,7 +34,6 @@ const fs = require('fs');
 const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
-const { zipExtensao } = require('./extensao.js');
 const gravador = require('./gravador.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
@@ -278,25 +277,6 @@ const servidor = http.createServer(async (req, res) => {
       console.log('gravar FALHOU (' + acao + '): ' + err.message);
       return responder(res, err.expirada ? 410 : err.codigo === 'SEM_CHROME' ? 503 : 500,
         { erro: err.message }, origem);
-    }
-  }
-
-  /* A extensão em .zip: página web não instala extensão (o Chrome tirou isso em
-   * 2018), então o Print oferece o download e mostra os três passos. Sem token:
-   * é o mesmo código-fonte que já está no repositório público. */
-  if (u.pathname === '/extensao.zip') {
-    try {
-      const zip = zipExtensao();
-      res.writeHead(200, {
-        'Content-Type': 'application/zip',
-        'Content-Disposition': 'attachment; filename="audi-print-extensao.zip"',
-        'Content-Length': zip.length,
-        'Access-Control-Allow-Origin': ORIGENS === '*' ? '*' : origem
-      });
-      return res.end(zip);
-    } catch (err) {
-      console.log('extensao.zip FALHOU: ' + err.message);
-      return responder(res, 500, { erro: 'não consegui montar o pacote: ' + err.message }, origem);
     }
   }
 

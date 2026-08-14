@@ -1175,7 +1175,6 @@
       <button class="btn" data-acao="manual">+ Passo manual</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
       <button class="btn primario" data-acao="gravarClicando">Navegar aqui e capturar id/HTML</button>
-      <button class="btn" data-acao="baixarExtensao" id="btnBaixarExtensao">Quer id e HTML? Baixe a extensão</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
@@ -2982,44 +2981,6 @@
     dizerClicando('Gravação encerrada. Revise os passos e salve no projeto.');
   }
 
-  /* Página web não instala extensão — o Chrome tirou isso em 2018. O que dá é
-   * entregar o pacote pronto e mostrar os três passos. */
-  async function baixarExtensao(){
-    if(extensaoPresente){
-      informar('A extensão já está instalada e ativa nesta página. Use <b>Trazer gravação da extensão</b> '
-        + 'depois de gravar no site.', 'Já instalada');
-      return;
-    }
-    const btn = document.getElementById('btnBaixarExtensao');
-    if(btn) btn.disabled = true;
-    try{
-      const alvo = await resolverPonteIA();
-      if(!alvo.url) throw new Error('não encontrei a ponte');
-      const resp = await fetch(alvo.url + '/extensao.zip', { signal: AbortSignal.timeout(60000) });
-      if(!resp.ok) throw new Error('HTTP ' + resp.status);
-      const blob = await resp.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'audi-print-extensao.zip';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=> URL.revokeObjectURL(a.href), 30000);
-      informar(
-        '<b>1.</b> Descompacte o arquivo baixado numa pasta fixa (não apague depois).<br>'
-        + '<b>2.</b> Abra <b>chrome://extensions</b> e ligue o <b>Modo do desenvolvedor</b>.<br>'
-        + '<b>3.</b> Clique em <b>Carregar sem compactação</b> e escolha a pasta descompactada.<br><br>'
-        + 'Depois recarregue esta página e a do site. Grave pela extensão e volte aqui em '
-        + '<b>Trazer gravação da extensão</b> — cada passo virá com id e HTML.',
-        'Extensão baixada · faltam 3 passos');
-    }catch(err){
-      informar('Não consegui baixar a extensão: ' + ((err && err.message) || 'erro')
-        + '. A pasta também está no repositório, em audi-print-scanner.', 'Falha no download');
-    }finally{
-      if(btn) btn.disabled = false;
-    }
-  }
-
   async function puxarDaExtensao(){
     const btn = document.getElementById('btnPuxarExtensao');
     if(btn) btn.disabled = true;
@@ -4291,7 +4252,6 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
-    if(acao === 'baixarExtensao') return baixarExtensao();
     if(acao === 'gravarClicando') return abrirPainelClicando();
     if(acao === 'abrirClicando') return abrirClicando();
     if(acao === 'encerrarClicando') return encerrarClicando();
