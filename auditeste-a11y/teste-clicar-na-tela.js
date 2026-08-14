@@ -63,9 +63,10 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
       'o painel não abriu');
     console.log('  OK   painel abriu');
 
+    // Botao grande da barra: e o que o cliente clica.
     await p.evaluate((u) => {
       document.getElementById('urlClicando').value = u;
-      document.querySelector('[data-acao="abrirClicando"]').click();
+      document.getElementById('btnIniciar').click();
     }, `http://127.0.0.1:${PORTA_SITE}/`);
 
     for (let i = 0; i < 60; i++) {

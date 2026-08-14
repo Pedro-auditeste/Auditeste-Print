@@ -1025,7 +1025,7 @@
       <div class="relogio" id="relogio">00:00</div>
       <div class="contagem"><b id="qtd">0</b> passo(s)</div>
       <div class="acoes">
-        <button class="btn primario" id="btnIniciar">Gravar minha tela (sem id/HTML)</button>
+        <button class="btn primario" id="btnIniciar">Iniciar gravação</button>
         <button class="btn" id="btnCapturar" disabled>Capturar agora</button>
         <button class="btn" id="btnPausar" disabled>Pausar</button>
         <button class="btn perigo" id="btnParar" disabled>Parar</button>
@@ -1095,8 +1095,8 @@
 
     <div class="dica">
       <b>Como gravar</b>
-      Clique em <b>Iniciar gravação</b> e escolha a aba do site. Um print sai a cada mudança de tela, e cada par ganha descrição.
-      Para registrar também o <b>id e o HTML</b> do que foi clicado, use a extensão Chrome e importe o JSON aqui.
+      Cole o <b>link do site</b> e clique em <b>Iniciar gravação</b>. O site abre aqui dentro: cada clique seu vira um passo com <b>id, HTML e URL</b> do elemento, mais print antes e depois.
+      Precisa gravar a sua própria tela em vez do site? A opção está em <b>Opções de captura</b> — mas ali não há id nem HTML, porque imagem não tem DOM.
       Depois salve e use <b>Gerar cenários</b>.
     </div>
 
@@ -1149,10 +1149,10 @@
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
     <div class="painel-clicando" id="painelClicando">
-      <label for="urlClicando"><b>Gravar clicando</b> — a ponte abre o site aqui e cada clique vira evidência</label>
+      <label for="urlClicando"><b>Link do site que você vai testar</b> — ele abre aqui dentro e cada clique registra id, HTML e URL</label>
       <div class="linha-scan">
         <input type="url" id="urlClicando" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site">
-        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir site</button>
+        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir e gravar</button>
         <button type="button" class="btn perigo" data-acao="encerrarClicando" id="btnEncerrarClicando" hidden>Encerrar</button>
         <button type="button" class="btn" data-acao="fecharClicando">Fechar</button>
       </div>
@@ -1170,7 +1170,7 @@
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
-    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Clique em Iniciar gravação e escolha a aba do site.</div>
+    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Cole o link do site e clique em Iniciar gravação.</div>
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
@@ -1903,8 +1903,11 @@
     vigia = setInterval(observar, 200);
   }
 
+  /* A gravacao principal e a que captura id e HTML: abre o site aqui dentro.
+   * Gravar a propria tela virou opcao secundaria, dentro de Opcoes de captura,
+   * porque imagem nao tem DOM e nunca dara seletor. */
   function iniciar(){
-    return iniciarManual();
+    return abrirClicando();
   }
 
   function parar(externo, silencioso){
