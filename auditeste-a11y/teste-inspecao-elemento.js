@@ -49,7 +49,15 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
       // Procura o id capturado, nao 'qualquer button': o bloco tem o botao
       // Copiar HTML, que e nosso e deve existir.
       virouBotaoReal: !!qa.querySelector('.insp-html #entrarSite'),
-      temCopiarHtml: !!qa.querySelector('.copiar-html')
+      temCopiarHtml: !!qa.querySelector('.copiar-html'),
+      // Pedido explicito: o id/HTML fica ABAIXO do texto que a IA escreveu.
+      ordemNoPasso: (() => {
+        const filhos = [...a.children];
+        return {
+          obs: filhos.findIndex((n) => n.classList.contains('obs')),
+          metaQa: filhos.findIndex((n) => n.classList.contains('meta-qa'))
+        };
+      })()
     };
 
     const b = criar(true);
@@ -73,6 +81,9 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
   assert.match(r.extensao.htmlNoPre, /<button id="entrarSite"/, 'HTML não veio como texto');
   assert.strictEqual(r.extensao.virouBotaoReal, false, 'o HTML virou elemento real — escape falhou');
   assert.ok(r.extensao.temCopiarHtml, 'faltou o botão Copiar HTML');
+  const o = r.extensao.ordemNoPasso;
+  assert.ok(o.obs >= 0 && o.metaQa >= 0, 'não achei descrição ou caixa do elemento');
+  assert.ok(o.metaQa > o.obs, 'id/HTML precisa vir DEPOIS da descrição da IA');
   // Sem seletor a caixa some: repetir explicação em todo passo poluía a evidência.
   assert.strictEqual(r.gravacao.visivel, false, 'caixa vazia continua ocupando espaço');
   assert.strictEqual(r.manualVazio.visivel, false, 'passo manual vazio poluiu a tela');
