@@ -17,6 +17,10 @@ const MAX_IMAGENS = /llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + 
 const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 2048;
 const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
 const TIMEOUT_CENARIOS_MS = Math.max(90000, TIMEOUT_MS);
+/* Teto para a SOMA das tentativas de IA em /cenarios. Fica abaixo dos 120 s
+ * que o Print espera, para dar tempo de devolver o Gherkin montado dos textos
+ * em vez do navegador abortar e o QA ficar sem nada. */
+const ORCAMENTO_CENARIOS_MS = Number(process.env.AGENTE_ORCAMENTO_CENARIOS_MS) || 75000;
 
 const SISTEMA = `Você gera a entrada da skill automacao-web-qa / SKILL-MAPEAMENTO-QA a partir dos PRINTS do Audi Print.
 
@@ -227,6 +231,20 @@ function inferirAcao(p) {
   return 'Clicar';
 }
 
+/** Nome legivel para o cenario. O seletor fica so no mapeamento tecnico —
+ *  'eu clico em "#entrarSite"' nao e cenario que o negocio consegue ler. */
+function rotuloHumano(p) {
+  const rot = textoLinha(p && p.rotulo).trim();
+  if (rot) return rot;
+  const t = String((p && p.titulo) || '');
+  const q = /["“”«»]([^"“”«»]+)["“”«»]/.exec(t);
+  if (q) return q[1].trim();
+  const limpo = textoLinha(
+    t.replace(/^(Clicou|Digitou|Pesquisou|Abriu|Entrou|Preencheu|Acessou)\s+(em\s+|na\s+|no\s+)?/i, '')
+  ).trim();
+  return limpo || extrairAlvo(p);
+}
+
 function extrairAlvo(p) {
   const el = String(p.elemento || '').trim();
   if (el) return el;
@@ -256,7 +274,7 @@ function montarCenariosDosPassos({ ficha, passos }) {
   if (!lista.length) throw erroPedido('nenhum passo enviado');
   const mod = slugModulo(ficha);
   const nomeMod = String((ficha && ficha.modulo) || 'Fluxo').trim() || 'Fluxo';
-  const primeiroAlvo = extrairAlvo(lista[0]);
+  const primeiroAlvo = rotuloHumano(lista[0]);
   const linhasG = [
     '# language: pt',
     `# Feature: features/${mod}/${mod}.feature`,
@@ -274,8 +292,10 @@ function montarCenariosDosPassos({ ficha, passos }) {
   const linhasM = [];
   lista.forEach((p, i) => {
     const acao = inferirAcao(p);
-    const alvo = extrairAlvo(p);
-    const step = linhaGherkin(acao, alvo, i, (p.valor || '').trim()).trim();
+    const alvo = extrairAlvo(p);        // seletor: vai para o mapeamento
+    const nome = rotuloHumano(p);       // rotulo: vai para o cenario
+    // Sem trim aqui: linhaGherkin ja indenta, e o trim quebrava o alinhamento.
+    const step = linhaGherkin(acao, nome, i, (p.valor || '').trim());
     linhasG.push(step);
     linhasM.push(`Passo: ${i + 1}`);
     linhasM.push(`Elemento Web: ${alvo}`);
@@ -337,10 +357,15 @@ function modelosTentativa() {
 }
 
 /** Chamada no formato oficial NVIDIA (chat/completions), sem SDK. */
-async function chamarNvidia({ messages, maxTokens, temperature, timeoutMs }) {
+/* prazoFinal e um instante absoluto que limita a SOMA das tentativas. Sem ele,
+ * dois modelos a 90 s davam 180 s e o navegador desistia antes da resposta. */
+async function chamarNvidia({ messages, maxTokens, temperature, timeoutMs, prazoFinal }) {
   exigirChave();
   let ultimo = null;
   for (const model of modelosTentativa()) {
+    const restante = prazoFinal ? prazoFinal - Date.now() : Infinity;
+    if (restante <= 0) break;
+    const espera = Math.min(timeoutMs || TIMEOUT_MS, restante);
     try {
       const resp = await fetch(BASE_URL + '/chat/completions', {
         method: 'POST',
@@ -359,7 +384,7 @@ async function chamarNvidia({ messages, maxTokens, temperature, timeoutMs }) {
           temperature: temperature == null ? 0.2 : temperature,
           top_p: 1
         }),
-        signal: AbortSignal.timeout(timeoutMs || TIMEOUT_MS)
+        signal: AbortSignal.timeout(espera)
       });
       const dados = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -753,7 +778,8 @@ async function gerarCenarios({ ficha, passos, quadros }) {
       ],
       maxTokens: Math.min(MAX_TOKENS, 2048),
       temperature: 0.15,
-      timeoutMs: TIMEOUT_CENARIOS_MS
+      timeoutMs: TIMEOUT_CENARIOS_MS,
+      prazoFinal: Date.now() + ORCAMENTO_CENARIOS_MS
     });
   } catch (err) {
     if (err && err.semChave) throw err;

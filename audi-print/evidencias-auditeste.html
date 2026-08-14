@@ -3864,8 +3864,12 @@
       };
       await gravarRegistroDB(r);
       mostrarCenarios(r.cenarios);
-      dizer('Cenários gerados · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
-      avisar('Cenários gerados.');
+      // A ponte devolve "montado dos prints" quando a IA nao respondeu a tempo.
+      const montado = /montado dos prints/i.test(dados.modelo || '');
+      dizer(montado
+        ? 'Cenários montados a partir das descrições dos prints. Salvo no registro.'
+        : 'Cenários gerados · ' + ((dados.uso && dados.uso.saida) || 0) + ' tokens. Salvo no registro.');
+      avisar(montado ? 'Cenários montados das descrições.' : 'Cenários gerados.');
     }catch(err){
       const timeout = /AbortError|aborted|timeout/i.test((err && (err.name + ' ' + err.message)) || '');
       dizer(timeout

@@ -17,6 +17,7 @@
     "teste-texto": "node teste-texto-descricao.js",
     "teste-agendamento": "node teste-agendamento-print.js",
     "teste-marca": "node teste-marca-vermelha.js",
+    "teste-cenarios": "node teste-cenarios-dos-textos.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {
