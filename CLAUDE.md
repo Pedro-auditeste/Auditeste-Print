@@ -101,6 +101,19 @@ no `content.js`.
 Fechar a aba testada **não** apaga mais a gravação: as 5 mais recentes ficam
 guardadas, senão gravar-fechar-abrir-o-Print perdia tudo.
 
+3. **Pelo link** (botão "Buscar seletores pelo link"): `POST /elementos {url}` abre
+   a página na ponte e cataloga os interativos; o Print casa pelo **rótulo** que a
+   descrição já extraiu e preenche o seletor. Só serve para **página pública** —
+   atrás de login não alcança.
+
+`elementos.js` **precisa** do user-agent de Chrome real: sem ele, loja grande
+serve a página de "navegador não suportado" e o catálogo volta com 5 links
+inúteis (medido no Pontofrio: 5 elementos sem UA, 261 com). Ajustável por `PONTE_UA`.
+
+A lista `CLICAVEIS` em `elementos.js` espelha `clicavel()` do `content.js` da
+extensão. Mudou uma, mude a outra: o casamento por rótulo depende de as duas
+verem os mesmos elementos.
+
 ## Idioma
 
 Código, commits e UI em **português**. Mensagens de commit descrevem o efeito para

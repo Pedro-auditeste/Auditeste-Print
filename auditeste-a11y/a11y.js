@@ -242,5 +242,5 @@ if (require.main === module) {
 module.exports = {
   gravar, nomeArquivo, SAIDA,
   scanAxe, scanPa11y, scanLighthouse,
-  statusMotores, caminhoChrome
+  statusMotores, caminhoChrome, lancarChrome
 };

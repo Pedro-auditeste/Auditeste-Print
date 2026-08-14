@@ -1143,6 +1143,7 @@
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
+      <button class="btn" data-acao="buscarSeletores">Buscar seletores pelo link</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
@@ -2804,6 +2805,106 @@
     }
   }
 
+  /* Seletor pelo link: a ponte abre a URL num Chrome e cataloga os elementos;
+   * aqui casamos pelo rótulo que a descrição do print já extraiu. Serve para
+   * página pública — atrás de login o caminho continua sendo a extensão. */
+  const semAcento = (s) => String(s || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ').trim().toLowerCase();
+
+  /** O rótulo que o passo conhece: dataset, texto entre aspas ou o título limpo. */
+  function rotuloDoPasso(passo){
+    const rot = (passo.dataset.rotulo || '').trim();
+    if(rot) return rot;
+    const tit = (passo.querySelector('.titulo') || {}).textContent || '';
+    const aspas = /["“”«»]([^"“”«»]+)["“”«»]/.exec(tit);
+    if(aspas) return aspas[1].trim();
+    // Tira o verbo, a preposição e o substantivo genérico: "Entrou na tela
+    // Painel" precisa virar "Painel" para casar com o rótulo do elemento.
+    return tit
+      .replace(/^(Clicou|Digitou|Pesquisou|Abriu|Entrou|Preencheu|Acessou|Selecionou)\s+/i, '')
+      .replace(/^(em|na|no|nas|nos|a|o)\s+/i, '')
+      .replace(/^(tela|p[áa]gina|campo|bot[ãa]o|link|aba|menu|card|op[çc][ãa]o)\s+/i, '')
+      .trim();
+  }
+
+  function acharElemento(rotulo, elementos){
+    const alvo = semAcento(rotulo);
+    if(!alvo || alvo.length < 2) return null;
+    const comRotulo = elementos.filter(e => e.rotulo);
+    return comRotulo.find(e => semAcento(e.rotulo) === alvo)
+      || comRotulo.find(e => semAcento(e.rotulo).startsWith(alvo))
+      || comRotulo.find(e => semAcento(e.rotulo).includes(alvo))
+      || (alvo.length >= 4 ? comRotulo.find(e => alvo.includes(semAcento(e.rotulo))) : null)
+      || null;
+  }
+
+  async function buscarSeletores(){
+    const passos = [...lista.querySelectorAll('.passo')];
+    if(!passos.length){ avisar('Não há passos para completar.'); return; }
+    const faltando = passos.filter(p => !(p.dataset.elemento || '').trim());
+    if(!faltando.length){ avisar('Todos os passos já têm seletor.'); return; }
+
+    const sugestao = (document.querySelector('[data-campo="observacoes"]')?.textContent || '')
+      .match(/https?:\/\/[^\s"']+/);
+    const url = (prompt('Link da página testada (ela será aberta para ler os ids):',
+      sugestao ? sugestao[0] : 'https://') || '').trim();
+    if(!url) return;
+    try{ new URL(url); }catch(_){ avisar('URL inválida.'); return; }
+
+    const statusIA = document.getElementById('statusIA');
+    if(statusIA) statusIA.textContent = 'Abrindo a página e lendo os ids...';
+    try{
+      const alvo = await resolverPonteIA();
+      if(!alvo.url || !alvo.info){
+        informar('A ponte precisa estar no ar para ler os ids da página.', 'Ponte fora do ar');
+        return;
+      }
+      const resp = await fetch(alvo.url + '/elementos', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
+        body: JSON.stringify({ url }),
+        signal: AbortSignal.timeout(90000)
+      });
+      const dados = await resp.json().catch(() => ({}));
+      if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
+      const elementos = dados.elementos || [];
+      if(!elementos.length) throw new Error('A página não devolveu elementos. Ela pode exigir login.');
+
+      let achou = 0;
+      faltando.forEach(passo => {
+        const el = acharElemento(rotuloDoPasso(passo), elementos);
+        if(!el) return;
+        achou++;
+        marcarQa(passo, {
+          acao: passo.dataset.acao || 'Clicar',
+          elemento: el.seletor,
+          rotulo: passo.dataset.rotulo || el.rotulo,
+          valor: passo.dataset.valor || '',
+          html: el.html,
+          timestampAntes: passo.dataset.timestampAntes || '',
+          timestampDepois: passo.dataset.timestampDepois || '',
+          urlAntes: passo.dataset.urlAntes || url,
+          urlDepois: passo.dataset.urlDepois || '',
+          modulo: passo.dataset.modulo || '',
+          tipoTeste: passo.dataset.tipoTeste || ''
+        });
+      });
+
+      const msg = achou + ' de ' + faltando.length + ' passo(s) ganharam seletor'
+        + ' (a página tinha ' + elementos.length + ' elementos).';
+      if(statusIA) statusIA.textContent = msg;
+      avisar(achou ? msg : 'Nenhum rótulo do print bateu com os elementos da página. '
+        + 'Confira se o link é o da tela testada.');
+    }catch(err){
+      const m = (err && err.message) || 'erro';
+      if(statusIA) statusIA.textContent = 'Não consegui ler os ids: ' + m;
+      informar(/timeout|abort/i.test(m)
+        ? 'A página demorou demais para abrir. Tente de novo.'
+        : 'Não consegui ler os ids da página: ' + m, 'Falha ao buscar seletores');
+    }
+  }
+
   async function importarA11y(arquivo){
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
@@ -4026,6 +4127,7 @@
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
+    if(acao === 'buscarSeletores') return buscarSeletores();
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
   });
