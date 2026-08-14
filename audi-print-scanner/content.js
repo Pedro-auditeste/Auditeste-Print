@@ -52,15 +52,35 @@
     ).replace(/\s+/g, ' ').trim().slice(0, 300);
   }
 
+  // Rede de seguranca: se o print nunca vier, a marca nao fica presa na tela.
+  const MARCA_MAX_MS = 4000;
+
+  /** Marca o elemento em vermelho. Devolve a funcao que tira a marca. */
   function destacar(el) {
     const anterior = el.style.outline;
     const offset = el.style.outlineOffset;
+    // outline nao ocupa espaco, entao marcar nao empurra o layout do print.
     el.style.outline = '4px solid #e23c3c';
     el.style.outlineOffset = '3px';
-    setTimeout(() => {
+    return () => {
       el.style.outline = anterior;
       el.style.outlineOffset = offset;
-    }, 750);
+    };
+  }
+
+  /** Segura a marca vermelha ate o print "antes" sair, e nunca alem disso.
+   *  Com timer fixo a marca saia antes da captura e o print vinha sem ela. */
+  function segurarAte(tirar, promessa) {
+    let feito = false;
+    const limpar = () => {
+      if (feito) return;
+      feito = true;
+      clearTimeout(rede);
+      try { tirar(); } catch (e) { /* elemento ja saiu da pagina */ }
+    };
+    const rede = setTimeout(limpar, MARCA_MAX_MS);
+    Promise.resolve(promessa).then(limpar, limpar);
+    return limpar;
   }
 
   function registrar(el) {
@@ -69,18 +89,22 @@
     ultimaAcao = agora;
     const seletor = seletorDe(el);
     if (!seletor) return;
-    destacar(el);
-    chrome.runtime.sendMessage({
-      tipo: 'AUDI_ACAO',
-      acao: {
-        id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        seletor,
-        rotulo: rotuloDe(el),
-        html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
-        urlAntes: location.href,
-        frameUrl: window === window.top ? '' : location.href
-      }
-    }).catch(() => {});
+
+    // Ordem importa: o HTML e lido antes da marca, senao guardaria o style
+    // injetado; a marca entra antes do envio, senao a captura pode chegar antes.
+    const acao = {
+      id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      seletor,
+      rotulo: rotuloDe(el),
+      html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
+      urlAntes: location.href,
+      frameUrl: window === window.top ? '' : location.href
+    };
+
+    const tirarMarca = destacar(el);
+    // O background so responde depois de tirar o print "antes", entao a marca
+    // fica na tela exatamente ate a captura acontecer — nem menos, nem mais.
+    segurarAte(tirarMarca, chrome.runtime.sendMessage({ tipo: 'AUDI_ACAO', acao }));
   }
 
   document.addEventListener('pointerdown', (evento) => {
