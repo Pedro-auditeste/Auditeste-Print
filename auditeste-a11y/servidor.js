@@ -34,7 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
-const gravador = require('./gravador.js');
+const marcador = require('./marcador.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
@@ -239,45 +239,27 @@ const servidor = http.createServer(async (req, res) => {
     }, origem);
   }
 
-  /* Navegação remota: a ponte abre a página e o Print pilota. Aqui existe DOM,
-   * entao o clique volta inspecionado — id, HTML e URL. */
-  if (u.pathname.startsWith('/gravar/')) {
-    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
-
-    const acao = u.pathname.slice('/gravar/'.length);
-    try {
-      if (acao === 'passos') {
-        return responder(res, 200, gravador.passos(u.searchParams.get('id'), u.searchParams.get('desde')), origem);
-      }
-      if (acao === 'tela') {
-        return responder(res, 200, await gravador.tela(u.searchParams.get('id')), origem);
-      }
-      if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
-
-      let corpo;
-      try { corpo = await lerCorpo(req); } catch (err) {
-        return responder(res, 400, { erro: err.message }, origem);
-      }
-
-      if (acao === 'fechar') return responder(res, 200, await gravador.fechar(corpo && corpo.id), origem);
-      if (acao === 'clicar') return responder(res, 200, await gravador.clicar(corpo.id, corpo.x, corpo.y), origem);
-      if (acao === 'rolar') return responder(res, 200, await gravador.rolar(corpo.id, corpo.dy), origem);
-      if (acao === 'digitar') return responder(res, 200, await gravador.digitar(corpo.id, corpo.texto), origem);
-
-      if (acao === 'abrir') {
-        const alvo = String((corpo && corpo.url) || '').trim();
-        if (!alvo) return responder(res, 400, { erro: 'url ausente' }, origem);
-        const motivo = await recusar(alvo);
-        if (motivo) return responder(res, 400, { erro: motivo }, origem);
-        console.log('gravar: abrindo ' + alvo);
-        return responder(res, 200, await gravador.abrir(alvo), origem);
-      }
-      return responder(res, 404, { erro: 'rota desconhecida' }, origem);
-    } catch (err) {
-      console.log('gravar FALHOU (' + acao + '): ' + err.message);
-      return responder(res, err.expirada ? 410 : err.codigo === 'SEM_CHROME' ? 503 : 500,
-        { erro: err.message }, origem);
+  /* Bookmarklet: o código de pareamento é a credencial, então estas rotas não
+   * passam pelo PONTE_TOKEN — o clique chega do site do cliente, de outra
+   * origem, e nunca casaria a checagem de mesma origem. */
+  if (u.pathname.startsWith('/marca/')) {
+    const acao = u.pathname.slice('/marca/'.length);
+    if (acao === 'passos') {
+      return responder(res, 200,
+        marcador.passos(u.searchParams.get('codigo'), u.searchParams.get('desde')), origem);
     }
+    if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
+    let corpo;
+    try { corpo = await lerCorpo(req); } catch (err) {
+      return responder(res, 400, { erro: err.message }, origem);
+    }
+    if (acao === 'abrir') return responder(res, 200, marcador.abrir(), origem);
+    if (acao === 'fechar') return responder(res, 200, marcador.fechar(corpo && corpo.codigo), origem);
+    if (acao === 'clique') {
+      const r = marcador.registrar(corpo && corpo.codigo, corpo);
+      return responder(res, r.erro ? 404 : 200, r, origem);
+    }
+    return responder(res, 404, { erro: 'rota desconhecida' }, origem);
   }
 
   if (u.pathname === '/descrever') {

@@ -478,16 +478,15 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
-  .painel-clicando{background:var(--card);border:2px solid var(--green);border-radius:12px;
+  .painel-marca{background:var(--card);border:2px solid var(--green);border-radius:12px;
     padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);}
-  .painel-clicando label{display:block;color:var(--navy);margin-bottom:8px;}
-  .painel-clicando .dica-captura{margin:8px 0 0;}
-  .barra-remota{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 8px;}
-  .barra-remota input{flex:1;min-width:180px;}
-  .barra-remota #urlRemota{font-size:.72rem;color:var(--muted);overflow-wrap:anywhere;}
-  #imgRemota{display:block;width:100%;border:2px solid var(--navy);border-radius:8px;
-    cursor:crosshair;background:#0d3446;}
-  #telaRemota.ocupado #imgRemota{cursor:progress;opacity:.75;}
+  .painel-marca label{display:block;color:var(--navy);margin-bottom:8px;}
+  .passos-marca{margin:8px 0 12px 18px;padding:0;font-size:.8rem;line-height:1.7;}
+  .passos-marca code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;
+    padding:2px 8px;font-family:ui-monospace,Consolas,monospace;font-size:.9rem;font-weight:700;}
+  .bookmarklet{display:inline-block;background:var(--navy);color:#fff;text-decoration:none;
+    padding:4px 12px;border-radius:6px;font-weight:700;font-size:.78rem;cursor:grab;}
+  .painel-marca .dica-captura{margin:8px 0 0;}
   .meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
     font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
@@ -1147,25 +1146,21 @@
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
-    <div class="painel-clicando" id="painelClicando">
-      <label for="urlClicando"><b>Gravar clicando</b> — a ponte abre o site aqui e cada clique vira evidência</label>
+    <div class="painel-marca" id="painelMarca" hidden>
+      <label><b>Marcar cliques no seu navegador</b> — sem instalar nada, usando a sua sessão</label>
+      <ol class="passos-marca">
+        <li>Arraste este botão para a barra de favoritos:
+          <a id="linkMarcador" class="bookmarklet" href="#" title="Arraste para a barra de favoritos">Audi Print · marcar</a></li>
+        <li>Abra o site do cliente e clique nesse favorito.</li>
+        <li>Cole o código quando ele pedir: <code id="codigoMarca">—</code></li>
+        <li>Navegue e clique normalmente. Os passos aparecem aqui.</li>
+      </ol>
       <div class="linha-scan">
-        <input type="url" id="urlClicando" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site">
-        <button type="button" class="btn primario" data-acao="abrirClicando" id="btnAbrirClicando">Abrir site</button>
-        <button type="button" class="btn perigo" data-acao="encerrarClicando" id="btnEncerrarClicando" hidden>Encerrar</button>
-        <button type="button" class="btn" data-acao="fecharClicando">Fechar</button>
+        <button type="button" class="btn primario" data-acao="gerarCodigoMarca">Gerar código</button>
+        <button type="button" class="btn perigo" data-acao="pararMarca" id="btnPararMarca" hidden>Parar</button>
+        <button type="button" class="btn" data-acao="fecharMarca">Fechar</button>
       </div>
-      <p class="dica-captura" id="estadoClicando">Cada clique registra <b>id, HTML e URL</b> do elemento, com print antes e depois. Não precisa instalar nada.</p>
-      <div id="telaRemota" hidden>
-        <div class="barra-remota">
-          <button type="button" class="btn pequeno" data-acao="rolarCima">↑ Subir</button>
-          <button type="button" class="btn pequeno" data-acao="rolarBaixo">↓ Descer</button>
-          <input type="text" id="textoRemoto" placeholder="Texto para o campo clicado" aria-label="Texto para digitar">
-          <button type="button" class="btn pequeno" data-acao="digitarRemoto">Digitar</button>
-          <span id="urlRemota"></span>
-        </div>
-        <img id="imgRemota" alt="Tela do site — clique nela para registrar o passo">
-      </div>
+      <p class="dica-captura" id="estadoMarca">O favorito registra id, HTML e URL de cada clique. As imagens continuam vindo da gravação de tela.</p>
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
@@ -1174,7 +1169,7 @@
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
-      <button class="btn primario" data-acao="gravarClicando">Navegar aqui e capturar id/HTML</button>
+      <button class="btn primario" data-acao="marcarCliques">Marcar cliques no meu navegador</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
@@ -2834,192 +2829,186 @@
     if(b) b.hidden = false;
   });
 
-  /* Gravar clicando: a ponte abre a página num Chrome do servidor e manda a
-   * imagem. O clique volta com a coordenada, e lá existe DOM — então o elemento
-   * é inspecionado de verdade: id, HTML e URL. Funciona pelo Print hospedado,
-   * sem instalar nada, que é como o cliente usa. */
-  let sessaoClicando = null, baseClicando = null, lidosClicando = 0, ocupadoClicando = false;
+  /* Bookmarklet: roda no navegador do analista, com o IP e a sessão dele. É o
+   * caminho que sobrevive a antibot — navegação feita pelo servidor apanha, como
+   * a Casas Bahia mostrou ao bloquear o IP de datacenter.
+   *
+   * Precisa ser autossuficiente: o CSP dos sites permite inline, mas não deixa
+   * carregar script de outro domínio. */
+  let marcaCodigo = null, marcaTimer = null, marcaLidos = 0;
 
-  const elClicando = (id) => document.getElementById(id);
-  function dizerClicando(html){
-    const el = elClicando('estadoClicando');
-    if(el) el.innerHTML = html;
+  /* Roda dentro do site do cliente, injetado pelo favorito. Escrito como função
+   * normal e serializado com toString(): concatenar string exigiria escapar barra
+   * dupla em cada aspas e regex, e um erro só quebra tudo em runtime.
+   *
+   * Precisa ser autossuficiente — o CSP dos sites permite inline, mas não deixa
+   * carregar script de outro domínio. */
+  function marcadorNaPagina(BASE){
+    if(window.__audiMarcando){ alert('O Audi Print já está marcando esta página.'); return; }
+    var codigo = (prompt('Código do Audi Print:', sessionStorage.getItem('audiCodigo') || '') || '')
+      .trim().toUpperCase();
+    if(!codigo) return;
+    sessionStorage.setItem('audiCodigo', codigo);
+    window.__audiMarcando = 1;
+
+    var n = 0;
+    var aviso = document.createElement('div');
+    /* Propriedade a propriedade, nunca cssText: CSP restrito trata cssText como
+     * estilo inline e bloqueia, e aí o aviso some mesmo com a captura correndo. */
+    var estilo = { position:'fixed', zIndex:'2147483647', right:'12px', bottom:'12px',
+      background:'#0d3446', color:'#fff', font:'600 13px system-ui', padding:'8px 14px',
+      borderRadius:'8px', boxShadow:'0 2px 10px rgba(0,0,0,.3)', pointerEvents:'none' };
+    for(var k in estilo){ try { aviso.style[k] = estilo[k]; } catch(e){} }
+    aviso.textContent = 'Audi Print: marcando. Clique nos elementos.';
+    document.body.appendChild(aviso);
+
+    function escapa(v){
+      return (window.CSS && CSS.escape) ? CSS.escape(v) : String(v).replace(/([^\w-])/g, '\\$1');
+    }
+    function unico(s){
+      try { return document.querySelectorAll(s).length === 1; } catch(e){ return false; }
+    }
+    function seletorDe(el){
+      var tag = el.tagName.toLowerCase();
+      if(el.id && unico('#' + escapa(el.id))) return '#' + escapa(el.id);
+      var attrs = ['data-testid', 'data-qa', 'data-test'];
+      for(var i = 0; i < attrs.length; i++){
+        var v = el.getAttribute(attrs[i]);
+        if(!v) continue;
+        var c1 = '[' + attrs[i] + '="' + escapa(v) + '"]';
+        if(unico(c1)) return c1;
+        if(unico(tag + c1)) return tag + c1;
+      }
+      var nome = el.getAttribute('name');
+      if(nome){
+        var cn = tag + '[name="' + escapa(nome) + '"]';
+        if(unico(cn)) return cn;
+      }
+      var partes = [], at = el;
+      while(at && at.nodeType === 1){
+        var k = 1, irmao = at.previousElementSibling;
+        while(irmao){ if(irmao.tagName === at.tagName) k++; irmao = irmao.previousElementSibling; }
+        partes.unshift(at.tagName.toLowerCase() + '[' + k + ']');
+        if(at === document.documentElement) break;
+        at = at.parentElement;
+      }
+      return partes.length ? '/' + partes.join('/') : '';
+    }
+
+    var ACAO = 'a[href],button,summary,[role=button],[role=tab],[role=menuitem],[role=link],'
+      + 'input:not([type=hidden]),select,textarea,[onclick]';
+    var ultimo = 0;
+
+    document.addEventListener('pointerdown', function(ev){
+      if(ev.button !== 0) return;
+      var el = (ev.target && ev.target.closest) ? ev.target.closest(ACAO) : null;
+      var agora = Date.now();
+      if(!el || agora - ultimo < 450) return;
+      ultimo = agora;
+      var sel = seletorDe(el);
+      if(!sel) return;
+
+      var rotulo = String(el.getAttribute('aria-label') || el.getAttribute('title') || el.innerText
+        || el.value || el.getAttribute('placeholder') || el.id || el.tagName || '')
+        .replace(/\s+/g, ' ').trim().slice(0, 200);
+      var html = String(el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 1200);
+
+      var antes = el.style.outline, off = el.style.outlineOffset;
+      el.style.outline = '3px solid #e23c3c';
+      el.style.outlineOffset = '2px';
+      setTimeout(function(){ el.style.outline = antes; el.style.outlineOffset = off; }, 900);
+
+      fetch(BASE + '/marca/clique', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: codigo, seletor: sel, rotulo: rotulo, html: html,
+          url: location.href, quando: new Date().toISOString(),
+          acao: /^(input|select|textarea)$/.test(el.tagName.toLowerCase()) ? 'Preencher' : 'Clicar'
+        })
+      }).then(function(r){ return r.json(); }).then(function(j){
+        if(j && j.erro){ aviso.style.background = '#a02020'; aviso.textContent = 'Audi Print: ' + j.erro; return; }
+        n++;
+        aviso.textContent = 'Audi Print: ' + n + ' clique(s)';
+      }).catch(function(){
+        aviso.style.background = '#a02020';
+        aviso.textContent = 'Audi Print: sem conexão com a ponte';
+      });
+    }, true);
   }
 
-  function abrirPainelClicando(){
-    const p = elClicando('painelClicando');
+  function corpoDoMarcador(base){
+    return '(' + marcadorNaPagina.toString() + ')(' + JSON.stringify(base) + ')';
+  }
+  async function abrirPainelMarca(){
+    const p = document.getElementById('painelMarca');
     if(!p) return;
-    p.hidden = false;
-    p.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const campo = elClicando('urlClicando');
-    if(campo){ if(!campo.value) campo.value = 'https://'; campo.focus(); }
+    p.hidden = !p.hidden;
+    if(p.hidden) return;
+    const alvo = await resolverPonteIA();
+    const link = document.getElementById('linkMarcador');
+    if(link) link.href = 'javascript:' + encodeURIComponent(corpoDoMarcador(alvo.url || ponteUrl()));
   }
 
-  async function chamarGravar(rota, corpo, ms){
-    const base = baseClicando || (await resolverPonteIA()).url;
-    baseClicando = base;
-    const get = corpo == null;
-    const resp = await fetch(base + '/gravar/' + rota, {
-      method: get ? 'GET' : 'POST',
-      headers: Object.assign(get ? {} : { 'Content-Type':'application/json' }, ponteCabecalho()),
-      body: get ? undefined : JSON.stringify(corpo),
-      signal: AbortSignal.timeout(ms || 60000)
-    });
-    const dados = await resp.json().catch(() => ({}));
-    if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-    return dados;
-  }
-
-  function pintarTela(dados){
-    if(dados.tela) elClicando('imgRemota').src = dados.tela;
-    if(dados.url) elClicando('urlRemota').textContent = dados.url;
-  }
-
-  async function abrirClicando(){
-    const campo = elClicando('urlClicando');
-    const url = ((campo && campo.value) || '').trim();
-    if(!url || url === 'https://'){ avisar('Cole o link do site.'); if(campo) campo.focus(); return; }
-    try{ new URL(url); }catch(_){ avisar('URL inválida.'); return; }
-
-    const btn = elClicando('btnAbrirClicando');
-    if(btn) btn.disabled = true;
-    dizerClicando('Abrindo o site...');
+  async function gerarCodigoMarca(){
     try{
-      const d = await chamarGravar('abrir', { url }, 90000);
-      sessaoClicando = d.id;
-      lidosClicando = 0;
-      elClicando('telaRemota').hidden = false;
-      elClicando('btnEncerrarClicando').hidden = false;
-      pintarTela(d);
-      dizerClicando('<b>Site aberto.</b> Clique na tela abaixo: cada clique vira um passo com id e HTML.');
-      avisar('Site aberto. Clique na tela para registrar os passos.');
+      const alvo = await resolverPonteIA();
+      const resp = await fetch(alvo.url + '/marca/abrir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(30000)
+      });
+      const d = await resp.json().catch(() => ({}));
+      if(!resp.ok || !d.codigo) throw new Error(d.erro || ('HTTP ' + resp.status));
+      marcaCodigo = d.codigo;
+      marcaLidos = 0;
+      document.getElementById('codigoMarca').textContent = d.codigo;
+      document.getElementById('btnPararMarca').hidden = false;
+      document.getElementById('estadoMarca').innerHTML =
+        '<b>Código gerado.</b> Clique no favorito no site do cliente e cole <b>' + esc(d.codigo) + '</b>.';
+      if(marcaTimer) clearInterval(marcaTimer);
+      marcaTimer = setInterval(puxarMarca, 2500);
     }catch(err){
-      const m = (err && err.message) || 'erro';
-      dizerClicando('Não abriu: ' + esc(m));
-      informar('Não consegui abrir o site: ' + m, 'Falha ao abrir');
-    }finally{
-      if(btn) btn.disabled = false;
+      informar('Não consegui gerar o código: ' + ((err && err.message) || 'erro'), 'Falha');
     }
   }
 
-  function marcarOcupado(v){
-    ocupadoClicando = v;
-    elClicando('telaRemota').classList.toggle('ocupado', v);
+  async function puxarMarca(){
+    if(!marcaCodigo) return;
+    try{
+      const alvo = await resolverPonteIA();
+      const resp = await fetch(alvo.url + '/marca/passos?codigo=' + encodeURIComponent(marcaCodigo)
+        + '&desde=' + marcaLidos, { signal: AbortSignal.timeout(20000) });
+      const d = await resp.json().catch(() => ({}));
+      if(!resp.ok || d.erro) return;
+      (d.passos || []).forEach(p => {
+        const el = novoPasso(p.titulo, p.obs);
+        marcarQa(el, p);
+      });
+      if((d.passos || []).length){
+        marcaLidos = d.total || marcaLidos;
+        document.getElementById('estadoMarca').innerHTML =
+          '<b>' + marcaLidos + ' clique(s)</b> registrados. Continue navegando no site.';
+      }
+    }catch(_){ /* uma consulta perdida nao derruba a marcacao */ }
   }
 
-  /** Converte o clique na imagem para a coordenada real da página. */
-  async function clicarNaTela(ev){
-    if(!sessaoClicando || ocupadoClicando) return;
-    const img = elClicando('imgRemota');
-    const r = img.getBoundingClientRect();
-    if(!r.width || !img.naturalWidth) return;
-    const x = (ev.clientX - r.left) * (img.naturalWidth / r.width);
-    const y = (ev.clientY - r.top) * (img.naturalHeight / r.height);
-
-    marcarOcupado(true);
-    dizerClicando('Clicando e capturando...');
-    try{
-      const d = await chamarGravar('clicar', { id: sessaoClicando, x, y }, 90000);
-      pintarTela(d);
-      if(d.semAlvo){
-        dizerClicando('Aí não há elemento clicável — nada foi registrado. Clique num botão, link ou campo.');
-        return;
-      }
-      if(d.passo) aplicarPassoRemoto(d.passo);
-      lidosClicando = d.total || lidosClicando;
-      dizerClicando('<b>' + lidosClicando + ' passo(s)</b> registrados. Continue clicando na tela.');
-    }catch(err){
-      const m = (err && err.message) || 'erro';
-      dizerClicando('Falhou: ' + esc(m));
-      if(/encerrada|não encontrada/i.test(m)) encerrarClicando(true);
-    }finally{
-      marcarOcupado(false);
+  async function pararMarca(){
+    if(marcaTimer){ clearInterval(marcaTimer); marcaTimer = null; }
+    const c = marcaCodigo;
+    marcaCodigo = null;
+    document.getElementById('btnPararMarca').hidden = true;
+    if(c){
+      try{
+        const alvo = await resolverPonteIA();
+        await fetch(alvo.url + '/marca/fechar', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codigo: c })
+        });
+      }catch(_){ }
     }
-  }
-
-  function aplicarPassoRemoto(p){
-    const el = novoPasso(p.titulo, p.obs);
-    marcarQa(el, p);
-    const figs = p.imagens || [];
-    el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
-    figs.forEach(im => {
-      const blob = dataUrlParaBlob(im.dataUrl);
-      if(blob) juntarImagem(el, blob, im.legenda || 'Captura');
-    });
-    const caps = [...el.querySelectorAll('figure')].filter(f => f._blob);
-    if(caps.length >= 2) descreverTelaIA(el, caps[0]._blob, caps[1]._blob);
-  }
-
-  async function rolarRemoto(dy){
-    if(!sessaoClicando || ocupadoClicando) return;
-    marcarOcupado(true);
-    try{ pintarTela(await chamarGravar('rolar', { id: sessaoClicando, dy }, 30000)); }
-    catch(_){ }
-    finally{ marcarOcupado(false); }
-  }
-
-  async function digitarRemoto(){
-    if(!sessaoClicando || ocupadoClicando) return;
-    const campo = elClicando('textoRemoto');
-    const texto = ((campo && campo.value) || '').trim();
-    if(!texto){ avisar('Escreva o texto e clique antes no campo do site.'); return; }
-    marcarOcupado(true);
-    try{
-      pintarTela(await chamarGravar('digitar', { id: sessaoClicando, texto }, 30000));
-      dizerClicando('Texto digitado no campo em foco.');
-      if(campo) campo.value = '';
-    }catch(err){ dizerClicando('Não digitou: ' + esc((err && err.message) || 'erro')); }
-    finally{ marcarOcupado(false); }
-  }
-
-  async function encerrarClicando(jaCaiu){
-    const id = sessaoClicando;
-    sessaoClicando = null;
-    elClicando('btnEncerrarClicando').hidden = true;
-    elClicando('telaRemota').hidden = true;
-    if(id && !jaCaiu){ try{ await chamarGravar('fechar', { id }, 20000); }catch(_){ } }
-    dizerClicando('Gravação encerrada. Revise os passos e salve no projeto.');
-  }
-
-  async function puxarDaExtensao(){
-    const btn = document.getElementById('btnPuxarExtensao');
-    if(btn) btn.disabled = true;
-    try{
-      const lista = await pedirAExtensao(null, 3000);
-      if(!lista){
-        informar('A extensão não respondeu. Confira se ela está instalada e ativa, e recarregue esta página.',
-          'Extensão não encontrada');
-        return;
-      }
-      if(lista.erro){ avisar(lista.erro); return; }
-      const evid = lista.evidencias || [];
-      if(!evid.length){
-        avisar('Nenhuma gravação na extensão. Abra o site, inicie a sessão e clique nos elementos.');
-        return;
-      }
-      // Mais de uma gravação: o QA escolhe qual trazer.
-      let escolhida = evid[0];
-      if(evid.length > 1){
-        const opcoes = evid.map((e, i) =>
-          (i + 1) + ') ' + (e.titulo || e.url || 'sem título') + ' — ' + e.passos + ' passo(s)'
-          + (e.ativa ? ' (gravando)' : ''));
-        const resp = prompt('Qual gravação você quer trazer?\n\n' + opcoes.join('\n') + '\n\nDigite o número:', '1');
-        const n = Number(resp);
-        if(!resp || !Number.isInteger(n) || n < 1 || n > evid.length) return;
-        escolhida = evid[n - 1];
-      }
-      const cheia = await pedirAExtensao(escolhida.tabId, 30000);
-      if(!cheia){ avisar('A extensão demorou a responder. Tente de novo.'); return; }
-      if(cheia.erro){ avisar(cheia.erro); return; }
-      const dados = cheia.evidencia;
-      if(!dados || !(dados.passos || []).length){ avisar('A gravação veio vazia.'); return; }
-      await aplicarEvidenciaImportada(dados);
-      avisar(dados.passos.length + ' ação(ões) trazidas da extensão.');
-    }catch(err){
-      informar('Não consegui trazer a gravação: ' + ((err && err.message) || 'erro'), 'Falha na importação');
-    }finally{
-      if(btn) btn.disabled = false;
-    }
+    document.getElementById('estadoMarca').textContent = 'Marcação encerrada. Revise os passos e salve.';
   }
 
   async function importarA11y(arquivo){
@@ -4213,8 +4202,6 @@
   btnIniciar.addEventListener('click', iniciar);
   const btnIniciarManual = document.getElementById('btnIniciarManual');
   if(btnIniciarManual) btnIniciarManual.addEventListener('click', iniciarManual);
-  const imgRem = document.getElementById('imgRemota');
-  if(imgRem) imgRem.addEventListener('click', clicarNaTela);
   btnParar.addEventListener('click', ()=> parar(false));
   btnCapturar.addEventListener('click', ()=> capturar(true));
   btnPausar.addEventListener('click', ()=>{
@@ -4252,12 +4239,10 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
-    if(acao === 'gravarClicando') return abrirPainelClicando();
-    if(acao === 'abrirClicando') return abrirClicando();
-    if(acao === 'encerrarClicando') return encerrarClicando();
-    if(acao === 'rolarCima') return rolarRemoto(-500);
-    if(acao === 'rolarBaixo') return rolarRemoto(500);
-    if(acao === 'digitarRemoto') return digitarRemoto();
+    if(acao === 'marcarCliques') return abrirPainelMarca();
+    if(acao === 'gerarCodigoMarca') return gerarCodigoMarca();
+    if(acao === 'pararMarca') return pararMarca();
+    if(acao === 'fecharMarca'){ document.getElementById('painelMarca').hidden = true; return; }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
