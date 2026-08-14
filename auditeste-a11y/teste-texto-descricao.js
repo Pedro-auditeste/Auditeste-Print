@@ -7,7 +7,8 @@ const {
   juntarPassoAPasso,
   parseAnaliseQa,
   frase,
-  semFraseIncompleta
+  semFraseIncompleta,
+  alertaDeLados
 } = require('./agente-cenarios.js');
 
 let n = 0;
@@ -104,6 +105,35 @@ caso('frase() fecha e não duplica', () => {
   assert.strictEqual(frase('abc'), 'abc.');
   assert.strictEqual(frase('abc.'), 'abc.');
   assert.strictEqual(frase(''), '');
+});
+
+console.log('--- deteccao de print trocado ---');
+
+caso('faixa lida certo não gera alerta', () => {
+  assert.strictEqual(alertaDeLados({ rotulo_lido: '1 ANTES — onde clicou' }), '');
+  assert.strictEqual(alertaDeLados({ rotulo_lido: 'ANTES' }), '');
+});
+
+caso('faixa ilegível avisa que a ordem não foi confirmada', () => {
+  const a = alertaDeLados({ rotulo_lido: 'ilegível' });
+  assert.match(a, /não deu para ler/i, a);
+});
+
+caso('leu o lado DEPOIS na esquerda: alerta de telas trocadas', () => {
+  const a = alertaDeLados({ rotulo_lido: '2 DEPOIS — para onde entrou' });
+  assert.match(a, /trocadas/i, a);
+});
+
+caso('campo ausente não inventa alerta', () => {
+  assert.strictEqual(alertaDeLados({}), '');
+  assert.strictEqual(alertaDeLados({ rotulo_lido: '   ' }), '');
+});
+
+caso('parseAnaliseQa carrega o rotulo_lido', () => {
+  const r = parseAnaliseQa(JSON.stringify({
+    legenda_curta: 'x', descricao_detalhada: 'y', rotulo_lido: '1 ANTES'
+  }));
+  assert.strictEqual(r.rotulo_lido, '1 ANTES');
 });
 
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

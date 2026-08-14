@@ -2207,34 +2207,59 @@
       im.onerror = () => { URL.revokeObjectURL(u); no(new Error('print ilegível')); };
       im.src = u;
     });
-    try{
-      const a = await carregar(blobAntes);
-      const b = await carregar(blobDepois);
-      const faixa = 44;
-      const gap = 12;
+    /* Desenha o par no tamanho final e SO ENTAO escreve os rotulos, para eles
+     * nunca serem reamostrados. Antes o par saia rotulado e depois encolhia ate
+     * 420 px: o rotulo virava borrao de ~6 px, a IA perdia qual lado era qual e
+     * descrevia o print trocado. */
+    const desenhar = (a, b, largura, q) => {
+      const gap = Math.max(8, Math.round(largura * 0.008));
+      const util = largura - gap;
       const alvoH = 740;
       let wA = Math.max(1, Math.round(a.width * (alvoH / a.height)));
       let wB = Math.max(1, Math.round(b.width * (alvoH / b.height)));
-      if (wA + wB + gap > 1480) {
-        const f = 1480 / (wA + wB + gap);
-        wA = Math.max(1, Math.round(wA * f));
-        wB = Math.max(1, Math.round(wB * f));
-      }
+      const f = util / (wA + wB);
+      wA = Math.max(1, Math.round(wA * f));
+      wB = Math.max(1, util - wA);
       const hA = Math.max(1, Math.round(a.height * (wA / a.width)));
       const hB = Math.max(1, Math.round(b.height * (wB / b.width)));
+
+      // Faixa e fonte proporcionais: legiveis em qualquer largura final.
+      const fonte = Math.max(18, Math.round(largura * 0.022));
+      const faixa = Math.round(fonte * 2);
       const c = document.createElement('canvas');
       c.width = wA + wB + gap;
       c.height = faixa + Math.max(hA, hB);
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#0d3446';
       ctx.fillRect(0, 0, c.width, c.height);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.fillText('1 ANTES — onde clicou', 10, 30);
-      ctx.fillText('2 DEPOIS — para onde entrou', wA + gap + 10, 30);
       ctx.drawImage(a, 0, faixa, wA, hA);
       ctx.drawImage(b, wA + gap, faixa, wB, hB);
-      return canvasParaBlob(c, 0.82);
+
+      // Barra vertical separando os lados: reforca a fronteira para o modelo.
+      ctx.fillStyle = '#e23c3c';
+      ctx.fillRect(wA, 0, gap, c.height);
+
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold ' + fonte + 'px sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('1 ANTES — onde clicou', Math.round(fonte * 0.5), faixa / 2);
+      ctx.fillText('2 DEPOIS — para onde entrou', wA + gap + Math.round(fonte * 0.5), faixa / 2);
+      return c.toDataURL('image/jpeg', q);
+    };
+
+    try{
+      const a = await carregar(blobAntes);
+      const b = await carregar(blobDepois);
+      // Piso de 900 px: abaixo disso cada tela fica estreita demais para ler.
+      let largura = 1480, q = 0.82, ultimo = null;
+      for(let i=0;i<5;i++){
+        ultimo = desenhar(a, b, largura, q);
+        const bytes = Math.ceil(ultimo.slice(ultimo.indexOf(',') + 1).length * 0.75);
+        if(bytes <= 520000) return ultimo;
+        q = Math.max(0.45, q - 0.09);
+        largura = Math.max(900, Math.round(largura * 0.88));
+      }
+      return ultimo;
     }catch(_){
       return null;
     }
@@ -2336,8 +2361,9 @@
         }
         const depois = await encolherLeve(blobDepois, 1000, 0.78, 280000);
         const antes = blobAntes ? await encolherLeve(blobAntes, 1000, 0.78, 280000) : null;
-        const parBlob = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
-        const par = parBlob ? await encolherLeve(parBlob, 1480, 0.76, 520000) : null;
+        // Sem encolherLeve aqui: o par ja sai dentro do orcamento e reamostrar
+        // de novo borraria os rotulos ANTES/DEPOIS que orientam a IA.
+        const par = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
         if(!depois) throw new Error('não consegui reduzir a captura');
         const corpo = JSON.stringify({
           imagem: depois,
