@@ -484,6 +484,8 @@
     background:#fff;border-radius:4px;margin-left:2px;}
   .insp-html{margin-top:5px;}
   .insp-html summary{cursor:pointer;color:var(--navy);font-weight:700;font-size:.72rem;}
+  .insp-html .copiar-html{font-size:.68rem;padding:1px 7px;margin-left:6px;cursor:pointer;
+    border:1px solid #cfdce3;background:#fff;border-radius:4px;font-weight:400;}
   .insp-html pre{background:#0d3446;color:#e8f2f7;border-radius:6px;padding:8px;margin:5px 0 0;
     max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
     font-family:ui-monospace,Consolas,monospace;font-size:.71rem;}
@@ -1933,6 +1935,43 @@
     return diffPct(atual, ultimaAmostra);
   }
 
+  /* Rolar a página mudava muito pixel e virava print: a tela é a mesma, só
+   * deslocada. Aqui comparamos a amostra com a base deslocada na vertical —
+   * se algum deslocamento explica a mudança, foi rolagem e não tela nova. */
+  const MINI_L = 160, MINI_A = 90;
+
+  function diffDeslocado(a, b, dy){
+    if(!a || !b || a.length !== b.length) return 100;
+    let alterados = 0, contados = 0;
+    const yIni = Math.max(0, -dy);
+    const yFim = Math.min(MINI_A, MINI_A - dy);
+    for(let y = yIni; y < yFim; y++){
+      const la = y * MINI_L * 4;
+      const lb = (y + dy) * MINI_L * 4;
+      for(let x = 0; x < MINI_L; x++){
+        const ia = la + x * 4, ib = lb + x * 4;
+        const d = Math.abs(a[ia] - b[ib]) + Math.abs(a[ia+1] - b[ib+1]) + Math.abs(a[ia+2] - b[ib+2]);
+        if(d > 60) alterados++;
+        contados++;
+      }
+    }
+    return contados ? (alterados / contados) * 100 : 100;
+  }
+
+  function pareceRolagem(atual, base){
+    if(!atual || !base) return false;
+    const parado = diffDeslocado(atual, base, 0);
+    if(parado < 12) return false;
+    let melhor = parado, melhorDy = 0;
+    // Passo 2: rolagem de 1 linha da amostra é imperceptível e não vale o custo.
+    for(let dy = -44; dy <= 44; dy += 2){
+      if(Math.abs(dy) < 4) continue;
+      const d = diffDeslocado(atual, base, dy);
+      if(d < melhor){ melhor = d; melhorDy = dy; }
+    }
+    return melhorDy !== 0 && melhor < 10 && melhor < parado * 0.5;
+  }
+
   function descreverMudancaLocal(pct, forcado){
     if(forcado && (!pct || pct >= 99)) return {
       titulo: 'Início da gravação — tela inicial',
@@ -2042,6 +2081,8 @@
     const soMudanca = modo === 'alteracao' || document.getElementById('soMudanca').checked;
     const limiar = soMudanca ? Number(document.getElementById('sensibilidade').value) : 0;
     if(limiar && pct < limiar) return;
+    // Rolagem não é tela nova: só o mesmo conteúdo em outra posição.
+    if(soMudanca && pareceRolagem(amostraMini(), amostraEstavel)) return;
     capturaEmAndamento = true;
     const t0 = Date.now();
     const tentar = () => {
@@ -3131,15 +3172,27 @@
       + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')
       + (sel ? ' · <code>' + esc(sel) + '</code> <button type="button" class="copiar-sel">Copiar</button>' : '')
       + (dados.html
-          ? '<details class="insp-html"><summary>HTML do elemento</summary>'
+          ? '<details class="insp-html" open><summary>HTML do elemento '
+            + '<button type="button" class="copiar-html">Copiar HTML</button></summary>'
             + '<pre>' + esc(String(dados.html)) + '</pre></details>'
           : '');
-    const copiar = box.querySelector('.copiar-sel');
-    if(copiar) copiar.onclick = async () => {
-      try{ await navigator.clipboard.writeText(sel); copiar.textContent = 'Copiado'; }
-      catch(_){ copiar.textContent = 'Copie manualmente'; }
-      setTimeout(()=>{ copiar.textContent = 'Copiar'; }, 1600);
+    const aviso = (b, txt) => {
+      const antes = b.textContent;
+      b.textContent = txt;
+      setTimeout(()=>{ b.textContent = antes; }, 1600);
     };
+    const ligarCopia = (seletorBotao, valor) => {
+      const b = box.querySelector(seletorBotao);
+      if(!b || !valor) return;
+      b.onclick = async (ev) => {
+        ev.preventDefault();   // dentro do <summary>, o clique abriria/fecharia
+        ev.stopPropagation();
+        try{ await navigator.clipboard.writeText(valor); aviso(b, 'Copiado'); }
+        catch(_){ aviso(b, 'Copie manualmente'); }
+      };
+    };
+    ligarCopia('.copiar-sel', sel);
+    ligarCopia('.copiar-html', String(dados.html || ''));
   }
 
   function dataUrlParaBlob(dataUrl){

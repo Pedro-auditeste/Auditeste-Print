@@ -46,7 +46,10 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
       seletor: qa.querySelector('code') && qa.querySelector('code').textContent,
       botaoCopiar: !!qa.querySelector('.copiar-sel'),
       htmlNoPre: qa.querySelector('.insp-html pre') && qa.querySelector('.insp-html pre').textContent,
-      virouBotaoReal: !!qa.querySelector('.insp-html button')
+      // Procura o id capturado, nao 'qualquer button': o bloco tem o botao
+      // Copiar HTML, que e nosso e deve existir.
+      virouBotaoReal: !!qa.querySelector('.insp-html #entrarSite'),
+      temCopiarHtml: !!qa.querySelector('.copiar-html')
     };
 
     const b = criar(true);
@@ -69,6 +72,7 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
   assert.ok(r.extensao.botaoCopiar, 'faltou o botão Copiar');
   assert.match(r.extensao.htmlNoPre, /<button id="entrarSite"/, 'HTML não veio como texto');
   assert.strictEqual(r.extensao.virouBotaoReal, false, 'o HTML virou elemento real — escape falhou');
+  assert.ok(r.extensao.temCopiarHtml, 'faltou o botão Copiar HTML');
   assert.ok(r.gravacao.visivel, 'gravação por tela não explicou a ausência do seletor');
   assert.match(r.gravacao.texto, /extensão|Sem seletor/i, 'aviso da gravação sem orientação');
   assert.strictEqual(r.manualVazio.visivel, false, 'passo manual vazio poluiu a tela');
