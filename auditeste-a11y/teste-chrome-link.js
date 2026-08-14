@@ -6,6 +6,7 @@ const path = require('path');
 
 const SAIDA = path.join(__dirname, 'saida');
 const BASE = process.env.PONTE_URL || 'http://127.0.0.1:8900';
+const TOKEN = process.env.PONTE_TOKEN || '';
 const RAILWAY = 'https://audiprint.up.railway.app/';
 
 function get(url) {
@@ -87,6 +88,8 @@ function acharIaVisivel(html) {
   });
   const pagina = await nav.newPage();
   try {
+    // Sem isto o Print hospedado nao manda o token e a ponte devolve 401.
+    if (TOKEN) await pagina.evaluateOnNewDocument(t => localStorage.setItem('ponte_token', t), TOKEN);
     await pagina.goto(BASE + '/?t=' + Date.now(), { waitUntil: 'domcontentloaded', timeout: 30000 });
     await pagina.waitForSelector('#entrarSite', { timeout: 10000 });
     await pagina.click('#entrarSite');

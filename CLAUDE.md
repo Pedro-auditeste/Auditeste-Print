@@ -58,6 +58,12 @@ npm run servidor
 Testes são scripts soltos (`node teste-*.js`), sem framework. `npm run teste-agente`,
 `teste-ia`, `teste-pares`.
 
+Contra a ponte local não precisa de token (o servidor libera loopback). Contra a
+hospedada, passe as duas: `PONTE_URL=https://audiprint.up.railway.app/
+PONTE_TOKEN=... node teste-chrome-link.js`. Os testes de Chrome semeiam o
+`localStorage.ponte_token` antes do `goto` — sem isso a página sobe mas a ponte
+devolve 401.
+
 ## Idioma
 
 Código, commits e UI em **português**. Mensagens de commit descrevem o efeito para

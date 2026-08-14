@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 const BASE = process.env.PONTE_URL || 'http://127.0.0.1:8900';
+const TOKEN = process.env.PONTE_TOKEN || '';
 const SAIDA = path.join(__dirname, 'saida');
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
@@ -60,6 +61,8 @@ async function esperar(pagina, fn, ms, passo = 400) {
   pagina.setDefaultTimeout(45000);
 
   try {
+    // Sem isto o Print hospedado nao manda o token e a ponte devolve 401.
+    if (TOKEN) await pagina.evaluateOnNewDocument(t => localStorage.setItem('ponte_token', t), TOKEN);
     await pagina.goto(BASE + '/?v=4', { waitUntil: 'load' });
     await delay(700);
     const splash = await pagina.$('#entrarSite');

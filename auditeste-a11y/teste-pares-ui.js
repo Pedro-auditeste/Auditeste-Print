@@ -7,6 +7,7 @@ const puppeteer = require('puppeteer');
 const { caminhoChrome } = require('./a11y.js');
 
 const BASE = process.env.PONTE_URL || 'http://127.0.0.1:8900';
+const TOKEN = process.env.PONTE_TOKEN || '';
 const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XbY4WQAAAABJRU5ErkJggg==';
 const arquivo = path.join(os.tmpdir(), 'audi-print-pares-teste.json');
 
@@ -74,6 +75,8 @@ const DESCRICAO_LONGA = 'Antes havia a tela de login com e-mail e senha. '
   });
 
   try {
+    // Sem isto o Print hospedado nao manda o token e a ponte devolve 401.
+    if (TOKEN) await pagina.evaluateOnNewDocument(t => localStorage.setItem('ponte_token', t), TOKEN);
     await pagina.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await pagina.click('#entrarSite');
     await pagina.waitForSelector('#telaProjetos.ativa');
