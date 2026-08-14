@@ -36,6 +36,18 @@ servido pela Railway divergem.
 
 A Railway injeta `PORT`. `HOST=0.0.0.0` vem do Dockerfile.
 
+## Gerar cenários: o montador vem primeiro
+
+`/cenarios` monta o Gherkin **dos textos das descrições** (`montarCenariosDosPassos`)
+em ~0,03 s. A IA é enriquecimento com prazo curto, não dependência.
+
+`AGENTE_ORCAMENTO_CENARIOS_MS` limita a **soma** das tentativas de IA (padrão 25000).
+Ponha **0** para pular a IA e devolver sempre o montado, instantâneo e sem cota.
+
+Medições reais (14/08/2026): `llama-3.2-11b-vision` responde em ~17 s;
+`llama-3.2-90b-vision` **não respondeu nem em 120 s** — evite o 90B em `AGENTE_MODELO`.
+Da Railway a NVIDIA é mais lenta que da máquina local (`/descrever` levou 102 s).
+
 ## Variáveis de ambiente
 
 `NVIDIA_NIM_API_KEY` (obrigatória p/ descrever e cenários; `AGENTE_API_KEY` também aceito),

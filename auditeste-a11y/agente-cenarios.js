@@ -17,10 +17,19 @@ const MAX_IMAGENS = /llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + 
 const MAX_TOKENS = Number(process.env.AGENTE_MAX_TOKENS) || 2048;
 const TIMEOUT_MS = Number(process.env.AGENTE_TIMEOUT_MS) || 20000;
 const TIMEOUT_CENARIOS_MS = Math.max(90000, TIMEOUT_MS);
-/* Teto para a SOMA das tentativas de IA em /cenarios. Fica abaixo dos 120 s
- * que o Print espera, para dar tempo de devolver o Gherkin montado dos textos
- * em vez do navegador abortar e o QA ficar sem nada. */
-const ORCAMENTO_CENARIOS_MS = Number(process.env.AGENTE_ORCAMENTO_CENARIOS_MS) || 75000;
+/* Teto para a SOMA das tentativas de IA em /cenarios.
+ *
+ * O cenario montado dos textos sai em ~0,03 s e ja e utilizavel, entao a IA
+ * aqui e enriquecimento, nao dependencia: se ela nao responder rapido, o QA
+ * recebe o montado em vez de esperar. Medido: 11b responde em ~17 s; o 90b
+ * nao respondeu nem em 120 s. */
+// Sem "|| padrao": zero e valor valido aqui (pular a IA) e o || o descartaria.
+function msDoAmbiente(bruto, padrao) {
+  if (bruto == null || String(bruto).trim() === '') return padrao;
+  const n = Number(bruto);
+  return Number.isFinite(n) && n >= 0 ? n : padrao;
+}
+const ORCAMENTO_CENARIOS_MS = msDoAmbiente(process.env.AGENTE_ORCAMENTO_CENARIOS_MS, 25000);
 
 const SISTEMA = `Você gera a entrada da skill automacao-web-qa / SKILL-MAPEAMENTO-QA a partir dos PRINTS do Audi Print.
 
