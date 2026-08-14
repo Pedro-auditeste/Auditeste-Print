@@ -32,7 +32,6 @@ servido pela Railway divergem.
 | `/scan?tipo=axe\|pa11y\|nota&url=` | scans; exige `Authorization: Bearer $PONTE_TOKEN` |
 | `/descrever` | descrição das telas via NVIDIA NIM |
 | `/cenarios` | monta Gherkin |
-| `/teste-ia` | diagnóstico da chave |
 
 A Railway injeta `PORT`. `HOST=0.0.0.0` vem do Dockerfile.
 
@@ -68,13 +67,22 @@ npm run servidor
 ```
 
 Testes são scripts soltos (`node teste-*.js`), sem framework. `npm run teste-agente`,
-`teste-ia`, `teste-pares`.
+`teste-pares`.
+
+Sem rede: `teste-texto`, `teste-cenarios`, `teste-agendamento`, `teste-marca`,
+`teste-inspecao`. Os três últimos abrem um Chrome headless mas não usam a NVIDIA.
 
 Contra a ponte local não precisa de token (o servidor libera loopback). Contra a
 hospedada, passe as duas: `PONTE_URL=https://audiprint.up.railway.app/
-PONTE_TOKEN=... node teste-chrome-link.js`. Os testes de Chrome semeiam o
+PONTE_TOKEN=... node teste-pares-ui.js`. Os testes de Chrome semeiam o
 `localStorage.ponte_token` antes do `goto` — sem isso a página sobe mas a ponte
-devolve 401.
+devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).
+
+## Gravação: quem tem DOM
+
+A gravação do Print usa `getDisplayMedia` — **pixels, sem DOM**. Seletor e HTML do
+elemento só existem pela **extensão Chrome**, que exporta JSON e é importado aqui
+(`aplicarEvidenciaImportada`). Não tente tirar seletor da gravação de tela.
 
 ## Idioma
 

@@ -223,12 +223,6 @@
   .estado-cenarios.off{color:var(--rec);}
   @media print{.caixa-cenarios{box-shadow:none;border:1px solid var(--line);break-inside:avoid;}.caixa-cenarios .abas-cenarios,.caixa-cenarios .topo-painel{display:none;}.caixa-cenarios .painel-cenario{display:block!important;}}
 
-  .caixa-link{
-    background:var(--card);border:2px solid var(--green);border-radius:12px;
-    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);
-  }
-  .caixa-link label{display:block;color:var(--navy);font-weight:700;margin-bottom:8px;}
-  .caixa-link .dica-captura{margin:8px 0 0;}
   .linha-scan{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   .linha-scan input{
     flex:1;min-width:220px;font:inherit;font-size:.9rem;padding:8px 12px;
@@ -966,14 +960,6 @@
       <button class="btn primario" data-acao="novoProjeto">Novo projeto</button>
     </div>
 
-    <div class="caixa-link" id="caixaLinkHome">
-      <label for="urlTesteIaHome">Link do site</label>
-      <div class="linha-scan">
-        <input type="url" id="urlTesteIaHome" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site para testar e gravar">
-        <button type="button" class="btn primario" data-acao="iniciarTesteHome">Iniciar teste</button>
-      </div>
-      <p class="dica-captura">Cole o endereço aqui na tela inicial. O teste grava a tela e tira os prints.</p>
-    </div>
 
     <div class="busca">
       <span class="lupa" aria-hidden="true"></span>
@@ -1008,14 +994,6 @@
       </div>
       <button class="btn primario" data-acao="novaGravacao">Nova gravação</button>
     </div>
-    <div class="caixa-link" id="caixaLinkProjeto">
-      <label for="urlTesteIaProjeto">Link do site</label>
-      <div class="linha-scan">
-        <input type="url" id="urlTesteIaProjeto" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site para testar e gravar">
-        <button type="button" class="btn primario" data-acao="iniciarTesteUrl">Iniciar teste</button>
-      </div>
-      <p class="dica-captura">Cole o endereço. O teste abre o site, grava a tela e tira os prints.</p>
-    </div>
     <div id="listaRegistros"></div>
   </div>
 
@@ -1029,37 +1007,29 @@
       </div>
     </div>
 
-    <div class="caixa-link">
-      <label for="urlTesteIa">Link do site</label>
-      <div class="linha-scan">
-        <input type="url" id="urlTesteIa" placeholder="https://site-do-cliente.com" autocomplete="off" aria-label="Link do site para testar, gravar e printar">
-      </div>
-      <p class="dica-captura">Cole o link e clique em <b>Iniciar teste</b>. A gravação e os prints saem sozinhos.</p>
-    </div>
 
     <div class="barra-rec" id="barraRec" data-estado="parado">
       <div class="estado"><span class="bolha" aria-hidden="true"></span><span id="rotEstado" role="status">Parado</span></div>
       <div class="relogio" id="relogio">00:00</div>
       <div class="contagem"><b id="qtd">0</b> passo(s)</div>
       <div class="acoes">
-        <button class="btn primario" id="btnIniciar">Iniciar teste</button>
+        <button class="btn primario" id="btnIniciar">Iniciar gravação</button>
         <button class="btn" id="btnCapturar" disabled>Capturar agora</button>
         <button class="btn" id="btnPausar" disabled>Pausar</button>
         <button class="btn perigo" id="btnParar" disabled>Parar</button>
       </div>
     </div>
-    <p id="estadoTesteIa" class="estado-ponte" role="status" style="margin:8px 0 0"></p>
     <p id="statusIA" class="dica-captura" style="margin:6px 0 0" role="status"></p>
 
     <details class="caixa">
-      <summary>Gravar minha tela (manual)</summary>
+      <summary>Opções de captura</summary>
       <div class="corpo">
         <div class="abas-captura" role="tablist">
           <button type="button" class="aba-captura ativa" data-modo="alteracao" role="tab" aria-selected="true">Por alteração na tela</button>
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
         </div>
         <div class="painel-captura ativo" data-painel="alteracao">
-          <p class="dica-captura">Só use se quiser gravar a sua tela. O fluxo principal é o link + <b>Iniciar teste</b>.</p>
+          <p class="dica-captura">Um print sai a cada mudança de tela. Use <b>Por intervalo</b> para telas que mudam pouco.</p>
           <div class="opcoes">
             <label>Sensibilidade
               <select id="sensibilidade">
@@ -1113,7 +1083,8 @@
 
     <div class="dica">
       <b>Como gravar</b>
-      Cole o <b>link do site</b> e clique em <b>Iniciar teste</b>. O sistema abre a página, grava a tela e tira os prints (com o id HTML). Você não precisa compartilhar a tela.
+      Clique em <b>Iniciar gravação</b> e escolha a aba do site. Um print sai a cada mudança de tela, e cada par ganha descrição.
+      Para registrar também o <b>id e o HTML</b> do que foi clicado, use a extensão Chrome e importe o JSON aqui.
       Depois salve e use <b>Gerar cenários</b>.
     </div>
 
@@ -1167,7 +1138,7 @@
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
-    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Cole o link do site e clique em Iniciar teste.</div>
+    <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Clique em Iniciar gravação e escolha a aba do site.</div>
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
@@ -1298,7 +1269,6 @@
   let telaEstavel=null, amostraEstavel=null, capturaEmAndamento=false, capturaPendente=null;
   let anelFrames=[], quietTicks=0;
   let gravadorVideo=null, pedacos=[], videoBlob=null, urls=[];
-  let testeIaAbort=null;
 
   const mini = document.createElement('canvas'); mini.width=160; mini.height=90;
   const mctx = mini.getContext('2d',{willReadFrequently:true});
@@ -1810,7 +1780,6 @@
       return desenharProjetos();
     }
     if(b.dataset.acao === 'novaGravacao') return abrirGravador();
-    if(b.dataset.acao === 'iniciarTesteUrl') return iniciarTesteDaTela('urlTesteIaProjeto');
   });
 
   document.getElementById('arqLogoProjeto').addEventListener('change', async e => {
@@ -1829,44 +1798,10 @@
     a.click();
   }
 
-  function copiarUrlTeste(valor){
-    const v = String(valor || '').trim();
-    ['urlTesteIaHome','urlTesteIaProjeto','urlTesteIa'].forEach(id => {
-      const el = document.getElementById(id);
-      if(el) el.value = v;
-    });
-    return v;
-  }
-
-  async function garantirProjetoParaTeste(){
-    if(projetoAtual) return projetoAtual;
-    const projetos = (await listarProjetos()).sort((a,b)=> (b.criadoEm||0) - (a.criadoEm||0));
-    if(projetos[0]){
-      await abrirProjeto(projetos[0].id);
-      return projetoAtual;
-    }
-    const id = await criarProjetoDB({ nome: 'Teste', cliente: '', criadoEm: Date.now() });
-    await abrirProjeto(id);
-    return projetoAtual;
-  }
-
-  async function iniciarTesteDaTela(origemId){
-    const origem = document.getElementById(origemId);
-    const urlSite = copiarUrlTeste(origem && origem.value);
-    if(!urlSite){
-      avisar('Cole o link do site.');
-      if(origem) origem.focus();
-      return;
-    }
-    await garantirProjetoParaTeste();
-    abrirGravador();
-    return testeIaUrl();
-  }
-
   /* ============ TELA GRAVADOR ============ */
   async function abrirGravador(){
     document.getElementById('alvoGravacao').textContent =
-      'Cole o link do site. O teste grava e printa no projeto ' + projetoAtual.nome + '.';
+      'Gravando no projeto ' + projetoAtual.nome + '. Cada mudança de tela vira um print.';
     const campoNum = document.querySelector('[data-campo="registro"]');
     if(!campoNum.textContent.trim()){
       const regs = await listarRegistros(projetoAtual.id);
@@ -1935,19 +1870,10 @@
   }
 
   function iniciar(){
-    return testeIaUrl();
+    return iniciarManual();
   }
 
   function parar(externo, silencioso){
-    if(testeIaAbort){
-      testeIaAbort.abort();
-      testeIaAbort = null;
-      mudarEstado('parado');
-      const st = document.getElementById('statusIA');
-      if(st) st.textContent = 'Teste interrompido.';
-      if(!silencioso) avisar('Teste interrompido.');
-      return Promise.resolve();
-    }
     clearInterval(vigia); vigia = null;
     clearInterval(vigiaBuffer); vigiaBuffer = null;
     if(capturaPendente){ clearTimeout(capturaPendente); capturaPendente = null; }
@@ -2812,7 +2738,7 @@
     try{ bruto = JSON.parse(await arquivo.text()); }
     catch(err){ avisar('Arquivo invalido: ' + err.message); return 0; }
     if(bruto && bruto.formato === 'audi-print-evidencia-v1' && Array.isArray(bruto.passos)){
-      await aplicarTesteIa(bruto);
+      await aplicarEvidenciaImportada(bruto);
       avisar(bruto.passos.length + ' ação(ões) com antes/depois importadas.');
       return bruto.passos.length;
     }
@@ -2934,7 +2860,7 @@
     for(const base of candidatasPonte()){
       const info = await pingUmaPonte(base);
       if(!info) continue;
-      if(info.cenarios || info.testeIa){
+      if(info.cenarios){
         ponteIACache = { url: base, t: Date.now(), info };
         return ponteIACache;
       }
@@ -2982,9 +2908,6 @@
         return false;
       }
       let msg = 'Ponte em ' + alvo.url + '.' + textoMotores(info);
-      msg += info.testeIa === false
-        ? ' Teste automático: indisponível.'
-        : ' Teste automático: pronto (grava o vídeo).';
       msg += info.cenarios
         ? ' Cenários: prontos.'
         : ' Cenários: indisponíveis neste endereço.';
@@ -3158,78 +3081,6 @@
     return new Blob([u8], { type: m[1] || 'application/octet-stream' });
   }
 
-  async function testeIaUrl(){
-    const input = document.getElementById('urlTesteIa');
-    const estadoEl = document.getElementById('estadoTesteIa');
-    const urlSite = (
-      (input && input.value) ||
-      (document.getElementById('urlTesteIaHome') && document.getElementById('urlTesteIaHome').value) ||
-      (document.getElementById('urlTesteIaProjeto') && document.getElementById('urlTesteIaProjeto').value) ||
-      ''
-    ).trim();
-    const dizer = (txt, ruim) => {
-      if(!estadoEl) return;
-      estadoEl.textContent = txt;
-      estadoEl.className = 'estado-ponte' + (ruim ? ' off' : ruim === false ? ' ok' : ' trabalhando');
-    };
-    if(!urlSite){
-      avisar('Cole o link do site para iniciar a gravação e os prints.');
-      if(input) input.focus();
-      return;
-    }
-    try { new URL(urlSite); } catch(_){ avisar('URL inválida.'); return; }
-    if(testeIaAbort){ avisar('Já existe um teste em andamento.'); return; }
-
-    dizer('Verificando a ponte...');
-    const alvo = await resolverPonteIA();
-    if(!alvo.url || !alvo.info){
-      dizer('Ponte fora do ar. Rode npm run servidor em auditeste-a11y.', true);
-      avisar('A ponte precisa estar no ar para gravar o teste.');
-      return;
-    }
-
-    testeIaAbort = new AbortController();
-    const timeoutId = setTimeout(() => { try{ testeIaAbort.abort(); }catch(_){ } }, 300000);
-    segundos = 0; relogio.textContent = '00:00';
-    mudarEstado('gravando');
-    btnPausar.disabled = true;
-    btnCapturar.disabled = true;
-      dizer('Percorrendo a página, gravando o vídeo e printando cada passo...');
-    const statusIaEl = document.getElementById('statusIA');
-    if(statusIaEl) statusIaEl.textContent = 'Testando e gravando: ' + urlSite;
-
-    try{
-      const resp = await fetch(alvo.url + '/teste-ia', {
-        method: 'POST',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
-        body: JSON.stringify({ url: urlSite }),
-        signal: testeIaAbort.signal
-      });
-      const dados = await resp.json().catch(() => null);
-      if(!dados) throw new Error('A ponte não devolveu o teste. Tente de novo.');
-      if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-      if(!(dados.passos || []).length) throw new Error(dados.erro || 'O teste não gerou prints.');
-      await aplicarTesteIa(dados);
-      const n = dados.passos.length;
-      const nImg = [...lista.querySelectorAll('.passo figure')].length;
-      if(!nImg) throw new Error('O teste abriu o site, mas os prints não chegaram. Tente de novo.');
-      dizer('Teste concluído: ' + n + ' passo(s), ' + nImg + ' print(s)' + (videoBlob || (dados.quadros||[]).length ? ' + vídeo' : '') + '. Revise e salve.', false);
-      if(statusIaEl) statusIaEl.textContent = 'Gravou ' + n + ' passo(s) com print antes/depois.';
-      avisar('Teste gravado e printado. Revise e salve no projeto.');
-    }catch(err){
-      const abortou = /AbortError|aborted/i.test((err && (err.name + ' ' + err.message)) || '');
-      const timeout = abortou || /timeout/i.test((err && err.message) || '');
-      if(!abortou || timeout){
-        dizer(timeout && !abortou ? 'O teste demorou demais. Tente de novo.' : abortou ? 'Teste interrompido.' : ('Falha no teste: ' + ((err && err.message) || 'erro')), true);
-        if(!abortou) avisar(timeout ? 'Timeout no teste.' : 'Não foi possível gravar o teste.');
-      }
-    }finally{
-      clearTimeout(timeoutId);
-      testeIaAbort = null;
-      mudarEstado('parado');
-    }
-  }
-
   async function videoDosQuadros(quadros){
     if(!quadros || !quadros.length || !window.MediaRecorder) return null;
     const imgs = [];
@@ -3257,7 +3108,7 @@
     return chunks.length ? new Blob(chunks, { type: 'video/webm' }) : null;
   }
 
-  async function aplicarTesteIa(dados){
+  async function aplicarEvidenciaImportada(dados){
     lista.innerHTML = '';
     videoBlob = dados.video ? dataUrlParaBlob(dados.video) : null;
     if(!videoBlob || videoBlob.size < 80000){
@@ -4066,16 +3917,6 @@
   btnIniciar.addEventListener('click', iniciar);
   const btnIniciarManual = document.getElementById('btnIniciarManual');
   if(btnIniciarManual) btnIniciarManual.addEventListener('click', iniciarManual);
-  ['urlTesteIaHome','urlTesteIaProjeto','urlTesteIa'].forEach(id => {
-    const el = document.getElementById(id);
-    if(!el) return;
-    el.addEventListener('input', () => copiarUrlTeste(el.value));
-    el.addEventListener('keydown', e => {
-      if(e.key !== 'Enter') return;
-      e.preventDefault();
-      iniciarTesteDaTela(id);
-    });
-  });
   btnParar.addEventListener('click', ()=> parar(false));
   btnCapturar.addEventListener('click', ()=> capturar(true));
   btnPausar.addEventListener('click', ()=>{
@@ -4099,7 +3940,6 @@
     if(!a) return;
     const acao = a.dataset.acao;
     if(acao === 'novoProjeto') novoProjeto();
-    if(acao === 'iniciarTesteHome') iniciarTesteDaTela('urlTesteIaHome');
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
     if(acao === 'gerarDescricao') gerarDescricaoPasso(a.closest('.passo'));
     if(acao === 'copiarGherkin') copiarTextoQa(analiseDoPasso(a.closest('.passo')).gherkin, 'Gherkin copiado.');

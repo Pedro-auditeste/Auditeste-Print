@@ -12,13 +12,13 @@
     "servidor": "node servidor.js",
     "teste-file": "node teste_file.js",
     "teste-agente": "node teste-agente-cenarios.js",
-    "teste-ia": "node teste-ia-seletores.js",
     "teste-pares": "node teste-pares-ui.js",
     "teste-texto": "node teste-texto-descricao.js",
     "teste-agendamento": "node teste-agendamento-print.js",
     "teste-marca": "node teste-marca-vermelha.js",
     "teste-cenarios": "node teste-cenarios-dos-textos.js",
     "teste-inspecao": "node teste-inspecao-elemento.js",
+    "teste-abre": "node teste-print-abre.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {
