@@ -483,6 +483,10 @@
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
     background:#fff;border-radius:4px;margin-left:2px;}
   .insp-html{margin-top:5px;}
+  .localizador-ia{margin-top:8px;font-size:.76rem;}
+  .localizador-ia code{display:block;margin-top:4px;background:#eef3f6;border:1px solid #cfdce3;
+    border-radius:4px;padding:4px 8px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
+  .aviso-palpite{color:var(--muted);font-style:italic;margin-left:6px;}
   .insp-html .rotulo-html{color:var(--navy);font-weight:700;font-size:.72rem;margin-right:6px;}
   .insp-html .copiar-html{font-size:.68rem;padding:1px 7px;margin-left:6px;cursor:pointer;
     border:1px solid #cfdce3;background:#fff;border-radius:4px;font-weight:400;}
@@ -2252,7 +2256,8 @@
       cenarios_alternativos: Array.isArray(dados && dados.cenarios_alternativos)
         ? dados.cenarios_alternativos.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean).slice(0,2)
         : [],
-      alerta_qa: texto(dados && dados.alerta_qa)
+      alerta_qa: texto(dados && dados.alerta_qa),
+      localizador: texto(dados && dados.localizador)
     };
   }
 
@@ -2262,7 +2267,7 @@
   }
 
   function htmlAnaliseQa(a, indiceRegistro){
-    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa)) return '';
+    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa || a.localizador)) return '';
     const reg = Number.isInteger(indiceRegistro);
     const sufixo = reg ? ` data-passo="${indiceRegistro}"` : '';
     const alternativas = a.cenarios_alternativos.length
@@ -2274,6 +2279,9 @@
         ${a.descricao_detalhada ? `<p>${esc(a.descricao_detalhada)}</p>` : ''}
         ${a.gherkin ? `<pre>${esc(a.gherkin)}</pre><div class="acoes-qa"><button type="button" class="gerar-desc" data-acao="${reg ? 'copiarGherkinRegistro' : 'copiarGherkin'}"${sufixo}>Copiar Gherkin</button></div>` : ''}
         ${alternativas}
+        ${a.localizador ? `<div class="localizador-ia"><b>Localizador sugerido</b>
+          <span class="aviso-palpite">tirado do texto visível no print — confira antes de usar no script</span>
+          <code>${esc(a.localizador)}</code></div>` : ''}
         ${a.alerta_qa ? `<div class="alerta-qa-msg"><b>Alerta QA:</b> ${esc(a.alerta_qa)}</div>` : ''}
       </details>`;
   }
@@ -2289,7 +2297,7 @@
     }
     const caixa = passo.querySelector(':scope > .analise-qa');
     if(caixa){
-      caixa.hidden = !(a.descricao_detalhada || a.gherkin || a.alerta_qa);
+      caixa.hidden = !(a.descricao_detalhada || a.gherkin || a.alerta_qa || a.localizador);
       caixa.innerHTML = htmlAnaliseQa({ ...a, legenda_curta: '' });
     }
     return a;

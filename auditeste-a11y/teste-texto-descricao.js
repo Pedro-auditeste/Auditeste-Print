@@ -8,7 +8,8 @@ const {
   parseAnaliseQa,
   frase,
   semFraseIncompleta,
-  alertaDeLados
+  alertaDeLados,
+  localizadorValido
 } = require('./agente-cenarios.js');
 
 let n = 0;
@@ -134,6 +135,48 @@ caso('parseAnaliseQa carrega o rotulo_lido', () => {
     legenda_curta: 'x', descricao_detalhada: 'y', rotulo_lido: '1 ANTES'
   }));
   assert.strictEqual(r.rotulo_lido, '1 ANTES');
+});
+
+console.log('--- localizador sugerido pela IA ---');
+
+caso('aceita localizador por papel e texto', () => {
+  assert.ok(localizadorValido("getByRole('button', { name: 'Comprar' })"));
+  assert.ok(localizadorValido('getByLabel("E-mail")'));
+  assert.ok(localizadorValido("getByPlaceholder('Buscar')"));
+  assert.ok(localizadorValido("getByText('Ver mais')"));
+});
+
+caso('recusa seletor inventado, que a IA não pode saber', () => {
+  // O id não está na imagem: se veio, foi invenção e quebraria o script do QA.
+  const inventados = ['#btnComprar', '.btn-primary', '[data-testid="x"]',
+    '//html/body/button', "document.querySelector('#x')", "getByRole('css=#btn')"];
+  for (const mau of inventados) {
+    assert.strictEqual(localizadorValido(mau), '', 'deixou passar: ' + mau);
+  }
+});
+
+caso('texto com # continua valendo', () => {
+  // "#1 mais vendido" é texto de tela, não seletor — recusar isso perderia
+  // localizador bom.
+  assert.ok(localizadorValido("getByRole('link', { name: '#1 mais vendido' })"));
+});
+
+caso('vazio não vira localizador', () => {
+  assert.strictEqual(localizadorValido(''), '');
+  assert.strictEqual(localizadorValido(null), '');
+});
+
+caso('parseAnaliseQa filtra o localizador inválido', () => {
+  const bom = parseAnaliseQa(JSON.stringify({
+    legenda_curta: 'x', descricao_detalhada: 'y',
+    localizador: "getByRole('button', { name: 'Salvar' })"
+  }));
+  assert.match(bom.localizador, /getByRole/);
+
+  const mau = parseAnaliseQa(JSON.stringify({
+    legenda_curta: 'x', descricao_detalhada: 'y', localizador: '#salvar'
+  }));
+  assert.strictEqual(mau.localizador, '', 'deixou passar seletor inventado');
 });
 
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');
