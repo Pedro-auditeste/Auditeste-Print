@@ -179,4 +179,62 @@ caso('parseAnaliseQa filtra o localizador inválido', () => {
   assert.strictEqual(mau.localizador, '', 'deixou passar seletor inventado');
 });
 
+console.log('--- controles da tela ---');
+
+const controles = (lista) => parseAnaliseQa(JSON.stringify({
+  legenda_curta: 'x', descricao_detalhada: 'y', controles: lista
+})).controles;
+
+caso('lista os controles com localizador válido', () => {
+  const r = controles([
+    { rotulo: 'Continuar', tipo: 'botao', localizador: "getByRole('button', { name: 'Continuar' })" },
+    { rotulo: 'Agora não', tipo: 'botao', localizador: "getByRole('button', { name: 'Agora não' })" },
+    { rotulo: '+ 36 meses', tipo: 'opcao', localizador: "getByRole('radio', { name: '+ 36 meses' })" }
+  ]);
+  assert.strictEqual(r.length, 3, 'veio ' + r.length);
+  assert.strictEqual(r[0].rotulo, 'Continuar');
+  assert.strictEqual(r[2].tipo, 'opcao');
+});
+
+caso('descarta controle com seletor inventado', () => {
+  const r = controles([
+    { rotulo: 'Bom', tipo: 'botao', localizador: "getByRole('button', { name: 'Bom' })" },
+    { rotulo: 'Ruim', tipo: 'botao', localizador: '#btn-ruim' },
+    { rotulo: 'Pior', tipo: 'botao', localizador: '//html/body/button' }
+  ]);
+  assert.strictEqual(r.length, 1, 'passou seletor inventado: ' + JSON.stringify(r));
+  assert.strictEqual(r[0].rotulo, 'Bom');
+});
+
+caso('não repete o mesmo rótulo', () => {
+  // A tela tem itens parecidos e o modelo repete; duplicata só polui a lista.
+  const um = "getByRole('button', { name: 'Continuar' })";
+  const r = controles([
+    { rotulo: 'Continuar', tipo: 'botao', localizador: um },
+    { rotulo: 'continuar', tipo: 'botao', localizador: um },
+    { rotulo: 'CONTINUAR', tipo: 'botao', localizador: um }
+  ]);
+  assert.strictEqual(r.length, 1, 'repetiu: ' + r.length);
+});
+
+caso('tipo desconhecido cai para botao', () => {
+  const r = controles([
+    { rotulo: 'X', tipo: 'coisa-estranha', localizador: "getByText('X')" }
+  ]);
+  assert.strictEqual(r[0].tipo, 'botao');
+});
+
+caso('corta em 12 para não virar lista infinita', () => {
+  const muitos = Array.from({ length: 30 }, (_, i) => ({
+    rotulo: 'Item ' + i, tipo: 'botao', localizador: "getByText('Item " + i + "')"
+  }));
+  assert.strictEqual(controles(muitos).length, 12);
+});
+
+caso('campo ausente ou inválido devolve lista vazia', () => {
+  assert.deepStrictEqual(controles(undefined), []);
+  assert.deepStrictEqual(controles('nao e lista'), []);
+  assert.deepStrictEqual(controles([null, {}, { rotulo: 'só rótulo' }]), []);
+});
+
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

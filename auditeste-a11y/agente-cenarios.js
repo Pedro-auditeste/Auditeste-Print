@@ -539,6 +539,7 @@ function parseAnaliseQa(texto) {
     cenarios_alternativos: [],
     alerta_qa: '',
     localizador: '',
+    controles: [],
     rotulo_lido: ''
   };
   const bruto = String(texto || '').replace(/```(?:json)?|```/gi, '').trim();
@@ -558,6 +559,7 @@ function parseAnaliseQa(texto) {
       : [],
     alerta_qa: campo('alerta_qa'),
     localizador: localizadorValido(campo('localizador')),
+    controles: controlesValidos(dados.controles),
     rotulo_lido: campo('rotulo_lido')
   };
 }
@@ -576,6 +578,39 @@ function localizadorValido(bruto) {
    * jogaria fora localizador bom. */
   if (/\[data-|xpath|querySelector|css\s*=|\/\/\w/i.test(s)) return '';
   return s.slice(0, 200);
+}
+
+const MAX_CONTROLES = 12;
+const TIPOS_CONTROLE = ['botao', 'link', 'campo', 'opcao', 'aba'];
+
+/** Lista de controles da tela, filtrada com o mesmo rigor do localizador. */
+function controlesValidos(bruto) {
+  if (!Array.isArray(bruto)) return [];
+  const vistos = new Set();
+  const fora = [];
+  for (const c of bruto) {
+    if (!c || typeof c !== 'object') continue;
+    const localizador = localizadorValido(c.localizador);
+    if (!localizador) continue;   // sem localizador honesto, não entra
+    const rotulo = textoLinha(c.rotulo).slice(0, 120);
+    if (!rotulo) continue;
+    const chave = semAcentoBaixo(rotulo);
+    if (vistos.has(chave)) continue;   // o modelo repete quando a tela tem itens parecidos
+    vistos.add(chave);
+    const tipo = semAcentoBaixo(c.tipo);
+    fora.push({
+      rotulo,
+      tipo: TIPOS_CONTROLE.includes(tipo) ? tipo : 'botao',
+      localizador
+    });
+    if (fora.length >= MAX_CONTROLES) break;
+  }
+  return fora;
+}
+
+function semAcentoBaixo(v) {
+  return String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 /** O modelo devia ler "1 ANTES" na faixa esquerda. Se leu outra coisa, ou nao
@@ -656,6 +691,10 @@ Responda ESTRITAMENTE como JSON válido, sem markdown ou texto externo:
   "cenarios_alternativos": ["ideia curta", "outra ideia curta"],
   "alerta_qa": "",
   "localizador": "localizador Playwright a partir do que esta ESCRITO no elemento clicado",
+  "controles": [
+    { "rotulo": "texto do controle", "tipo": "botao|link|campo|opcao|aba",
+      "localizador": "getByRole('button', { name: 'Continuar' })" }
+  ],
   "rotulo_lido": "copie aqui, letra por letra, o texto escrito na faixa do canto superior ESQUERDO da imagem"
 }
 Regras:
@@ -673,6 +712,11 @@ Regras:
 - localizador: use SOMENTE o texto visível e o papel do elemento, no formato do
   Playwright: getByRole('button', { name: 'Comprar' }), getByLabel('E-mail'),
   getByPlaceholder('Buscar') ou getByText('Ver mais').
+- controles: liste TODOS os controles da tela DEPOIS que levariam a outra tela ou
+  a outro estado — botões, links, campos, opções de rádio, caixas, abas. Use o
+  texto que está escrito em cada um. Até 12, na ordem em que aparecem, de cima
+  para baixo. Não repita o mesmo rótulo. Não liste texto decorativo, preço,
+  título nem imagem: só o que dá para clicar ou preencher.
 - NUNCA escreva id, classe, css ou xpath em localizador. Você está vendo uma
   imagem: o id não aparece nela, e inventar um quebraria o teste do QA.
   Sem texto legível no elemento, deixe localizador vazio.
@@ -895,6 +939,7 @@ module.exports = {
   parseAnaliseQa,
   alertaDeLados,
   localizadorValido,
+  controlesValidos,
   juntarPassoAPasso,
   frase,
   semFraseIncompleta,

@@ -483,6 +483,13 @@
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
     background:#fff;border-radius:4px;margin-left:2px;}
   .insp-html{margin-top:5px;}
+  .controles-tela{margin-top:10px;font-size:.75rem;}
+  .controles-tela table{width:100%;border-collapse:collapse;margin-top:5px;}
+  .controles-tela td{border-bottom:1px solid #eef3f6;padding:3px 6px;vertical-align:top;
+    overflow-wrap:anywhere;}
+  .controles-tela .tipo{color:var(--muted);white-space:nowrap;}
+  .controles-tela code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;
+    padding:1px 5px;font-family:ui-monospace,Consolas,monospace;}
   .localizador-ia{margin-top:8px;font-size:.76rem;}
   .localizador-ia code{display:block;margin-top:4px;background:#eef3f6;border:1px solid #cfdce3;
     border-radius:4px;padding:4px 8px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
@@ -2254,7 +2261,12 @@
         ? dados.cenarios_alternativos.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean).slice(0,2)
         : [],
       alerta_qa: texto(dados && dados.alerta_qa),
-      localizador: texto(dados && dados.localizador)
+      localizador: texto(dados && dados.localizador),
+      controles: Array.isArray(dados && dados.controles)
+        ? dados.controles.filter(c => c && texto(c.rotulo) && texto(c.localizador))
+          .map(c => ({ rotulo: texto(c.rotulo), tipo: texto(c.tipo) || 'botao',
+            localizador: texto(c.localizador) })).slice(0, 12)
+        : []
     };
   }
 
@@ -2264,7 +2276,8 @@
   }
 
   function htmlAnaliseQa(a, indiceRegistro){
-    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa || a.localizador)) return '';
+    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa
+      || a.localizador || a.controles.length)) return '';
     const reg = Number.isInteger(indiceRegistro);
     const sufixo = reg ? ` data-passo="${indiceRegistro}"` : '';
     const alternativas = a.cenarios_alternativos.length
@@ -2279,6 +2292,13 @@
         ${a.localizador ? `<div class="localizador-ia"><b>Localizador sugerido</b>
           <span class="aviso-palpite">tirado do texto visível no print — confira antes de usar no script</span>
           <code>${esc(a.localizador)}</code></div>` : ''}
+        ${a.controles.length ? `<div class="controles-tela">
+          <b>Controles desta tela</b>
+          <span class="aviso-palpite">lidos do print — confira antes de usar no script</span>
+          <table><tbody>${a.controles.map(c => `<tr><td>${esc(c.rotulo)}</td>
+            <td class="tipo">${esc(c.tipo)}</td>
+            <td><code>${esc(c.localizador)}</code></td></tr>`).join('')}</tbody></table>
+        </div>` : ''}
         ${a.alerta_qa ? `<div class="alerta-qa-msg"><b>Alerta QA:</b> ${esc(a.alerta_qa)}</div>` : ''}
       </details>`;
   }
@@ -2294,7 +2314,8 @@
     }
     const caixa = passo.querySelector(':scope > .analise-qa');
     if(caixa){
-      caixa.hidden = !(a.descricao_detalhada || a.gherkin || a.alerta_qa || a.localizador);
+      caixa.hidden = !(a.descricao_detalhada || a.gherkin || a.alerta_qa
+        || a.localizador || a.controles.length);
       caixa.innerHTML = htmlAnaliseQa({ ...a, legenda_curta: '' });
     }
     return a;
