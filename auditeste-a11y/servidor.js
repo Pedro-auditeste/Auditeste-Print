@@ -34,6 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
+const { catalogar } = require('./elementos.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
@@ -236,6 +237,37 @@ const servidor = http.createServer(async (req, res) => {
           ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
           : undefined
     }, origem);
+  }
+
+  /* Catalogo do DOM real da pagina: e o que permite a IA devolver id de
+   * verdade, escolhendo da lista em vez de inventar a partir do print. */
+  if (u.pathname === '/elementos') {
+    if (req.method !== 'POST') return responder(res, 405, { erro: 'use POST' }, origem);
+    if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
+    if (rodando >= MAX) {
+      return responder(res, 429, { erro: `${MAX} trabalhos já em andamento, tente em instantes` }, origem);
+    }
+    let corpo;
+    try { corpo = await lerCorpo(req); } catch (err) {
+      return responder(res, 400, { erro: err.message }, origem);
+    }
+    const alvo = String((corpo && corpo.url) || '').trim();
+    if (!alvo) return responder(res, 400, { erro: 'url ausente' }, origem);
+    const motivo = await recusar(alvo);
+    if (motivo) return responder(res, 400, { erro: motivo }, origem);
+    rodando++;
+    const inicio = Date.now();
+    process.stdout.write('elementos ... ');
+    try {
+      const dados = await catalogar(alvo);
+      console.log(`ok (${((Date.now() - inicio) / 1000).toFixed(1)}s, ${dados.elementos.length} elemento(s))`);
+      return responder(res, 200, dados, origem);
+    } catch (err) {
+      console.log('FALHOU: ' + err.message);
+      return responder(res, err.codigo === 'SEM_CHROME' ? 503 : 500, { erro: err.message }, origem);
+    } finally {
+      rodando--;
+    }
   }
 
   if (u.pathname === '/descrever') {
