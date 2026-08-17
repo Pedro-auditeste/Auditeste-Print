@@ -1147,8 +1147,6 @@
 
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
-      <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
-      <button class="btn" data-acao="importarA11y">+ Importar JSON (Chrome Recorder ou extensão)</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
     </div>
@@ -1217,7 +1215,6 @@
 
 <video id="fonte" muted playsinline aria-hidden="true"></video>
 <input type="file" id="arqImagem" accept="image/*" multiple hidden>
-<input type="file" id="arqA11y" accept=".json,application/json" hidden>
 <input type="file" id="arqLogoModal" accept="image/*" hidden>
 <input type="file" id="arqLogoProjeto" accept="image/*" hidden>
 
@@ -2782,170 +2779,6 @@
     return achados.length;
   }
 
-  /* Caminho direto: a extensao entrega a gravacao sem baixar e reabrir arquivo.
-   * Quem responde e o content script da extensao, na mesma pagina, por
-   * postMessage — por isso nao e preciso saber o id da extensao. */
-  let extensaoPresente = false;
-
-  function pedirAExtensao(deTab, msTimeout){
-    return new Promise((ok) => {
-      const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
-      const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
-      function ouvir(ev){
-        if(ev.source !== window) return;
-        const d = ev.data;
-        if(!d || d.tipo !== 'AUDI_PRINT_RESPONDE' || d.pedido !== pedido) return;
-        clearTimeout(fim);
-        window.removeEventListener('message', ouvir);
-        ok(d);
-      }
-      window.addEventListener('message', ouvir);
-      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab }, location.origin);
-    });
-  }
-
-  window.addEventListener('message', (ev) => {
-    if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_EXTENSAO_PRESENTE') return;
-    extensaoPresente = true;
-    const b = document.getElementById('btnPuxarExtensao');
-    if(b) b.hidden = false;
-  });
-
-  /* Bookmarklet: roda no navegador do analista, com o IP e a sessão dele. É o
-   * caminho que sobrevive a antibot — navegação feita pelo servidor apanha, como
-   * a Casas Bahia mostrou ao bloquear o IP de datacenter.
-   *
-   * Precisa ser autossuficiente: o CSP dos sites permite inline, mas não deixa
-   * carregar script de outro domínio. */
-  let marcaCodigo = null, marcaTimer = null, marcaLidos = 0;
-
-  /* Importa a gravação do DevTools do Chrome (F12 → Recorder → Exportar JSON).
-   *
-   * É o único caminho sem instalar nada que sobrevive a antibot e a CSP: roda no
-   * navegador do analista, com a sessão dele. Traz o seletor de cada clique, mas
-   * não o outerHTML — o Recorder não exporta HTML.
-   */
-  function ehRecorderChrome(b){
-    return !!(b && Array.isArray(b.steps)
-      && b.steps.some(s => s && typeof s.type === 'string'));
-  }
-
-  /** Achata ["#id"] ou [["#id"],["text/x"]] numa lista de strings. */
-  function seletoresPlanos(lista){
-    return (lista || []).map(s => Array.isArray(s) ? s[0] : s)
-      .filter(s => typeof s === 'string' && s.trim());
-  }
-
-  /** O melhor para automação: #id e data-* na frente, xpath só se não houver css. */
-  function melhorSeletorRecorder(lista){
-    const todos = seletoresPlanos(lista);
-    const css = todos.filter(s => !/^(aria|text|xpath|pierce)\//.test(s));
-    const bom = css.find(s => s.startsWith('#'))
-      || css.find(s => /\[data-(testid|qa|test)=/.test(s))
-      || css[0];
-    if(bom) return bom;
-    const xp = todos.find(s => s.startsWith('xpath/'));
-    if(xp) return xp.replace(/^xpath\//, '');
-    const pierce = todos.find(s => s.startsWith('pierce/'));
-    if(pierce) return pierce.replace(/^pierce\//, '');
-    return todos[0] || '';
-  }
-
-  /** Rótulo legível: o Recorder guarda em text/ e aria/. */
-  function rotuloRecorder(lista){
-    const todos = seletoresPlanos(lista);
-    const txt = todos.find(s => s.startsWith('text/'));
-    if(txt) return txt.slice(5).replace(/\s+/g, ' ').trim();
-    const aria = todos.find(s => s.startsWith('aria/'));
-    if(aria) return aria.slice(5).replace(/\s+/g, ' ').trim();
-    return '';
-  }
-
-  const ACOES_RECORDER = { click: 'Clicar', doubleClick: 'Clicar', change: 'Preencher' };
-
-  /** Converte os passos do Recorder no formato que o Print já monta. */
-  function passosDoRecorder(bruto){
-    const passos = [];
-    let url = '';
-    for(const s of (bruto.steps || [])){
-      if(!s || !s.type) continue;
-
-      if(s.type === 'navigate'){
-        const nova = String(s.url || '').trim();
-        if(!nova) continue;
-        if(!passos.length){
-          // Primeira navegação é o ponto de partida do teste.
-          passos.push({
-            titulo: 'Acessou "' + nova + '"',
-            obs: 'Descrição pendente.',
-            acao: 'Acessar', elemento: nova, rotulo: nova,
-            urlAntes: nova, urlDepois: nova, imagens: []
-          });
-        } else {
-          // As seguintes são consequência do clique anterior.
-          passos[passos.length - 1].urlDepois = nova;
-        }
-        url = nova;
-        continue;
-      }
-
-      const acao = ACOES_RECORDER[s.type];
-      if(!acao) continue;   // setViewport, scroll, keyDown, waitForElement...
-
-      const seletor = melhorSeletorRecorder(s.selectors);
-      if(!seletor) continue;
-      const rotulo = rotuloRecorder(s.selectors);
-      const valor = s.type === 'change' ? String(s.value == null ? '' : s.value) : '';
-      const destino = (s.assertedEvents || []).find(e => e && e.url);
-
-      passos.push({
-        titulo: acao === 'Preencher'
-          ? 'Preencheu "' + (rotulo || seletor) + '"' + (valor ? ' com "' + valor + '"' : '')
-          : 'Clicou em "' + (rotulo || seletor) + '"',
-        obs: 'Descrição pendente.',
-        acao, elemento: seletor, rotulo, valor,
-        urlAntes: url,
-        urlDepois: destino ? destino.url : url,
-        imagens: []
-      });
-      if(destino && destino.url) url = destino.url;
-    }
-    return passos;
-  }
-
-  async function aplicarRecorderChrome(bruto){
-    const passos = passosDoRecorder(bruto);
-    if(!passos.length) return 0;
-    passos.forEach(p => marcarQa(novoPasso(p.titulo, p.obs), p));
-    const campoMod = document.querySelector('[data-campo="modulo"]');
-    if(campoMod && !campoMod.textContent.trim() && bruto.title){
-      campoMod.textContent = String(bruto.title).slice(0, 80);
-    }
-    const campoObs = document.querySelector('[data-campo="observacoes"]');
-    if(campoObs && !campoObs.textContent.trim() && passos[0] && passos[0].urlAntes){
-      campoObs.textContent = 'Teste em ' + passos[0].urlAntes;
-    }
-    return passos.length;
-  }
-
-  async function importarA11y(arquivo){
-    let bruto;
-    try{ bruto = JSON.parse(await arquivo.text()); }
-    catch(err){ avisar('Arquivo invalido: ' + err.message); return 0; }
-    if(ehRecorderChrome(bruto)){
-      const n = await aplicarRecorderChrome(bruto);
-      if(!n){ avisar('A gravação do Chrome não tinha clique nenhum.'); return 0; }
-      avisar(n + ' passo(s) importados da gravação do Chrome. Os seletores vieram; o HTML o Recorder não exporta.');
-      return n;
-    }
-    if(bruto && bruto.formato === 'audi-print-evidencia-v1' && Array.isArray(bruto.passos)){
-      await aplicarEvidenciaImportada(bruto);
-      avisar(bruto.passos.length + ' ação(ões) com antes/depois importadas.');
-      return bruto.passos.length;
-    }
-    return aplicarAchados(bruto, arquivo.name, detectarFerramenta(bruto));
-  }
-
   /* ============ PONTE COM O SCANNER LOCAL ============ */
   const FERRAMENTAS = {
     axe: {
@@ -3314,39 +3147,6 @@
     rec.stop();
     await new Promise(r => { rec.onstop = r; });
     return chunks.length ? new Blob(chunks, { type: 'video/webm' }) : null;
-  }
-
-  async function aplicarEvidenciaImportada(dados){
-    lista.innerHTML = '';
-    videoBlob = dados.video ? dataUrlParaBlob(dados.video) : null;
-    if(!videoBlob || videoBlob.size < 80000){
-      const viaQuadros = await videoDosQuadros(dados.quadros || []);
-      if(viaQuadros && (!videoBlob || viaQuadros.size > videoBlob.size)) videoBlob = viaQuadros;
-    }
-    if(videoBlob){
-      caixaVideo.innerHTML = '<div class="videobox"><h3>Vídeo da sessão</h3>'
-        + '<div class="meta">' + tam(videoBlob.size) + ' · gravado no teste · será arquivado com esta evidência</div>'
-        + '<video src="' + url(videoBlob) + '" controls></video></div>';
-    } else {
-      caixaVideo.innerHTML = '';
-    }
-    (dados.passos || []).forEach(p => {
-      const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
-      marcarQa(el, p);
-      const figs = p.imagens || [];
-      el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
-      figs.forEach(im => {
-        const blob = dataUrlParaBlob(im.dataUrl || im);
-        if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
-      });
-      const capturas = [...el.querySelectorAll('figure')].filter(f => f._blob);
-      if(capturas.length >= 2) descreverTelaIA(el, capturas[0]._blob, capturas[1]._blob);
-    });
-    const campoMod = document.querySelector('[data-campo="modulo"]');
-    if(campoMod && !campoMod.textContent.trim() && dados.titulo) campoMod.textContent = dados.titulo.slice(0, 80);
-    const campoObs = document.querySelector('[data-campo="observacoes"]');
-    if(campoObs && !campoObs.textContent.trim() && dados.url) campoObs.textContent = 'Teste em ' + dados.url;
-    atualizar();
   }
 
   function atualizar(){
@@ -4162,8 +3962,6 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
-    if(acao === 'puxarExtensao') return puxarDaExtensao();
-    if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));
   });
 
@@ -4182,11 +3980,6 @@
     if(e.target.open) pingPonte();
   });
 
-  document.getElementById('arqA11y').addEventListener('change', e => {
-    const f = e.target.files && e.target.files[0];
-    if(f) importarA11y(f);
-    e.target.value = '';
-  });
 
   document.getElementById('arqImagem').addEventListener('change', e => {
     if(passoAlvo) [...e.target.files].forEach(f => juntarImagem(passoAlvo, f, `Anexada às ${hora()}`));

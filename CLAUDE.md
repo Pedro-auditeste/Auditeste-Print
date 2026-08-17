@@ -85,30 +85,12 @@ vê clique nenhum, nem que houve, nem em quê. Não tente tirar seletor dela.
 
 Quem tem DOM é a extensão Chrome.
 
-**Gravador nativo do Chrome** (F12 → Recorder → exportar JSON) é o caminho sem
-instalar nada: roda no navegador do analista, então não sofre com antibot nem
-CSP. `importarA11y` detecta pelo `steps[]` e converte em `passosDoRecorder`.
-Traz o **seletor**, não o `outerHTML` — o Recorder não exporta HTML.
+O que existe hoje: a IA sugere um **localizador por papel e texto**
+() a partir do que está escrito no print. 
+recusa , classe,  e xpath — nada disso está na imagem, então se
+vier, foi invenção e quebraria o script do QA depois.
 
-Prioridade de seletor ali: `#id` → `[data-testid]` → css comum → xpath (só sem
-css). `exemplo-recorder.json` é a amostra usada pelo `npm run teste-recorder`.
-
-A extensão entrega de dois jeitos, ambos caindo em `aplicarEvidenciaImportada`:
-
-1. **Direto** (botão "Trazer gravação da extensão"): o content script da extensão
-   roda na própria página do Print e faz ponte por `window.postMessage` —
-   por isso não é preciso saber o id da extensão nem declarar
-   `externally_connectable`. Mensagens: `AUDI_EVIDENCIAS` (resumo) e
-   `AUDI_EVIDENCIA` (payload inteiro).
-2. **Arquivo**: exportar JSON no popup e importar aqui.
-
-A ponte só responde nas origens do Print (`audiprint.up.railway.app`, qualquer
-localhost, `file:`) — as sessões contêm prints de outras abas, então liberar
-geral seria vazamento. Hospedou em outro endereço? Acrescente em `ORIGENS_PRINT`
-no `content.js`.
-
-Fechar a aba testada **não** apaga mais a gravação: as 5 mais recentes ficam
-guardadas, senão gravar-fechar-abrir-o-Print perdia tudo.
+A pasta  continua no repo, mas o Print não a usa mais.
 
 ## Idioma
 
