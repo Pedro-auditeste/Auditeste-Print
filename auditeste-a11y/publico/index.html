@@ -1153,7 +1153,7 @@
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
     <div class="painel-ids" id="painelIds">
-      <label for="urlIds"><b>Ids reais do site</b> — a ponte abre o link e a IA casa cada controle do print com o elemento de verdade</label>
+      <label for="urlIds"><b>Ids reais do site</b> — o sistema abre o link e casa cada controle do print com o elemento de verdade</label>
       <div class="linha-scan">
         <input type="url" id="urlIds" placeholder="https://site-do-cliente.com/a-tela-testada"
           autocomplete="off" aria-label="Link da tela testada">
@@ -2399,7 +2399,7 @@
         feitos++;
       }
       const msg = feitos + ' passo(s) redescritos com o DOM de ' + esc(dados.url || url) + '.';
-      dizerIds(msg + ' O que a IA não conseguiu casar continua com o localizador por texto.');
+      dizerIds(msg + ' O que não deu para casar continua com o localizador por texto.');
       avisar(msg);
     }catch(err){
       const m = (err && err.message) || 'erro';
