@@ -83,14 +83,23 @@ devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).
 A gravação por tela do Print usa `getDisplayMedia` — **pixels, sem DOM**. Ela não
 vê clique nenhum, nem que houve, nem em quê. Não tente tirar seletor dela.
 
-Quem tem DOM é a extensão Chrome.
-
 O que existe hoje: a IA sugere um **localizador por papel e texto**
-() a partir do que está escrito no print. 
-recusa , classe,  e xpath — nada disso está na imagem, então se
-vier, foi invenção e quebraria o script do QA depois.
+(`getByRole('button', { name: 'Comprar' })`) a partir do que está escrito no
+print. `localizadorValido` recusa `#id`, classe, `[data-*]` e xpath — nada disso
+está na imagem, então se vier foi invenção, e seletor inventado não falha na
+hora: falha depois, no cliente.
 
-A pasta  continua no repo, mas o Print não a usa mais.
+Caminhos já tentados e removidos, com o motivo, para não repetir a volta:
+
+| Tentativa | Por que caiu |
+|---|---|
+| Teste automático pelo link | navegação por heurística, frágil |
+| Catálogo de elementos por URL | devolvia xpath gigante, inútil para automação |
+| Navegação dentro do Print | antibot bloqueia IP de datacenter (Casas Bahia, `Client IP` de AWS) |
+| Bookmarklet | funcionava, mas exigia arrastar favorito ou colar no console |
+| Importar JSON do Chrome Recorder | traz seletor mas não `outerHTML` |
+
+A pasta `audi-print-scanner/` continua no repo, mas o Print não a usa mais.
 
 ## Idioma
 
