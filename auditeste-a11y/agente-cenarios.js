@@ -539,6 +539,8 @@ function parseAnaliseQa(texto, catalogo) {
     cenarios_alternativos: [],
     alerta_qa: '',
     localizador: '',
+    elemento: '',
+    html: '',
     controles: [],
     rotulo_lido: ''
   };
@@ -559,6 +561,7 @@ function parseAnaliseQa(texto, catalogo) {
       : [],
     alerta_qa: campo('alerta_qa'),
     localizador: localizadorValido(campo('localizador')),
+    ...elementoClicado(dados.n_clicado, catalogo),
     controles: controlesValidos(casarComCatalogo(
       Array.isArray(dados.controles) ? dados.controles : [], catalogo)),
     rotulo_lido: campo('rotulo_lido')
@@ -579,6 +582,21 @@ function localizadorValido(bruto) {
    * jogaria fora localizador bom. */
   if (/\[data-|xpath|querySelector|css\s*=|\/\/\w/i.test(s)) return '';
   return s.slice(0, 200);
+}
+
+/* O elemento clicado, tirado do catalogo pelo numero que a IA apontou.
+ *
+ * Mesma trava da lista: numero fora do catalogo nao vira id. Sem catalogo, ou
+ * sem numero, devolve vazio e o passo fica so com o localizador por texto. */
+function elementoClicado(n, catalogo) {
+  if (!Array.isArray(catalogo) || !catalogo.length) return { elemento: '', html: '' };
+  const i = Number(n);
+  const real = Number.isInteger(i) && i >= 0 && i < catalogo.length ? catalogo[i] : null;
+  if (!real || !real.seletor) return { elemento: '', html: '' };
+  return {
+    elemento: String(real.seletor).slice(0, 300),
+    html: String(real.html || '').slice(0, 1200)
+  };
 }
 
 /* Substitui o palpite da IA pelo elemento real que ela apontou em "n".
@@ -718,6 +736,7 @@ Responda ESTRITAMENTE como JSON válido, sem markdown ou texto externo:
   "cenarios_alternativos": ["ideia curta", "outra ideia curta"],
   "alerta_qa": "",
   "localizador": "localizador Playwright a partir do que esta ESCRITO no elemento clicado",
+  "n_clicado": 0,
   "controles": [
     { "rotulo": "texto do controle", "tipo": "botao|link|campo|opcao|aba",
       "localizador": "getByRole('button', { name: 'Continuar' })",
@@ -745,6 +764,8 @@ Regras:
   texto que está escrito em cada um. Até 12, na ordem em que aparecem, de cima
   para baixo. Não repita o mesmo rótulo. Não liste texto decorativo, preço,
   título nem imagem: só o que dá para clicar ou preencher.
+- n_clicado: o numero, na lista de elementos reais, do elemento em que o clique
+  aconteceu. Sem certeza, deixe fora — nao chute.
 - Quando vier a lista "ELEMENTOS REAIS DA PÁGINA", use o campo "n" de cada
   controle para apontar o item da lista que corresponde ao que você vê no print.
   Só numere itens que existem na lista. Se não achar o correspondente, deixe "n"
@@ -983,6 +1004,7 @@ module.exports = {
   localizadorValido,
   controlesValidos,
   casarComCatalogo,
+  elementoClicado,
   juntarPassoAPasso,
   frase,
   semFraseIncompleta,

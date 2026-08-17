@@ -497,6 +497,9 @@
   .localizador-ia{margin-top:8px;font-size:.76rem;}
   .localizador-ia code{display:block;margin-top:4px;background:#eef3f6;border:1px solid #cfdce3;
     border-radius:4px;padding:4px 8px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
+  .aviso-real{color:var(--green-dark);font-weight:700;margin-left:6px;font-size:.72rem;}
+  .marca-real{color:var(--green-dark);font-weight:700;font-size:.68rem;margin-left:6px;
+    white-space:nowrap;}
   .aviso-palpite{color:var(--muted);font-style:italic;margin-left:6px;}
   .insp-html .rotulo-html{color:var(--navy);font-weight:700;font-size:.72rem;margin-right:6px;}
   .insp-html .copiar-html{font-size:.68rem;padding:1px 7px;margin-left:6px;cursor:pointer;
@@ -2276,10 +2279,13 @@
         : [],
       alerta_qa: texto(dados && dados.alerta_qa),
       localizador: texto(dados && dados.localizador),
+      elemento: texto(dados && dados.elemento),
+      html: texto(dados && dados.html),
       controles: Array.isArray(dados && dados.controles)
         ? dados.controles.filter(c => c && texto(c.rotulo) && texto(c.localizador))
           .map(c => ({ rotulo: texto(c.rotulo), tipo: texto(c.tipo) || 'botao',
-            localizador: texto(c.localizador) })).slice(0, 12)
+            localizador: texto(c.localizador), elemento: texto(c.elemento),
+            html: texto(c.html) })).slice(0, 12)
         : []
     };
   }
@@ -2303,7 +2309,10 @@
         ${a.descricao_detalhada ? `<p>${esc(a.descricao_detalhada)}</p>` : ''}
         ${a.gherkin ? `<pre>${esc(a.gherkin)}</pre><div class="acoes-qa"><button type="button" class="gerar-desc" data-acao="${reg ? 'copiarGherkinRegistro' : 'copiarGherkin'}"${sufixo}>Copiar Gherkin</button></div>` : ''}
         ${alternativas}
-        ${a.localizador ? `<div class="localizador-ia"><b>Localizador sugerido</b>
+        ${a.elemento ? `<div class="localizador-ia"><b>Elemento no site</b>
+          <span class="aviso-real">lido do HTML da página pelo link</span>
+          <code>${esc(a.elemento)}</code></div>` : ''}
+        ${a.localizador ? `<div class="localizador-ia"><b>Localizador${a.elemento ? ' alternativo' : ' sugerido'}</b>
           <span class="aviso-palpite">tirado do texto visível no print — confira antes de usar no script</span>
           <code>${esc(a.localizador)}</code></div>` : ''}
         ${a.controles.length ? `<div class="controles-tela">
@@ -2311,7 +2320,8 @@
           <span class="aviso-palpite">lidos do print — confira antes de usar no script</span>
           <table><tbody>${a.controles.map(c => `<tr><td>${esc(c.rotulo)}</td>
             <td class="tipo">${esc(c.tipo)}</td>
-            <td><code>${esc(c.localizador)}</code></td></tr>`).join('')}</tbody></table>
+            <td><code>${esc(c.elemento || c.localizador)}</code>${c.elemento
+              ? '<span class="marca-real">id do site</span>' : ''}</td></tr>`).join('')}</tbody></table>
         </div>` : ''}
         ${a.alerta_qa ? `<div class="alerta-qa-msg"><b>Alerta QA:</b> ${esc(a.alerta_qa)}</div>` : ''}
       </details>`;
@@ -2480,6 +2490,23 @@
         }
         if(tit.dataset.auto === '1') tit.textContent = titulo;
         if(obs && obs.dataset.auto === '1') obs.textContent = observ;
+        /* Veio id de verdade do DOM: grava no passo, para a caixa do elemento
+         * mostrar seletor e HTML reais em vez de so o localizador por texto. */
+        if(analise.elemento){
+          marcarQa(passo, {
+            acao: passo.dataset.acao || 'Clicar',
+            elemento: analise.elemento,
+            rotulo: passo.dataset.rotulo || '',
+            valor: passo.dataset.valor || '',
+            html: analise.html || '',
+            timestampAntes: passo.dataset.timestampAntes || '',
+            timestampDepois: passo.dataset.timestampDepois || '',
+            urlAntes: passo.dataset.urlAntes || '',
+            urlDepois: passo.dataset.urlDepois || '',
+            modulo: passo.dataset.modulo || '',
+            tipoTeste: passo.dataset.tipoTeste || ''
+          });
+        }
         aplicarAnaliseQa(passo, { ...analise, legenda_curta: titulo, descricao_detalhada: observ });
         passo.dataset.descricaoEstado = 'pronta';
         if(botao) botao.hidden = true;
