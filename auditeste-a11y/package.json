@@ -22,7 +22,6 @@
     "teste-abre": "node teste-print-abre.js",
     "teste-extensao": "node teste-extensao-para-print.js",
     "teste-docker": "node teste-docker.js",
-    "teste-bookmarklet": "node teste-bookmarklet.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {

@@ -478,15 +478,6 @@
   .passo .gerar-desc:hover{background:#eef6e6;}
   .passo .gerar-desc:disabled{opacity:.55;cursor:wait;}
   .passo .meta-evento{font-size:.72rem;color:var(--muted);margin:0 0 8px;overflow-wrap:anywhere;}
-  .painel-marca{background:var(--card);border:2px solid var(--green);border-radius:12px;
-    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);}
-  .painel-marca label{display:block;color:var(--navy);margin-bottom:8px;}
-  .passos-marca{margin:8px 0 12px 18px;padding:0;font-size:.8rem;line-height:1.7;}
-  .passos-marca code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;
-    padding:2px 8px;font-family:ui-monospace,Consolas,monospace;font-size:.9rem;font-weight:700;}
-  .bookmarklet{display:inline-block;background:var(--navy);color:#fff;text-decoration:none;
-    padding:4px 12px;border-radius:6px;font-weight:700;font-size:.78rem;cursor:grab;}
-  .painel-marca .dica-captura{margin:8px 0 0;}
   .meta-qa code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;padding:1px 5px;
     font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
@@ -1146,25 +1137,6 @@
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
-    <div class="painel-marca" id="painelMarca" hidden>
-      <label><b>Marcar cliques no seu navegador</b> — sem instalar nada, usando a sua sessão</label>
-      <ol class="passos-marca">
-        <li><b>Arraste</b> este botão para a barra de favoritos (não clique nele):
-          <a id="linkMarcador" class="bookmarklet" href="#" title="Arraste para a barra de favoritos">Audi Print · marcar</a>
-          <br><span class="dica-captura">Barra escondida? <b>Ctrl+Shift+B</b> mostra ela.
-          Prefere não arrastar? <button type="button" class="btn pequeno" data-acao="copiarMarcador">Copiar comando</button>
-          e cole no console (<b>F12</b> → Console) já no site do cliente.</span></li>
-        <li>Abra o site do cliente e clique nesse favorito.</li>
-        <li>Cole o código quando ele pedir: <code id="codigoMarca">—</code></li>
-        <li>Navegue e clique normalmente. Os passos aparecem aqui.</li>
-      </ol>
-      <div class="linha-scan">
-        <button type="button" class="btn primario" data-acao="gerarCodigoMarca">Gerar código</button>
-        <button type="button" class="btn perigo" data-acao="pararMarca" id="btnPararMarca" hidden>Parar</button>
-        <button type="button" class="btn" data-acao="fecharMarca">Fechar</button>
-      </div>
-      <p class="dica-captura" id="estadoMarca">O favorito registra id, HTML e URL de cada clique. As imagens continuam vindo da gravação de tela.</p>
-    </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
     <div class="vazio" id="vazio"><b>Nenhum passo ainda</b>Clique em Iniciar gravação e escolha a aba do site.</div>
@@ -1172,7 +1144,6 @@
     <div class="rodape-fixo">
       <button class="btn" data-acao="manual">+ Passo manual</button>
       <button class="btn primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden>Trazer gravação da extensão</button>
-      <button class="btn primario" data-acao="marcarCliques">Marcar cliques no meu navegador</button>
       <button class="btn" data-acao="importarA11y">+ Importar JSON da extensão</button>
       <button class="btn primario" data-acao="salvar">Salvar no projeto</button>
       <button class="btn escuro" data-acao="descartar">Descartar</button>
@@ -2840,205 +2811,6 @@
    * carregar script de outro domínio. */
   let marcaCodigo = null, marcaTimer = null, marcaLidos = 0;
 
-  /* Roda dentro do site do cliente, injetado pelo favorito. Escrito como função
-   * normal e serializado com toString(): concatenar string exigiria escapar barra
-   * dupla em cada aspas e regex, e um erro só quebra tudo em runtime.
-   *
-   * Precisa ser autossuficiente — o CSP dos sites permite inline, mas não deixa
-   * carregar script de outro domínio. */
-  function marcadorNaPagina(BASE){
-    if(window.__audiMarcando){ alert('O Audi Print já está marcando esta página.'); return; }
-    var codigo = (prompt('Código do Audi Print:', sessionStorage.getItem('audiCodigo') || '') || '')
-      .trim().toUpperCase();
-    if(!codigo) return;
-    sessionStorage.setItem('audiCodigo', codigo);
-    window.__audiMarcando = 1;
-
-    var n = 0;
-    var aviso = document.createElement('div');
-    /* Propriedade a propriedade, nunca cssText: CSP restrito trata cssText como
-     * estilo inline e bloqueia, e aí o aviso some mesmo com a captura correndo. */
-    var estilo = { position:'fixed', zIndex:'2147483647', right:'12px', bottom:'12px',
-      background:'#0d3446', color:'#fff', font:'600 13px system-ui', padding:'8px 14px',
-      borderRadius:'8px', boxShadow:'0 2px 10px rgba(0,0,0,.3)', pointerEvents:'none' };
-    for(var k in estilo){ try { aviso.style[k] = estilo[k]; } catch(e){} }
-    aviso.textContent = 'Audi Print: marcando. Clique nos elementos.';
-    document.body.appendChild(aviso);
-
-    function escapa(v){
-      return (window.CSS && CSS.escape) ? CSS.escape(v) : String(v).replace(/([^\w-])/g, '\\$1');
-    }
-    function unico(s){
-      try { return document.querySelectorAll(s).length === 1; } catch(e){ return false; }
-    }
-    function seletorDe(el){
-      var tag = el.tagName.toLowerCase();
-      if(el.id && unico('#' + escapa(el.id))) return '#' + escapa(el.id);
-      var attrs = ['data-testid', 'data-qa', 'data-test'];
-      for(var i = 0; i < attrs.length; i++){
-        var v = el.getAttribute(attrs[i]);
-        if(!v) continue;
-        var c1 = '[' + attrs[i] + '="' + escapa(v) + '"]';
-        if(unico(c1)) return c1;
-        if(unico(tag + c1)) return tag + c1;
-      }
-      var nome = el.getAttribute('name');
-      if(nome){
-        var cn = tag + '[name="' + escapa(nome) + '"]';
-        if(unico(cn)) return cn;
-      }
-      var partes = [], at = el;
-      while(at && at.nodeType === 1){
-        var k = 1, irmao = at.previousElementSibling;
-        while(irmao){ if(irmao.tagName === at.tagName) k++; irmao = irmao.previousElementSibling; }
-        partes.unshift(at.tagName.toLowerCase() + '[' + k + ']');
-        if(at === document.documentElement) break;
-        at = at.parentElement;
-      }
-      return partes.length ? '/' + partes.join('/') : '';
-    }
-
-    var ACAO = 'a[href],button,summary,[role=button],[role=tab],[role=menuitem],[role=link],'
-      + 'input:not([type=hidden]),select,textarea,[onclick]';
-    var ultimo = 0;
-
-    document.addEventListener('pointerdown', function(ev){
-      if(ev.button !== 0) return;
-      var el = (ev.target && ev.target.closest) ? ev.target.closest(ACAO) : null;
-      var agora = Date.now();
-      if(!el || agora - ultimo < 450) return;
-      ultimo = agora;
-      var sel = seletorDe(el);
-      if(!sel) return;
-
-      var rotulo = String(el.getAttribute('aria-label') || el.getAttribute('title') || el.innerText
-        || el.value || el.getAttribute('placeholder') || el.id || el.tagName || '')
-        .replace(/\s+/g, ' ').trim().slice(0, 200);
-      var html = String(el.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 1200);
-
-      var antes = el.style.outline, off = el.style.outlineOffset;
-      el.style.outline = '3px solid #e23c3c';
-      el.style.outlineOffset = '2px';
-      setTimeout(function(){ el.style.outline = antes; el.style.outlineOffset = off; }, 900);
-
-      fetch(BASE + '/marca/clique', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          codigo: codigo, seletor: sel, rotulo: rotulo, html: html,
-          url: location.href, quando: new Date().toISOString(),
-          acao: /^(input|select|textarea)$/.test(el.tagName.toLowerCase()) ? 'Preencher' : 'Clicar'
-        })
-      }).then(function(r){ return r.json(); }).then(function(j){
-        if(j && j.erro){ aviso.style.background = '#a02020'; aviso.textContent = 'Audi Print: ' + j.erro; return; }
-        n++;
-        aviso.textContent = 'Audi Print: ' + n + ' clique(s)';
-      }).catch(function(){
-        aviso.style.background = '#a02020';
-        aviso.textContent = 'Audi Print: sem conexão com a ponte';
-      });
-    }, true);
-  }
-
-  function corpoDoMarcador(base){
-    return '(' + marcadorNaPagina.toString() + ')(' + JSON.stringify(base) + ')';
-  }
-  async function abrirPainelMarca(){
-    const p = document.getElementById('painelMarca');
-    if(!p) return;
-    p.hidden = !p.hidden;
-    if(p.hidden) return;
-    const alvo = await resolverPonteIA();
-    const link = document.getElementById('linkMarcador');
-    if(link){
-      link.href = 'javascript:' + encodeURIComponent(corpoDoMarcador(alvo.url || ponteUrl()));
-      /* Clicar aqui rodaria o marcador na propria pagina do Print, que nao e o
-       * site testado — e daria a impressao de que nao funcionou. So arrastar vale. */
-      link.onclick = (ev) => {
-        ev.preventDefault();
-        informar('Este botão é para <b>arrastar</b> até a barra de favoritos, não para clicar aqui.<br><br>'
-          + 'Clicar nele agora rodaria o marcador nesta página do Print, e não no site do cliente.<br><br>'
-          + 'Barra de favoritos escondida? <b>Ctrl+Shift+B</b>. Ou use <b>Copiar comando</b> e cole no console do site.',
-          'Arraste, não clique');
-      };
-    }
-  }
-
-  async function copiarMarcador(){
-    try{
-      const alvo = await resolverPonteIA();
-      // Sem o prefixo javascript:, que o console nao aceita.
-      await navigator.clipboard.writeText(corpoDoMarcador(alvo.url || ponteUrl()));
-      informar('Comando copiado.<br><br><b>1.</b> Abra o site do cliente.<br>'
-        + '<b>2.</b> Aperte <b>F12</b> e vá na aba <b>Console</b>.<br>'
-        + '<b>3.</b> Cole e aperte Enter. Se o Chrome pedir, digite <b>allow pasting</b> antes.<br>'
-        + '<b>4.</b> Cole o código quando ele perguntar.', 'Comando copiado');
-    }catch(err){
-      informar('Não consegui copiar: ' + ((err && err.message) || 'erro'), 'Falha ao copiar');
-    }
-  }
-
-  async function gerarCodigoMarca(){
-    try{
-      const alvo = await resolverPonteIA();
-      const resp = await fetch(alvo.url + '/marca/abrir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-        signal: AbortSignal.timeout(30000)
-      });
-      const d = await resp.json().catch(() => ({}));
-      if(!resp.ok || !d.codigo) throw new Error(d.erro || ('HTTP ' + resp.status));
-      marcaCodigo = d.codigo;
-      marcaLidos = 0;
-      document.getElementById('codigoMarca').textContent = d.codigo;
-      document.getElementById('btnPararMarca').hidden = false;
-      document.getElementById('estadoMarca').innerHTML =
-        '<b>Código gerado.</b> Clique no favorito no site do cliente e cole <b>' + esc(d.codigo) + '</b>.';
-      if(marcaTimer) clearInterval(marcaTimer);
-      marcaTimer = setInterval(puxarMarca, 2500);
-    }catch(err){
-      informar('Não consegui gerar o código: ' + ((err && err.message) || 'erro'), 'Falha');
-    }
-  }
-
-  async function puxarMarca(){
-    if(!marcaCodigo) return;
-    try{
-      const alvo = await resolverPonteIA();
-      const resp = await fetch(alvo.url + '/marca/passos?codigo=' + encodeURIComponent(marcaCodigo)
-        + '&desde=' + marcaLidos, { signal: AbortSignal.timeout(20000) });
-      const d = await resp.json().catch(() => ({}));
-      if(!resp.ok || d.erro) return;
-      (d.passos || []).forEach(p => {
-        const el = novoPasso(p.titulo, p.obs);
-        marcarQa(el, p);
-      });
-      if((d.passos || []).length){
-        marcaLidos = d.total || marcaLidos;
-        document.getElementById('estadoMarca').innerHTML =
-          '<b>' + marcaLidos + ' clique(s)</b> registrados. Continue navegando no site.';
-      }
-    }catch(_){ /* uma consulta perdida nao derruba a marcacao */ }
-  }
-
-  async function pararMarca(){
-    if(marcaTimer){ clearInterval(marcaTimer); marcaTimer = null; }
-    const c = marcaCodigo;
-    marcaCodigo = null;
-    document.getElementById('btnPararMarca').hidden = true;
-    if(c){
-      try{
-        const alvo = await resolverPonteIA();
-        await fetch(alvo.url + '/marca/fechar', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ codigo: c })
-        });
-      }catch(_){ }
-    }
-    document.getElementById('estadoMarca').textContent = 'Marcação encerrada. Revise os passos e salve.';
-  }
-
   async function importarA11y(arquivo){
     let bruto;
     try{ bruto = JSON.parse(await arquivo.text()); }
@@ -4267,11 +4039,6 @@
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }
-    if(acao === 'marcarCliques') return abrirPainelMarca();
-    if(acao === 'copiarMarcador') return copiarMarcador();
-    if(acao === 'gerarCodigoMarca') return gerarCodigoMarca();
-    if(acao === 'pararMarca') return pararMarca();
-    if(acao === 'fecharMarca'){ document.getElementById('painelMarca').hidden = true; return; }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'importarA11y') document.getElementById('arqA11y').click();
     if(acao.startsWith('scan-')) escanear(acao.slice(5));

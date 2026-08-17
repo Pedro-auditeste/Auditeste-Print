@@ -21,7 +21,12 @@ const ESSENCIAIS = [
   const p = await nav.newPage();
   const erros = [];
   p.on('pageerror', (e) => erros.push(e.message));
-  p.on('console', (m) => { if (m.type() === 'error') erros.push(m.text()); });
+  /* Ping na ponte falha quando ela nao esta rodando, e isso nao e erro da
+   * pagina — o teste passava so porque havia uma ponte no ar por acaso. */
+  const ruidoDeRede = (txt) => /ERR_CONNECTION_REFUSED|Failed to load resource|net::ERR/i.test(txt);
+  p.on('console', (m) => {
+    if (m.type() === 'error' && !ruidoDeRede(m.text())) erros.push(m.text());
+  });
 
   await p.goto(pathToFileURL(path.join(__dirname, 'publico', 'index.html')).href,
     { waitUntil: 'networkidle0' });
