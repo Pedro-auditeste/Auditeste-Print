@@ -22,6 +22,7 @@
     "teste-abre": "node teste-print-abre.js",
     "teste-extensao": "node teste-extensao-para-print.js",
     "teste-docker": "node teste-docker.js",
+    "teste-recorder": "node teste-recorder-chrome.js",
     "navegador": "playwright install chromium"
   },
   "dependencies": {

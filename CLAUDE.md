@@ -85,6 +85,14 @@ vê clique nenhum, nem que houve, nem em quê. Não tente tirar seletor dela.
 
 Quem tem DOM é a extensão Chrome.
 
+**Gravador nativo do Chrome** (F12 → Recorder → exportar JSON) é o caminho sem
+instalar nada: roda no navegador do analista, então não sofre com antibot nem
+CSP. `importarA11y` detecta pelo `steps[]` e converte em `passosDoRecorder`.
+Traz o **seletor**, não o `outerHTML` — o Recorder não exporta HTML.
+
+Prioridade de seletor ali: `#id` → `[data-testid]` → css comum → xpath (só sem
+css). `exemplo-recorder.json` é a amostra usada pelo `npm run teste-recorder`.
+
 A extensão entrega de dois jeitos, ambos caindo em `aplicarEvidenciaImportada`:
 
 1. **Direto** (botão "Trazer gravação da extensão"): o content script da extensão
