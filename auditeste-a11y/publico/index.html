@@ -2209,57 +2209,59 @@
       im.onerror = () => { URL.revokeObjectURL(u); no(new Error('print ilegível')); };
       im.src = u;
     });
-    /* Desenha o par no tamanho final e SO ENTAO escreve os rotulos, para eles
-     * nunca serem reamostrados. Antes o par saia rotulado e depois encolhia ate
-     * 420 px: o rotulo virava borrao de ~6 px, a IA perdia qual lado era qual e
-     * descrevia o print trocado. */
+    /* EMPILHADA, não lado a lado — e a diferença é grande.
+     *
+     * Medido contra o modelo, lendo texto pequeno conhecido: lado a lado
+     * acertou 1 de 4, empilhada acertou 3 de 4. Pior: lado a lado leu
+     * "R$ 1.705,98" onde estava "1.765,98", ou seja, errou com confiança.
+     *
+     * A causa é largura. Lado a lado corta cada tela pela metade, e texto de
+     * 12 px vira 6 px. Empilhada preserva a largura inteira.
+     *
+     * Os rótulos são escritos por último, no tamanho final, para nunca serem
+     * reamostrados — antes viravam borrão e o modelo trocava os lados. */
     const desenhar = (a, b, largura, q) => {
-      const gap = Math.max(8, Math.round(largura * 0.008));
-      const util = largura - gap;
-      const alvoH = 740;
-      let wA = Math.max(1, Math.round(a.width * (alvoH / a.height)));
-      let wB = Math.max(1, Math.round(b.width * (alvoH / b.height)));
-      const f = util / (wA + wB);
-      wA = Math.max(1, Math.round(wA * f));
-      wB = Math.max(1, util - wA);
-      const hA = Math.max(1, Math.round(a.height * (wA / a.width)));
-      const hB = Math.max(1, Math.round(b.height * (wB / b.width)));
+      const w = Math.max(1, Math.min(largura, Math.max(a.width, b.width)));
+      const hA = Math.max(1, Math.round(a.height * (w / a.width)));
+      const hB = Math.max(1, Math.round(b.height * (w / b.width)));
 
-      // Faixa e fonte proporcionais: legiveis em qualquer largura final.
-      const fonte = Math.max(18, Math.round(largura * 0.022));
+      const fonte = Math.max(20, Math.round(w * 0.02));
       const faixa = Math.round(fonte * 2);
       const c = document.createElement('canvas');
-      c.width = wA + wB + gap;
-      c.height = faixa + Math.max(hA, hB);
+      c.width = w;
+      c.height = faixa * 2 + hA + hB;
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#0d3446';
       ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(a, 0, faixa, wA, hA);
-      ctx.drawImage(b, wA + gap, faixa, wB, hB);
+      ctx.drawImage(a, 0, faixa, w, hA);
+      ctx.drawImage(b, 0, faixa * 2 + hA, w, hB);
 
-      // Barra vertical separando os lados: reforca a fronteira para o modelo.
+      // Barra vermelha entre as duas: fronteira clara para o modelo.
       ctx.fillStyle = '#e23c3c';
-      ctx.fillRect(wA, 0, gap, c.height);
+      ctx.fillRect(0, faixa + hA, w, Math.max(3, Math.round(fonte * 0.15)));
 
       ctx.fillStyle = '#fff';
       ctx.font = 'bold ' + fonte + 'px sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText('1 ANTES — onde clicou', Math.round(fonte * 0.5), faixa / 2);
-      ctx.fillText('2 DEPOIS — para onde entrou', wA + gap + Math.round(fonte * 0.5), faixa / 2);
+      const margem = Math.round(fonte * 0.5);
+      ctx.fillText('1 ANTES — onde clicou (tela de cima)', margem, faixa / 2);
+      ctx.fillText('2 DEPOIS — para onde entrou (tela de baixo)', margem, faixa + hA + faixa / 2);
       return c.toDataURL('image/jpeg', q);
     };
 
     try{
       const a = await carregar(blobAntes);
       const b = await carregar(blobDepois);
-      // Piso de 900 px: abaixo disso cada tela fica estreita demais para ler.
-      let largura = 1480, q = 0.82, ultimo = null;
-      for(let i=0;i<5;i++){
-        ultimo = desenhar(a, b, largura, q);
-        const bytes = Math.ceil(ultimo.slice(ultimo.indexOf(',') + 1).length * 0.75);
-        if(bytes <= 520000) return ultimo;
-        q = Math.max(0.45, q - 0.09);
-        largura = Math.max(900, Math.round(largura * 0.88));
+      /* Baixa a QUALIDADE antes de baixar a largura: no teste, 0.82 e 0.92
+       * leram igual, mas encolher a largura derrubou a leitura. */
+      const larguras = [1600, 1366, 1100];
+      let ultimo = null;
+      for(const largura of larguras){
+        for(const q of [0.85, 0.7, 0.55]){
+          ultimo = desenhar(a, b, largura, q);
+          const bytes = Math.ceil(ultimo.slice(ultimo.indexOf(',') + 1).length * 0.75);
+          if(bytes <= 900000) return ultimo;
+        }
       }
       return ultimo;
     }catch(_){

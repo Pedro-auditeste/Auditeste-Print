@@ -656,7 +656,7 @@ function semAcentoBaixo(v) {
     .replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-/** O modelo devia ler "1 ANTES" na faixa esquerda. Se leu outra coisa, ou nao
+/** O modelo devia ler "1 ANTES" na faixa do topo. Se leu outra coisa, ou nao
  *  enxergou a faixa, ou se orientou pelo lado errado — e a descricao pode estar
  *  trocada. Vira alerta visivel em vez de erro silencioso. */
 function alertaDeLados(analise) {
@@ -742,15 +742,16 @@ Responda ESTRITAMENTE como JSON válido, sem markdown ou texto externo:
       "localizador": "getByRole('button', { name: 'Continuar' })",
       "n": 0 }
   ],
-  "rotulo_lido": "copie aqui, letra por letra, o texto escrito na faixa do canto superior ESQUERDO da imagem"
+  "rotulo_lido": "copie aqui, letra por letra, o texto escrito na faixa DO TOPO da imagem"
 }
 Regras:
-- ORIENTAÇÃO (antes de qualquer coisa): a imagem composta tem uma faixa escura no
-  topo e uma barra vermelha vertical separando os dois lados. À ESQUERDA da barra
-  está escrito "1 ANTES — onde clicou": é a tela em que o clique aconteceu. À
-  DIREITA está "2 DEPOIS — para onde entrou": é a tela que abriu depois.
+- ORIENTAÇÃO (antes de qualquer coisa): a imagem composta traz DUAS telas
+  EMPILHADAS, uma acima da outra, separadas por uma barra vermelha horizontal.
+  EM CIMA, sob a faixa "1 ANTES — onde clicou", está a tela em que o clique
+  aconteceu. EMBAIXO, sob a faixa "2 DEPOIS — para onde entrou", está a tela que
+  abriu depois.
 - Guie-se por esses rótulos escritos, nunca pela aparência das telas. Jamais
-  descreva a tela da direita como se fosse o antes, nem a da esquerda como o depois.
+  descreva a tela de baixo como se fosse o antes, nem a de cima como o depois.
 - Se a faixa estiver ilegível, escreva "ilegível" em rotulo_lido e diga em
   alerta_qa que não deu para confirmar qual lado é qual.
 - Português do Brasil. No Gherkin use Dado que, Quando, Então e E; nunca Given/When/Then.
@@ -815,7 +816,7 @@ async function descreverParQa(antes, depois, contexto, par) {
 
   const imagens = dataUrlValida(par)
     ? [
-        { type: 'text', text: 'IMAGEM COMPOSTA: uma barra vermelha vertical separa os dois lados. À esquerda dela, sob "1 ANTES", a tela onde o clique aconteceu. À direita, sob "2 DEPOIS", a tela que abriu. Leia a faixa do topo antes de descrever.' },
+        { type: 'text', text: 'IMAGEM COMPOSTA: duas telas empilhadas, separadas por uma barra vermelha horizontal. A de CIMA, sob "1 ANTES", é onde o clique aconteceu. A de BAIXO, sob "2 DEPOIS", é a tela que abriu. Leia as duas faixas antes de descrever.' },
         { type: 'image_url', image_url: { url: par } }
       ]
     : [
