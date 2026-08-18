@@ -74,6 +74,11 @@ https://audiprint.up.railway.app/privacidade.html
 https://audiprint.up.railway.app
 ```
 
+**URL de suporte** (não use o mesmo da página inicial, e não cole duas vezes)
+```
+https://audiprint.up.railway.app/inicio.html
+```
+
 ## Imagens
 
 | Arquivo | Onde entra |

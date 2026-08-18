@@ -46,7 +46,9 @@
       candidatos.push(`//*[@${nome}=${v}]`, `//${tag}[@${nome}=${v}]`);
     };
     if (el.id) porAtributo('id', el.id);
-    for (const atributo of ['data-testid', 'data-qa', 'data-test', 'name', 'aria-label']) {
+    /* placeholder entra na lista porque campo sem id nem name e comum em site
+     * feito com Tailwind: sem ele o xpath viraria /html/body/div[1]/div[2]/... */
+    for (const atributo of ['data-testid', 'data-qa', 'data-test', 'name', 'aria-label', 'placeholder']) {
       const valor = el.getAttribute(atributo);
       if (valor) porAtributo(atributo, valor);
     }
