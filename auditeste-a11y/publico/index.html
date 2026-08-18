@@ -483,10 +483,6 @@
   .meta-qa .copiar-sel{font-size:.68rem;padding:1px 7px;cursor:pointer;border:1px solid #cfdce3;
     background:#fff;border-radius:4px;margin-left:2px;}
   .insp-html{margin-top:5px;}
-  .painel-ids{background:var(--card);border:2px solid var(--green);border-radius:12px;
-    padding:16px 18px;margin:0 0 16px;box-shadow:var(--sombra);}
-  .painel-ids label{display:block;color:var(--navy);margin-bottom:8px;}
-  .painel-ids .dica-captura{margin:8px 0 0;}
   .controles-tela{margin-top:10px;font-size:.75rem;}
   .controles-tela table{width:100%;border-collapse:collapse;margin-top:5px;}
   .controles-tela td{border-bottom:1px solid #eef3f6;padding:3px 6px;vertical-align:top;
@@ -1153,17 +1149,8 @@
 
     <div class="cabecalho-passos">
       <h2 class="bloco">Passos capturados</h2>
+      <button type="button" class="btn pequeno primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden title="Traz os cliques, preenchimentos e leituras já capturados no navegador">Trazer captura do navegador</button>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
-    </div>
-    <div class="painel-ids" id="painelIds">
-      <label for="urlIds"><b>Ids reais do site</b> — o sistema abre o link e casa cada controle do print com o elemento de verdade</label>
-      <div class="linha-scan">
-        <input type="url" id="urlIds" placeholder="https://site-do-cliente.com/a-tela-testada"
-          autocomplete="off" aria-label="Link da tela testada">
-        <button type="button" class="btn primario" data-acao="buscarIds" id="btnBuscarIds">Buscar ids reais</button>
-      </div>
-      <p class="dica-captura" id="estadoIds">Sem isso, o localizador vem do texto do print. Com isso, vem o <b>id e o HTML</b> que a página tem.
-        Só alcança tela pública, aberta direto pelo link.</p>
     </div>
     <div id="videoAtual"></div>
     <div id="lista"></div>
@@ -2366,64 +2353,6 @@
     avisar('Cenário alternativo adicionado como passo manual.');
   }
 
-  /* Ids reais: a ponte abre o link e devolve o DOM; a IA escolhe da lista, em
-   * vez de inventar a partir do print. Sem catalogo, ela so sugere localizador
-   * por texto — que e honesto, mas nao e o id do site. */
-  let catalogoIds = [];
-
-  function dizerIds(html){
-    const el = document.getElementById('estadoIds');
-    if(el) el.innerHTML = html;
-  }
-
-  async function buscarIds(){
-    const campo = document.getElementById('urlIds');
-    const url = ((campo && campo.value) || '').trim();
-    if(!url){ avisar('Cole o link da tela testada.'); if(campo) campo.focus(); return; }
-    try{ new URL(url); }catch(_){ avisar('URL inválida.'); return; }
-
-    const passos = [...lista.querySelectorAll('.passo')];
-    if(!passos.length){ avisar('Grave ao menos um passo antes de buscar os ids.'); return; }
-
-    const btn = document.getElementById('btnBuscarIds');
-    if(btn) btn.disabled = true;
-    dizerIds('Abrindo a página e lendo o DOM...');
-    try{
-      const alvo = await resolverPonteIA();
-      if(!alvo.url || !alvo.info) throw new Error('a ponte não está no ar');
-      const resp = await fetch(alvo.url + '/elementos', {
-        method: 'POST',
-        headers: Object.assign({ 'Content-Type':'application/json' }, ponteCabecalho()),
-        body: JSON.stringify({ url }),
-        signal: AbortSignal.timeout(90000)
-      });
-      const dados = await resp.json().catch(() => ({}));
-      if(!resp.ok) throw new Error(dados.erro || ('HTTP ' + resp.status));
-      catalogoIds = dados.elementos || [];
-      if(!catalogoIds.length) throw new Error('a página não devolveu elementos (pode exigir login)');
-
-      dizerIds('<b>' + catalogoIds.length + ' elementos lidos.</b> Redescrevendo os passos com os ids reais...');
-      let feitos = 0;
-      for(const passo of passos){
-        const figs = [...passo.querySelectorAll('figure')].filter(f => f._blob);
-        if(figs.length < 2) continue;
-        await descreverTelaIA(passo, figs[0]._blob, figs[1]._blob);
-        feitos++;
-      }
-      const msg = feitos + ' passo(s) redescritos com o DOM de ' + esc(dados.url || url) + '.';
-      dizerIds(msg + ' O que não deu para casar continua com o localizador por texto.');
-      avisar(msg);
-    }catch(err){
-      const m = (err && err.message) || 'erro';
-      dizerIds('Não consegui ler a página: ' + esc(m));
-      informar(/login/i.test(m)
-        ? 'A ponte abre a página como visitante anônimo, sem a sua sessão. Tela atrás de login não é alcançada por aqui.'
-        : 'Não consegui ler os ids: ' + m, 'Falha ao buscar ids');
-    }finally{
-      if(btn) btn.disabled = false;
-    }
-  }
-
   async function descreverTelaIA(passo, blobAntes, blobDepois){
     if(!blobDepois) return;
     const tit = passo.querySelector('.titulo');
@@ -2461,7 +2390,6 @@
           urlAntes: passo.dataset.urlAntes || '',
           urlDepois: passo.dataset.urlDepois || '',
           modulo: passo.dataset.modulo || document.querySelector('[data-campo="modulo"]')?.textContent.trim() || '',
-          catalogo: catalogoIds,
           tipoTeste: passo.dataset.tipoTeste || document.querySelector('[data-campo="tipo"]')?.value || ''
         });
         const cab = Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho());
@@ -2900,6 +2828,114 @@
     });
     avisar(achados.length === 1 ? '1 ponto registrado.' : achados.length + ' pontos registrados.');
     return achados.length;
+  }
+
+  /* ============ CAPTURA DE ELEMENTOS PELO NAVEGADOR ============ */
+  /* Quem registra o xpath, o HTML e o tipo de cada interação é o complemento do
+   * navegador, por código: ele vê o DOM de verdade. A entrega é por postMessage
+   * na própria página, então não é preciso saber o id do complemento. */
+  function pedirAoNavegador(deTab, msTimeout){
+    return new Promise((ok) => {
+      const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
+      const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
+      function ouvir(ev){
+        if(ev.source !== window) return;
+        const d = ev.data;
+        if(!d || d.tipo !== 'AUDI_PRINT_RESPONDE' || d.pedido !== pedido) return;
+        clearTimeout(fim);
+        window.removeEventListener('message', ouvir);
+        ok(d);
+      }
+      window.addEventListener('message', ouvir);
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab }, location.origin);
+    });
+  }
+
+  function mostrarBotaoCaptura(){
+    const b = document.getElementById('btnPuxarExtensao');
+    if(b) b.hidden = false;
+  }
+
+  /* O anúncio do complemento sai em document_start e costuma chegar antes deste
+   * script existir, então perguntar é o que realmente detecta; o ouvinte cobre
+   * o complemento que só carrega depois. */
+  window.addEventListener('message', (ev) => {
+    if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_EXTENSAO_PRESENTE') return;
+    mostrarBotaoCaptura();
+  });
+  pedirAoNavegador(null, 2500).then((r) => { if(r) mostrarBotaoCaptura(); });
+
+  async function puxarDaExtensao(){
+    const btn = document.getElementById('btnPuxarExtensao');
+    if(btn) btn.disabled = true;
+    try{
+      const lista = await pedirAoNavegador(null, 3000);
+      if(!lista){
+        informar('O complemento do navegador não respondeu. Confira se ele está instalado e ativo, e recarregue esta página.',
+          'Captura não encontrada');
+        return;
+      }
+      if(lista.erro){ avisar(lista.erro); return; }
+      const evid = lista.evidencias || [];
+      if(!evid.length){
+        avisar('Nenhuma captura no navegador. Abra o site, inicie a sessão e interaja com a tela.');
+        return;
+      }
+      let escolhida = evid[0];
+      if(evid.length > 1){
+        const opcoes = evid.map((e, i) =>
+          (i + 1) + ') ' + (e.titulo || e.url || 'sem título') + ' — ' + e.passos + ' passo(s)'
+          + (e.ativa ? ' (gravando)' : ''));
+        const resp = prompt('Qual captura você quer trazer?\n\n' + opcoes.join('\n') + '\n\nDigite o número:', '1');
+        const n = Number(resp);
+        if(!resp || !Number.isInteger(n) || n < 1 || n > evid.length) return;
+        escolhida = evid[n - 1];
+      }
+      const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
+      if(!cheia){ avisar('O complemento demorou a responder. Tente de novo.'); return; }
+      if(cheia.erro){ avisar(cheia.erro); return; }
+      const dados = cheia.evidencia;
+      if(!dados || !(dados.passos || []).length){ avisar('A captura veio vazia.'); return; }
+      await aplicarEvidenciaImportada(dados);
+      avisar(dados.passos.length + ' interação(ões) trazidas com o xpath do elemento.');
+    }catch(err){
+      informar('Não consegui trazer a captura: ' + ((err && err.message) || 'erro'), 'Falha ao trazer');
+    }finally{
+      if(btn) btn.disabled = false;
+    }
+  }
+
+  async function aplicarEvidenciaImportada(dados){
+    lista.innerHTML = '';
+    videoBlob = dados.video ? dataUrlParaBlob(dados.video) : null;
+    if(!videoBlob || videoBlob.size < 80000){
+      const viaQuadros = await videoDosQuadros(dados.quadros || []);
+      if(viaQuadros && (!videoBlob || viaQuadros.size > videoBlob.size)) videoBlob = viaQuadros;
+    }
+    if(videoBlob){
+      caixaVideo.innerHTML = '<div class="videobox"><h3>Vídeo da sessão</h3>'
+        + '<div class="meta">' + tam(videoBlob.size) + ' · gravado no teste · será arquivado com esta evidência</div>'
+        + '<video src="' + url(videoBlob) + '" controls></video></div>';
+    } else {
+      caixaVideo.innerHTML = '';
+    }
+    (dados.passos || []).forEach(p => {
+      const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
+      marcarQa(el, p);
+      const figs = p.imagens || [];
+      el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
+      figs.forEach(im => {
+        const blob = dataUrlParaBlob(im.dataUrl || im);
+        if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
+      });
+      const capturas = [...el.querySelectorAll('figure')].filter(f => f._blob);
+      if(capturas.length >= 2) descreverTelaIA(el, capturas[0]._blob, capturas[1]._blob);
+    });
+    const campoMod = document.querySelector('[data-campo="modulo"]');
+    if(campoMod && !campoMod.textContent.trim() && dados.titulo) campoMod.textContent = dados.titulo.slice(0, 80);
+    const campoObs = document.querySelector('[data-campo="observacoes"]');
+    if(campoObs && !campoObs.textContent.trim() && dados.url) campoObs.textContent = 'Teste em ' + dados.url;
+    atualizar();
   }
 
   /* ============ PONTE COM O SCANNER LOCAL ============ */
@@ -4081,8 +4117,8 @@
       const bloco = a.closest('.bloco-a11y-wrap');
       if(bloco){ bloco.remove(); atualizar(); avisar('Bloco removido.'); }
     }
+    if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'excluirPassos') excluirPassosCapturados();
-    if(acao === 'buscarIds') return buscarIds();
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
     if(acao === 'manual'){ passoAlvo = novoPasso(); document.getElementById('arqImagem').click(); }

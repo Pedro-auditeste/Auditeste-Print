@@ -1,9 +1,10 @@
-/* Integracao: grava com a extensao e traz para o Print sem arquivo no meio.
+/* Integracao: captura as interacoes por codigo e traz para o Print.
  *
  *   node teste-extensao-para-print.js
  *
- * Sobe uma ponte local, carrega a extensao num Chrome de verdade, grava um
- * clique num site de mentira e clica em "Trazer gravação da extensão".
+ * Sobe uma ponte local, carrega a extensao num Chrome de verdade e faz as
+ * quatro interacoes que o QA registra: clicar, preencher, limpar e ler um
+ * trecho. Cobra xpath em todas: seletor CSS aqui e regressao.
  */
 const assert = require('assert');
 const path = require('path');
@@ -19,6 +20,8 @@ const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><tit
 <body style="font-family:system-ui;padding:40px">
   <h1>Loja de teste</h1>
   <button id="entrarSite" style="padding:14px 28px;font-size:16px">Entrar</button>
+  <label>Cupom <input name="cupom" style="padding:8px;font-size:15px"></label>
+  <p id="aviso">Frete calculado para o CEP 04538-133.</p>
   <div id="painel" hidden><h2>Bem-vindo ao Painel</h2></div>
   <script>
     document.getElementById('entrarSite').addEventListener('click', () => {
@@ -85,9 +88,30 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     await popup.close();
     console.log('sessão iniciada na aba ' + tabId);
 
-    // 2) Clica de verdade: gera o par antes/depois e o seletor.
+    // 2) As quatro interacoes, com folga entre elas: o passo so fecha depois
+    // que o print "depois" sai.
     await aba.bringToFront();
     await aba.click('#entrarSite');
+    await esperar(3000);
+
+    await aba.type('[name="cupom"]', 'PROMO10');
+    await aba.click('h1');            // sai do campo: e o blur que dispara o change
+    await esperar(3000);
+
+    await aba.click('[name="cupom"]', { clickCount: 3 });
+    await aba.keyboard.press('Backspace');
+    await aba.click('h1');
+    await esperar(3000);
+
+    await aba.evaluate(() => {
+      const alvo = document.getElementById('aviso');
+      const r = document.createRange();
+      r.selectNodeContents(alvo);
+      const s = getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+      alvo.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
     await esperar(3000);
 
     // 3) Abre o Print servido pela ponte local e puxa da extensão.
@@ -100,7 +124,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
       const b = document.getElementById('btnPuxarExtensao');
       return !!b && !b.hidden;
     });
-    assert.ok(apareceu, 'o botão "Trazer gravação da extensão" não apareceu');
+    assert.ok(apareceu, 'o botão de trazer a captura não apareceu');
     console.log('botão apareceu (extensão detectada pela página)');
 
     const r = await print.evaluate(async () => {
@@ -119,24 +143,37 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
       const lista = await pedir(null);
       if (!lista || !lista.evidencias || !lista.evidencias.length) return { lista };
       const cheia = await pedir(lista.evidencias[0].tabId);
-      const p = cheia && cheia.evidencia && cheia.evidencia.passos && cheia.evidencia.passos[0];
+      const passos = (cheia.evidencia && cheia.evidencia.passos) || [];
       return {
         quantas: lista.evidencias.length,
-        passos: (cheia.evidencia.passos || []).length,
         formato: cheia.evidencia.formato,
-        elemento: p && p.elemento,
-        html: p && (p.html || '').slice(0, 40),
-        imagens: p && (p.imagens || []).length
+        passos: passos.map(p => ({
+          acao: p.acao, elemento: p.elemento, valor: p.valor,
+          titulo: p.titulo, html: (p.html || '').slice(0, 30),
+          imagens: (p.imagens || []).length
+        }))
       };
     });
 
     console.log(JSON.stringify(r, null, 2));
-    assert.ok(r.quantas >= 1, 'a extensão não devolveu gravação nenhuma');
+    assert.ok(r.quantas >= 1, 'a extensão não devolveu captura nenhuma');
     assert.strictEqual(r.formato, 'audi-print-evidencia-v1', 'formato diferente do importador');
-    assert.ok(r.passos >= 1, 'veio sem passos');
-    assert.strictEqual(r.elemento, '#entrarSite', 'seletor errado: ' + r.elemento);
-    assert.match(r.html, /<button id="entrarSite"/, 'HTML do elemento não veio');
-    assert.strictEqual(r.imagens, 2, 'não vieram os dois prints: ' + r.imagens);
+
+    const acao = (nome) => r.passos.find((p) => p.acao === nome);
+    for (const nome of ['Clicar', 'Preencher', 'Limpar', 'Capturar texto']) {
+      assert.ok(acao(nome), 'não registrou a interação ' + nome
+        + ' (veio: ' + r.passos.map((p) => p.acao).join(', ') + ')');
+    }
+    for (const p of r.passos) {
+      assert.ok(p.elemento.startsWith('/'), 'seletor não é xpath: ' + p.elemento);
+      assert.strictEqual(p.imagens, 2, 'não vieram os dois prints em ' + p.acao);
+    }
+    assert.match(acao('Clicar').elemento, /@id="entrarSite"/, 'xpath do clique: ' + acao('Clicar').elemento);
+    assert.match(acao('Clicar').html, /<button id="entrarSite"/, 'HTML do elemento não veio');
+    assert.strictEqual(acao('Preencher').valor, 'PROMO10', 'valor digitado não veio');
+    assert.strictEqual(acao('Limpar').valor, '', 'limpar deveria vir sem valor');
+    assert.match(acao('Capturar texto').valor, /04538-133/, 'texto lido não veio');
+
 
     console.log('\nRESULTADO: PASSOU');
     await encerrar();

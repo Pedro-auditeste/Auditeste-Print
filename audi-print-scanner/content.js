@@ -2,31 +2,24 @@
   let ultimaAcao = 0;
   let gravando = false;
 
-  function escapeCss(valor) {
-    return globalThis.CSS?.escape
-      ? CSS.escape(valor)
-      : String(valor).replace(/([^\w-])/g, '\\$1');
+  /* Xpath sempre: e o unico seletor que o script de automacao le igual em
+   * Selenium, Playwright e Cypress, e o QA pediu um formato so. */
+  function aspas(v) {
+    if (!v.includes('"')) return '"' + v + '"';
+    if (!v.includes("'")) return "'" + v + "'";
+    return '';   // os dois tipos de aspas: nao vale o concat(), cai no posicional
   }
 
-  /* Só serve se apontar para UM elemento: loja grande repete data-testid
-   * generico em dezenas de nos, e o script de automacao nao usa isso. */
-  function unico(sel) {
-    try { return document.querySelectorAll(sel).length === 1; } catch (e) { return false; }
+  /* So serve se apontar para UM no: loja grande repete data-testid generico em
+   * dezenas de elementos, e a automacao pegaria o errado. */
+  function unico(xp) {
+    try {
+      return document.evaluate('count(' + xp + ')', document, null,
+        XPathResult.NUMBER_TYPE, null).numberValue === 1;
+    } catch (e) { return false; }
   }
 
-  function seletorDe(el) {
-    const tag = el.tagName.toLowerCase();
-    if (el.id && unico('#' + escapeCss(el.id))) return '#' + escapeCss(el.id);
-    for (const atributo of ['data-testid', 'data-qa', 'data-test']) {
-      const valor = el.getAttribute(atributo);
-      if (!valor) continue;
-      for (const cand of [`[${atributo}="${escapeCss(valor)}"]`, `${tag}[${atributo}="${escapeCss(valor)}"]`]) {
-        if (unico(cand)) return cand;
-      }
-    }
-    const name = el.getAttribute('name');
-    if (name && unico(`${tag}[name="${escapeCss(name)}"]`)) return `${tag}[name="${escapeCss(name)}"]`;
-
+  function posicional(el) {
     const partes = [];
     let atual = el;
     while (atual && atual.nodeType === Node.ELEMENT_NODE) {
@@ -43,6 +36,29 @@
     return partes.length ? '/' + partes.join('/') : '';
   }
 
+  /** Xpath curto e estavel quando da, absoluto quando nao ha por onde ancorar. */
+  function seletorDe(el) {
+    const tag = el.tagName.toLowerCase();
+    const candidatos = [];
+    const porAtributo = (nome, valor) => {
+      const v = aspas(String(valor));
+      if (!v) return;
+      candidatos.push(`//*[@${nome}=${v}]`, `//${tag}[@${nome}=${v}]`);
+    };
+    if (el.id) porAtributo('id', el.id);
+    for (const atributo of ['data-testid', 'data-qa', 'data-test', 'name', 'aria-label']) {
+      const valor = el.getAttribute(atributo);
+      if (valor) porAtributo(atributo, valor);
+    }
+    const texto = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (texto && texto.length <= 60) {
+      const v = aspas(texto);
+      if (v) candidatos.push(`//${tag}[normalize-space(.)=${v}]`);
+    }
+    for (const cand of candidatos) if (unico(cand)) return cand;
+    return posicional(el);
+  }
+
   function clicavel(origem) {
     if (!(origem instanceof Element)) return null;
     return origem.closest([
@@ -52,12 +68,16 @@
     ].join(','));
   }
 
+  /* Em campo, o rotulo NUNCA e o value: senao o passo vira "Preencheu PROMO10
+   * com PROMO10" e o QA perde de que campo se tratava. */
   function rotuloDe(el) {
-    return (
+    const campo = ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+    const dosLabels = campo && el.labels && el.labels.length ? el.labels[0].innerText : '';
+    return String(
       el.getAttribute('aria-label') ||
+      dosLabels ||
       el.getAttribute('title') ||
-      el.innerText ||
-      el.value ||
+      (campo ? (el.getAttribute('placeholder') || el.getAttribute('name')) : el.innerText) ||
       el.id ||
       el.tagName
     ).replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -159,7 +179,7 @@
     return limpar;
   }
 
-  function registrar(el) {
+  function registrar(el, tipo, valor) {
     const agora = Date.now();
     if (!el || agora - ultimaAcao < 450) return;
     ultimaAcao = agora;
@@ -171,6 +191,8 @@
     const acao = {
       id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       seletor,
+      tipo: tipo || 'Clicar',
+      valor: String(valor == null ? '' : valor).replace(/\s+/g, ' ').trim().slice(0, 300),
       rotulo: rotuloDe(el),
       html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
       urlAntes: location.href,
@@ -185,12 +207,52 @@
 
   document.addEventListener('pointerdown', (evento) => {
     if (evento.button !== 0) return;
-    registrar(clicavel(evento.composedPath()[0]));
+    registrar(clicavel(evento.composedPath()[0]), 'Clicar');
   }, true);
 
   document.addEventListener('keydown', (evento) => {
     if (evento.repeat || !['Enter', ' '].includes(evento.key)) return;
-    registrar(clicavel(evento.composedPath()[0]));
+    registrar(clicavel(evento.composedPath()[0]), 'Clicar');
+  }, true);
+
+  /* Preencher e limpar sao o mesmo evento: o que separa e o campo ter ficado
+   * vazio. O 'change' so dispara quando o valor mudou de verdade, entao entrar
+   * e sair do campo sem digitar nao vira passo. */
+  document.addEventListener('change', (evento) => {
+    const el = evento.composedPath()[0];
+    if (!(el instanceof Element)) return;
+    const tag = el.tagName.toLowerCase();
+    if (!['input', 'textarea', 'select'].includes(tag)) return;
+    if (['button', 'submit', 'reset', 'file', 'hidden'].includes(el.type)) return;
+
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      return registrar(el, el.checked ? 'Marcar' : 'Desmarcar', el.value || '');
+    }
+    const valor = tag === 'select'
+      ? (el.selectedOptions?.[0]?.text || el.value)
+      : el.value;
+    // Senha nunca vai para a evidencia: o passo registra o campo, nao o segredo.
+    const seguro = el.type === 'password' ? '' : valor;
+    registrar(el, String(valor).trim() ? 'Preencher' : 'Limpar', seguro);
+  }, true);
+
+  /* Selecionar texto com o mouse e como o QA diz "li isto aqui": vira um passo
+   * de leitura, com o trecho lido e o elemento de onde saiu. */
+  const EDITAVEL = 'input, textarea, select, [contenteditable]';
+
+  document.addEventListener('mouseup', (evento) => {
+    const origem = evento.composedPath()[0];
+    // Arrastar dentro de um campo e o comeco de digitar ou apagar, nao leitura.
+    if (origem instanceof Element && origem.closest(EDITAVEL)) return;
+    if (document.activeElement && document.activeElement.closest?.(EDITAVEL)) return;
+    const sel = document.getSelection();
+    const texto = String(sel || '').replace(/\s+/g, ' ').trim();
+    if (texto.length < 2 || !sel.anchorNode) return;
+    const el = sel.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? sel.anchorNode
+      : sel.anchorNode.parentElement;
+    if (!el || el.closest(EDITAVEL)) return;
+    registrar(el, 'Capturar texto', texto);
   }, true);
 
   document.addEventListener('click', () => {

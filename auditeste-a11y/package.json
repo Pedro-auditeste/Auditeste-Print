@@ -22,9 +22,7 @@
     "teste-abre": "node teste-print-abre.js",
     "teste-extensao": "node teste-extensao-para-print.js",
     "teste-docker": "node teste-docker.js",
-    "teste-ids": "node teste-ids-reais.js",
     "teste-sem-ia": "node teste-sem-ia-na-tela.js",
-    "teste-mostra-id": "node teste-mostra-id-real.js",
     "teste-legibilidade": "node teste-legibilidade-par.js",
     "navegador": "playwright install chromium"
   },

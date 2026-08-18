@@ -58,6 +58,24 @@ function limparTimer(tabId) {
   timers.delete(tabId);
 }
 
+/* O titulo e a frase que o QA le na evidencia; o campo `acao` fica com o verbo
+ * cru, que e o que o script de automacao usa. */
+const FRASES = {
+  Clicar: 'Clicou em',
+  Preencher: 'Preencheu',
+  Limpar: 'Limpou',
+  Marcar: 'Marcou',
+  Desmarcar: 'Desmarcou',
+  'Capturar texto': 'Leu'
+};
+
+function tituloDo(p) {
+  const alvo = p.rotulo || p.seletor;
+  const frase = FRASES[p.tipo] || 'Interagiu com';
+  if (p.tipo === 'Capturar texto') return `Leu "${p.valor}"`;
+  return `${frase} "${alvo}"` + (p.valor ? ` com "${p.valor}"` : '');
+}
+
 async function finalizar(tabId) {
   limparTimer(tabId);
   prazos.delete(tabId);
@@ -74,11 +92,12 @@ async function finalizar(tabId) {
       const agora = new Date().toISOString();
       sessao.passos.push({
         id: p.id,
-        titulo: `Clicou em "${p.rotulo || p.seletor}"`,
+        titulo: tituloDo(p),
         obs: 'Descrição pendente.',
-        acao: 'Clicar',
+        acao: p.tipo || 'Clicar',
         elemento: p.seletor,
         rotulo: p.rotulo,
+        valor: p.valor || '',
         html: p.html,
         timestampAntes: p.timestampAntes,
         timestampDepois: agora,

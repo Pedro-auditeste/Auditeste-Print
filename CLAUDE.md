@@ -83,23 +83,42 @@ devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).
 A gravação por tela do Print usa `getDisplayMedia` — **pixels, sem DOM**. Ela não
 vê clique nenhum, nem que houve, nem em quê. Não tente tirar seletor dela.
 
-O que existe hoje: a IA sugere um **localizador por papel e texto**
-(`getByRole('button', { name: 'Comprar' })`) a partir do que está escrito no
-print. `localizadorValido` recusa `#id`, classe, `[data-*]` e xpath — nada disso
-está na imagem, então se vier foi invenção, e seletor inventado não falha na
-hora: falha depois, no cliente.
+Quem tem DOM é o complemento do navegador (ver a seção seguinte). A partir do
+print, o modelo só sugere um **localizador por papel e texto**
+(`getByRole('button', { name: 'Comprar' })`), e `localizadorValido` recusa `#id`,
+classe, `[data-*]` e xpath — nada disso está na imagem, então se vier foi
+invenção, e seletor inventado não falha na hora: falha depois, no cliente.
 
 Caminhos já tentados e removidos, com o motivo, para não repetir a volta:
 
 | Tentativa | Por que caiu |
 |---|---|
 | Teste automático pelo link | navegação por heurística, frágil |
-| Catálogo de elementos por URL | devolvia xpath gigante, inútil para automação |
+| Catálogo de elementos por URL (`/elementos`) | não alcança tela com login, e o complemento já dá o elemento certo |
 | Navegação dentro do Print | antibot bloqueia IP de datacenter (Casas Bahia, `Client IP` de AWS) |
 | Bookmarklet | funcionava, mas exigia arrastar favorito ou colar no console |
 | Importar JSON do Chrome Recorder | traz seletor mas não `outerHTML` |
 
-A pasta `audi-print-scanner/` continua no repo, mas o Print não a usa mais.
+## Captura de elementos por código
+
+O que registra o elemento de verdade é `audi-print-scanner/content.js`, dentro do
+navegador, lendo o DOM. Sem modelo nenhum no caminho. Ele escuta `pointerdown`,
+`keydown`, `change` e `mouseup` e registra quatro interações: **Clicar**,
+**Preencher**, **Limpar**/**Marcar**/**Desmarcar** e **Capturar texto**.
+
+O seletor é **sempre xpath** (`seletorDe`): xpath por `@id`, `@data-testid`,
+`@name`, `@aria-label` ou texto exato quando aponta para um nó só, e xpath
+posicional absoluto quando não há por onde ancorar. Um seletor CSS aparecendo
+aqui é regressão — `teste-extensao-para-print.js` cobra isso em toda interação.
+
+O Print busca essa captura pelo botão **Trazer captura do navegador**, por
+`postMessage` na própria página (`pedirAoNavegador` → `aplicarEvidenciaImportada`).
+O botão aparece porque o Print **pergunta** ao carregar: o anúncio
+`AUDI_EXTENSAO_PRESENTE` sai em `document_start` e chega antes do script do Print
+existir, então só o ouvinte não detectava nada.
+
+Campo de senha nunca tem o valor gravado, e o rótulo de um campo nunca é o
+`value` — senão o passo vira "Preencheu PROMO10 com PROMO10".
 
 ## Idioma
 

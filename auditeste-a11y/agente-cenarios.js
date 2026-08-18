@@ -530,7 +530,7 @@ function lerJsonAnalise(bruto) {
   return null;
 }
 
-function parseAnaliseQa(texto, catalogo) {
+function parseAnaliseQa(texto) {
   const vazio = {
     legenda_curta: '',
     descricao_detalhada: '',
@@ -539,8 +539,6 @@ function parseAnaliseQa(texto, catalogo) {
     cenarios_alternativos: [],
     alerta_qa: '',
     localizador: '',
-    elemento: '',
-    html: '',
     controles: [],
     rotulo_lido: ''
   };
@@ -561,9 +559,7 @@ function parseAnaliseQa(texto, catalogo) {
       : [],
     alerta_qa: campo('alerta_qa'),
     localizador: localizadorValido(campo('localizador')),
-    ...elementoClicado(dados.n_clicado, catalogo),
-    controles: controlesValidos(casarComCatalogo(
-      Array.isArray(dados.controles) ? dados.controles : [], catalogo)),
+    controles: controlesValidos(Array.isArray(dados.controles) ? dados.controles : []),
     rotulo_lido: campo('rotulo_lido')
   };
 }
@@ -584,41 +580,6 @@ function localizadorValido(bruto) {
   return s.slice(0, 200);
 }
 
-/* O elemento clicado, tirado do catalogo pelo numero que a IA apontou.
- *
- * Mesma trava da lista: numero fora do catalogo nao vira id. Sem catalogo, ou
- * sem numero, devolve vazio e o passo fica so com o localizador por texto. */
-function elementoClicado(n, catalogo) {
-  if (!Array.isArray(catalogo) || !catalogo.length) return { elemento: '', html: '' };
-  const i = Number(n);
-  const real = Number.isInteger(i) && i >= 0 && i < catalogo.length ? catalogo[i] : null;
-  if (!real || !real.seletor) return { elemento: '', html: '' };
-  return {
-    elemento: String(real.seletor).slice(0, 300),
-    html: String(real.html || '').slice(0, 1200)
-  };
-}
-
-/* Substitui o palpite da IA pelo elemento real que ela apontou em "n".
- *
- * A IA nao escreve id: ela escolhe um numero da lista que veio do DOM. Numero
- * fora da lista e descartado — e a diferenca entre id de verdade e invencao. */
-function casarComCatalogo(controles, catalogo) {
-  if (!Array.isArray(catalogo) || !catalogo.length) return controles;
-  return controles.map((c) => {
-    const i = Number(c && c.n);
-    const real = Number.isInteger(i) && i >= 0 && i < catalogo.length ? catalogo[i] : null;
-    if (!real || !real.seletor) return { ...c, n: undefined };
-    return {
-      ...c,
-      n: undefined,
-      elemento: real.seletor,
-      html: String(real.html || '').slice(0, 1200),
-      rotulo: c.rotulo || real.rotulo || ''
-    };
-  });
-}
-
 const MAX_CONTROLES = 12;
 const TIPOS_CONTROLE = ['botao', 'link', 'campo', 'opcao', 'aba'];
 
@@ -630,9 +591,7 @@ function controlesValidos(bruto) {
   for (const c of bruto) {
     if (!c || typeof c !== 'object') continue;
     const localizador = localizadorValido(c.localizador);
-    const temReal = c.elemento && String(c.elemento).trim();
-    // Com id real do catalogo, o localizador deixa de ser obrigatorio.
-    if (!localizador && !temReal) continue;
+    if (!localizador) continue;
     const rotulo = textoLinha(c.rotulo).slice(0, 120);
     if (!rotulo) continue;
     const chave = semAcentoBaixo(rotulo);
@@ -642,9 +601,7 @@ function controlesValidos(bruto) {
     fora.push({
       rotulo,
       tipo: TIPOS_CONTROLE.includes(tipo) ? tipo : 'botao',
-      localizador,
-      elemento: temReal ? String(c.elemento).trim().slice(0, 300) : '',
-      html: temReal ? String(c.html || '').slice(0, 1200) : ''
+      localizador
     });
     if (fora.length >= MAX_CONTROLES) break;
   }
@@ -701,7 +658,6 @@ function limparContexto(entrada) {
     modulo: textoLinha(entrada && entrada.modulo),
     tipoTeste: textoLinha(entrada && (entrada.tipoTeste || entrada.tipo)),
     // Lista do DOM real, quando o Print buscou pelo link.
-    catalogo: Array.isArray(entrada && entrada.catalogo) ? entrada.catalogo : []
   };
 }
 
@@ -736,11 +692,9 @@ Responda ESTRITAMENTE como JSON válido, sem markdown ou texto externo:
   "cenarios_alternativos": ["ideia curta", "outra ideia curta"],
   "alerta_qa": "",
   "localizador": "localizador Playwright a partir do que esta ESCRITO no elemento clicado",
-  "n_clicado": 0,
   "controles": [
     { "rotulo": "texto do controle", "tipo": "botao|link|campo|opcao|aba",
-      "localizador": "getByRole('button', { name: 'Continuar' })",
-      "n": 0 }
+      "localizador": "getByRole('button', { name: 'Continuar' })" }
   ],
   "rotulo_lido": "copie aqui, letra por letra, o texto escrito na faixa DO TOPO da imagem"
 }
@@ -765,12 +719,6 @@ Regras:
   texto que está escrito em cada um. Até 12, na ordem em que aparecem, de cima
   para baixo. Não repita o mesmo rótulo. Não liste texto decorativo, preço,
   título nem imagem: só o que dá para clicar ou preencher.
-- n_clicado: o numero, na lista de elementos reais, do elemento em que o clique
-  aconteceu. Sem certeza, deixe fora — nao chute.
-- Quando vier a lista "ELEMENTOS REAIS DA PÁGINA", use o campo "n" de cada
-  controle para apontar o item da lista que corresponde ao que você vê no print.
-  Só numere itens que existem na lista. Se não achar o correspondente, deixe "n"
-  fora — não chute o número.
 - NUNCA escreva id, classe, css ou xpath em localizador. Você está vendo uma
   imagem: o id não aparece nela, e inventar um quebraria o teste do QA.
   Sem texto legível no elemento, deixe localizador vazio.
@@ -804,16 +752,6 @@ async function descreverParQa(antes, depois, contexto, par) {
     `Módulo: ${ctx.modulo}`,
     `Tipo de teste: ${ctx.tipoTeste}`
   ].filter((linha) => !/:\s*$/.test(linha)).join('\n');
-  /* Catalogo do DOM real: a IA nao inventa id, ela ESCOLHE da lista. O html
-   * fica de fora daqui para nao estourar o prompt — o Print casa pelo numero. */
-  const catalogo = Array.isArray(contexto && contexto.catalogo) ? contexto.catalogo : [];
-  const listaReal = catalogo.length
-    ? 'ELEMENTOS REAIS DA PÁGINA (escolha pelo número em "n"):\n'
-      + catalogo.slice(0, 120).map((e, i) =>
-        i + ') ' + (e.rotulo || '(sem rótulo)') + '  [' + (e.tag || '?') + ']  ' + e.seletor
-      ).join('\n')
-    : '';
-
   const imagens = dataUrlValida(par)
     ? [
         { type: 'text', text: 'IMAGEM COMPOSTA: duas telas empilhadas, separadas por uma barra vermelha horizontal. A de CIMA, sob "1 ANTES", é onde o clique aconteceu. A de BAIXO, sob "2 DEPOIS", é a tela que abriu. Leia as duas faixas antes de descrever.' },
@@ -832,7 +770,7 @@ async function descreverParQa(antes, depois, contexto, par) {
         role: 'user',
         content: [
           { type: 'text', text: metadados || 'Sem metadados adicionais.' }
-        ].concat(listaReal ? [{ type: 'text', text: listaReal }] : []).concat(imagens)
+        ].concat(imagens)
       }
     ],
     maxTokens,
@@ -847,7 +785,7 @@ async function descreverParQa(antes, depois, contexto, par) {
     );
   }
   if (eRecusaModelo(r.texto, r.finish_reason)) throw new Error('recusa do modelo');
-  const analise = parseAnaliseQa(r.texto, catalogo);
+  const analise = parseAnaliseQa(r.texto);
   if (!analise.legenda_curta && !analise.descricao_detalhada && !analise.gherkin) {
     throw new Error('JSON de análise inválido');
   }
@@ -1004,8 +942,6 @@ module.exports = {
   alertaDeLados,
   localizadorValido,
   controlesValidos,
-  casarComCatalogo,
-  elementoClicado,
   juntarPassoAPasso,
   frase,
   semFraseIncompleta,

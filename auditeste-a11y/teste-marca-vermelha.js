@@ -13,8 +13,8 @@ const fonte = fs.readFileSync(
   path.join(__dirname, '..', 'audi-print-scanner', 'content.js'), 'utf8'
 );
 
-// Do escapeCss ate o fim de segurarAte: e todo o mecanismo do realce.
-const inicio = fonte.indexOf('  function escapeCss');
+// Do aspas ate o fim de segurarAte: e todo o mecanismo do realce.
+const inicio = fonte.indexOf('  function aspas');
 const fim = fonte.indexOf('  function registrar');
 assert.ok(inicio > 0 && fim > inicio, 'não achei o trecho do realce em content.js');
 const trecho = fonte.slice(inicio, fim);
@@ -95,7 +95,7 @@ const pagina = `<body style="margin:0">
   const hex = (c) => (c || '').replace(/\s/g, '').toLowerCase();
   assert.ok(r.hover.visivel, 'realce não apareceu ao passar o mouse');
   assert.strictEqual(hex(r.hover.cor), 'rgb(232,144,31)', 'hover não está âmbar');
-  assert.strictEqual(r.hover.etiqueta, '#entrarSite', 'etiqueta não traz o seletor');
+  assert.strictEqual(r.hover.etiqueta, '//*[@id="entrarSite"]', 'etiqueta não traz o seletor');
 
   assert.strictEqual(hex(r.clique.cor), 'rgb(226,60,60)', 'clique não ficou vermelho');
   assert.ok(r.travadoNoClique, 'não travou durante a captura');
