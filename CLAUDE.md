@@ -120,6 +120,15 @@ existir, então só o ouvinte não detectava nada.
 Campo de senha nunca tem o valor gravado, e o rótulo de um campo nunca é o
 `value` — senão o passo vira "Preencheu PROMO10 com PROMO10".
 
+**O print "antes" vem de uma reserva, não do clique.** Pedir a captura só depois
+do clique chega tarde: quando a mensagem alcança o service worker, a página já
+rodou o handler dela e o Chrome já repintou, então o "antes" saía mostrando a
+tela DEPOIS. O `pointerover` num elemento clicável dispara `AUDI_PRE`, que guarda
+um print de reserva; o clique consome essa reserva se ela for recente e da mesma
+URL. `teste-antes-depois.js` mede isso com uma página que muda de cor no
+pointerdown: se o "antes" sair colorido, o par está trocado. Limite conhecido:
+duas interações em menos de ~500 ms não dão tempo da reserva ficar pronta.
+
 O botão **Instalar complemento** baixa `/extensao.zip`, montado por `extensao.js`
 (zip escrito na mão, método stored, sem dependência nova). Página web **não
 instala complemento sozinha** — o Chrome tirou isso em 2018 —, então o download

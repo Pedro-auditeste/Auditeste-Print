@@ -5,6 +5,13 @@ const ESPERA_MAX_MS = 8000;
 const INTERVALO_PRINT_MS = 550;
 const MAX_PASSOS = 40;
 
+// Print de reserva, tirado quando o mouse pousa no elemento. O "antes" pedido
+// so depois do clique chega tarde: a pagina ja rodou o handler dela e o Chrome
+// ja repintou, entao o "antes" saia mostrando a tela DEPOIS.
+const PRE_VALIDA_MS = 5000;
+const PRE_INTERVALO_MS = 700;
+const pre = new Map();
+
 let ultimoPrint = 0;
 let filaPrint = Promise.resolve();
 const timers = new Map();
@@ -50,6 +57,37 @@ function capturar(tab) {
     return imagem;
   });
   return filaPrint;
+}
+
+/* Guarda um print recente da aba, para servir de "antes" no proximo passo. */
+function preCapturar(tabId) {
+  const anterior = pre.get(tabId);
+  if (anterior && Date.now() - anterior.quando < PRE_INTERVALO_MS) return anterior.pronta;
+  const quando = Date.now();
+  const pronta = (async () => {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.active) throw new Error('aba escondida');
+    return { imagem: await capturar(tab), url: tab.url || '' };
+  })();
+  pronta.catch(() => {});   // aba escondida ou limite do Chrome: segue sem reserva
+  pre.set(tabId, { quando, pronta });
+  return pronta;
+}
+
+/* O "antes" bom e o print de reserva, tirado ANTES do clique. So vale se for
+ * recente e da mesma pagina; fora disso captura na hora, como antes. */
+async function antesDe(tab) {
+  const p = pre.get(tab.id);
+  pre.delete(tab.id);
+  // Espera a reserva em andamento em vez de tirar outro print: disparar um
+  // segundo agora so entraria na fila atras dela, saindo ainda mais tarde.
+  if (p && Date.now() - p.quando <= PRE_VALIDA_MS) {
+    try {
+      const { imagem, url } = await p.pronta;
+      if (url === (tab.url || '')) return imagem;
+    } catch (_) { /* reserva falhou: cai para a captura na hora */ }
+  }
+  return capturar(tab);
 }
 
 function limparTimer(tabId) {
@@ -189,7 +227,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         if (!sessao?.ativa || sessao.finalizando) return { ignorado: true };
         if (sessao.pendente) return { ignorado: true };
         const tab = await chrome.tabs.get(tabId);
-        const antes = await capturar(tab);
+        const antes = await antesDe(tab);
         sessao.pendente = {
           ...msg.acao,
           antes,
@@ -201,6 +239,13 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         agendarFinalizacao(tabId);
         return { ok: true };
       });
+    }
+
+    /* O mouse pousou num elemento clicavel: hora de guardar a reserva. */
+    if (msg.tipo === 'AUDI_PRE') {
+      const sessao = await obter(tabId);
+      if (sessao?.ativa && !sessao.pendente && !sessao.finalizando) await preCapturar(tabId);
+      return { ok: true };
     }
 
     if (msg.tipo === 'AUDI_ACAO_CONCLUIDA') {
@@ -263,6 +308,7 @@ const SESSOES_GUARDADAS = 5;
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   limparTimer(tabId);
   prazos.delete(tabId);
+  pre.delete(tabId);
   const sessoes = await todas();
   const s = sessoes[tabId];
   if (!s || !(s.passos || []).length) return gravar(tabId, null);

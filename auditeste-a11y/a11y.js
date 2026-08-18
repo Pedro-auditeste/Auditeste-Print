@@ -75,15 +75,6 @@ function contar(violations) {
   return violations.reduce((n, v) => n + (v.nodes ? v.nodes.length : 1), 0);
 }
 
-async function abrirPagina(navegador, url) {
-  const pagina = await navegador.newPage();
-  await pagina.setUserAgent(USER_AGENT);
-  await pagina.goto(url, { waitUntil: 'load', timeout: 60000 });
-  await pagina.waitForNetworkIdle({ idleTime: 500, timeout: 15000 }).catch(() => {});
-  await new Promise(r => setTimeout(r, 1000));
-  return pagina;
-}
-
 async function diagnosticarPuppeteer(pagina) {
   const info = await pagina.evaluate(() => ({
     titulo: document.title || '',

@@ -266,7 +266,11 @@
   document.addEventListener('pointerover', (evento) => {
     if (!gravando || travado) return;
     const el = clicavel(evento.composedPath()[0]);
-    if (el !== alvoAtual) seguir(el);
+    if (el === alvoAtual) return;
+    seguir(el);
+    // Pousou num clicavel: pede o print de reserva, que vira o "antes" se o
+    // clique vier. Sem isso o "antes" so e tirado depois do efeito do clique.
+    if (el) chrome.runtime.sendMessage({ tipo: 'AUDI_PRE' }).catch(() => {});
   }, true);
 
   // Um quadro por vez: scroll dispara muito e reposicionar e barato mas nao de graca.

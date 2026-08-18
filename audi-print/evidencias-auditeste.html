@@ -1280,7 +1280,12 @@
   const LIMITE = 120;
   let projetoAtual = null, telaAtual = 'telaProjetos';
   let estado='parado', segundos=0, cronometro=null, vigia=null, vigiaBuffer=null;
-  let stream=null, ultimaAmostra=null, ultimoCarimbo=0, passoAlvo=null, descricaoAtivas=0;
+  let stream=null, ultimaAmostra=null, ultimoCarimbo=0, passoAlvo=null;
+  /* Uma descricao por vez, na ordem em que os passos foram pedidos. O
+   * contador anterior deixava dois jobs passarem no mesmo tick (checar e
+   * incrementar nao era atomico) e acordava fora de ordem: o passo 4 saia
+   * descrito antes do 1, e o excedente levava 429 da ponte. */
+  let filaDescricao = Promise.resolve();
   let telaEstavel=null, amostraEstavel=null, capturaEmAndamento=false, capturaPendente=null;
   let anelFrames=[], quietTicks=0;
   let gravadorVideo=null, pedacos=[], videoBlob=null, urls=[];
@@ -1943,10 +1948,6 @@
     return (alterados/(a.length/4))*100;
   }
 
-  function percentualMudanca(atual){
-    return diffPct(atual, ultimaAmostra);
-  }
-
   /* Rolar a página mudava muito pixel e virava print: a tela é a mesma, só
    * deslocada. Aqui comparamos a amostra com a base deslocada na vertical —
    * se algum deslocamento explica a mudança, foi rolagem e não tela nova. */
@@ -2368,9 +2369,7 @@
     if(obs) obs.textContent = 'Gerando descrição do antes e depois...';
     if(botao){ botao.hidden = true; botao.disabled = true; }
     passo.dataset.descricaoEstado = 'gerando';
-    const job = (async () => {
-      while(descricaoAtivas >= 1) await new Promise(r => setTimeout(r, 250));
-      descricaoAtivas++;
+    const tarefa = async () => {
       try{
         const alvo = await resolverPonteIA();
         if(!alvo.info || !alvo.info.cenarios){
@@ -2451,10 +2450,11 @@
         if(botao){ botao.hidden = false; botao.title = msg; }
         if(statusIA) statusIA.textContent = 'Não descreveu: ' + msg;
       }finally{
-        descricaoAtivas--;
         if(botao) botao.disabled = false;
       }
-    })();
+    };
+    const job = filaDescricao.then(tarefa, tarefa);
+    filaDescricao = job.catch(() => {});
     return job;
   }
 
@@ -3912,37 +3912,6 @@
       img.onerror = () => { URL.revokeObjectURL(url); ok(null); };
       img.src = url;
     });
-  }
-
-  async function amostrarVideo(blob, quantos){
-    const v = document.createElement('video');
-    v.muted = true; v.preload = 'auto';
-    const url = URL.createObjectURL(blob);
-    try{
-      const dur = await new Promise((ok, erro) => {
-        v.onloadedmetadata = () => ok(v.duration);
-        v.onerror = () => erro(new Error('video ilegivel'));
-        v.src = url;
-      });
-      /* webm de MediaRecorder costuma vir com duracao Infinity; sem duracao
-         nao da para amostrar, e seguir sem quadros e melhor que travar */
-      if(!isFinite(dur) || dur <= 0) return [];
-      const quadros = [];
-      for(let i = 1; i <= quantos; i++){
-        await new Promise(ok => { v.onseeked = ok; v.currentTime = dur * (i / (quantos + 1)); });
-        const escala = Math.min(1, 1200 / Math.max(v.videoWidth, v.videoHeight));
-        const c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(v.videoWidth * escala));
-        c.height = Math.max(1, Math.round(v.videoHeight * escala));
-        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-        quadros.push(c.toDataURL('image/jpeg', 0.7));
-      }
-      return quadros;
-    }catch(err){
-      return [];
-    }finally{
-      URL.revokeObjectURL(url);
-    }
   }
 
   async function gerarCenariosIA(r){
