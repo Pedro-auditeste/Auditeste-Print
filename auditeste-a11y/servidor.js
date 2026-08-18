@@ -140,6 +140,9 @@ function servirArquivo(req, res, pathname) {
   const cab = { 'Content-Type': TIPOS[ext] || 'application/octet-stream' };
   if (ext === '.html') cab['Cache-Control'] = 'no-store';
   res.writeHead(200, cab);
+  // HEAD leva so os cabecalhos. Validador de URL costuma checar por HEAD, e
+  // devolver 404 nele faz a pagina parecer inexistente para quem nunca a baixou.
+  if (req.method === 'HEAD') return res.end(), true;
   fs.createReadStream(arquivo).pipe(res);
   return true;
 }
@@ -301,11 +304,11 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (u.pathname !== '/scan') {
-    if (req.method === 'GET' && servirArquivo(req, res, u.pathname)) return;
+    if ((req.method === 'GET' || req.method === 'HEAD') && servirArquivo(req, res, u.pathname)) return;
     return responder(res, 404, { erro: 'rota desconhecida' }, origem);
   }
 
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'HEAD') {
     return responder(res, 405, { erro: 'use GET ou POST' }, origem);
   }
   if (tokenInvalido(req, u)) return responder(res, 401, { erro: msgToken(req) }, origem);
