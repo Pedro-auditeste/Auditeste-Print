@@ -1,10 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Audi Print · Captura e acessibilidade",
-  "version": "2.0.0",
-  "description": "Registra cliques com ID e prints antes/depois, além do scan de acessibilidade.",
-  "permissions": ["activeTab", "scripting", "downloads", "storage", "tabs", "unlimitedStorage"],
+  "name": "Audi Print · Captura de evidências de teste",
+  "version": "2.1.0",
+  "description": "Registra cada interação do teste com o xpath do elemento e o print antes/depois, e roda o scan de acessibilidade.",
+  "homepage_url": "https://audiprint.up.railway.app",
+  "permissions": ["scripting", "downloads", "storage", "tabs", "unlimitedStorage"],
   "host_permissions": ["<all_urls>"],
+  "icons": {
+    "16": "icones/icone-16.png",
+    "32": "icones/icone-32.png",
+    "48": "icones/icone-48.png",
+    "128": "icones/icone-128.png"
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -16,6 +23,12 @@
   }],
   "action": {
     "default_title": "Audi Print",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icones/icone-16.png",
+      "32": "icones/icone-32.png",
+      "48": "icones/icone-48.png",
+      "128": "icones/icone-128.png"
+    }
   }
 }

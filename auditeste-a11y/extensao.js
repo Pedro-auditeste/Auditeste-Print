@@ -15,7 +15,10 @@ const PASTA = [
 ].find((p) => fs.existsSync(path.join(p, 'manifest.json'))) || path.join(__dirname, 'audi-print-scanner');
 const ARQUIVOS = [
   'manifest.json', 'background.js', 'content.js',
-  'popup.html', 'popup.js', 'axe.min.js', 'README.md'
+  'popup.html', 'popup.js', 'axe.min.js', 'README.md',
+  // Barra normal de proposito: e o separador que o formato zip usa.
+  'icones/icone-16.png', 'icones/icone-32.png',
+  'icones/icone-48.png', 'icones/icone-128.png'
 ];
 
 const TABELA = (() => {

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Política de privacidade · Audi Print</title>
+<style>
+  :root{--navy:#0d3446;--green:#76c043;--muted:#5b6b75;}
+  body{margin:0;font:16px/1.65 system-ui,Segoe UI,Roboto,sans-serif;color:#1b2b33;background:#f6f8f9;}
+  header{background:var(--navy);color:#fff;padding:36px 20px;}
+  header div,main{max-width:760px;margin:0 auto;}
+  header h1{margin:0 0 6px;font-size:1.6rem;}
+  header p{margin:0;color:#bcd3dd;font-size:.95rem;}
+  main{padding:28px 20px 70px;}
+  h2{color:var(--navy);font-size:1.12rem;margin:30px 0 8px;border-left:4px solid var(--green);padding-left:10px;}
+  ul{padding-left:20px;} li{margin:5px 0;}
+  code{background:#e8eef1;padding:1px 5px;border-radius:4px;font-size:.9em;}
+  .box{background:#fff;border:1px solid #dde5e9;border-radius:10px;padding:16px 20px;margin:18px 0;}
+  .nunca{border-color:var(--green);background:#f4faef;}
+  footer{color:var(--muted);font-size:.88rem;border-top:1px solid #dde5e9;margin-top:36px;padding-top:16px;}
+</style>
+</head>
+<body>
+<header><div>
+  <h1>Política de privacidade</h1>
+  <p>Complemento de navegador Audi Print · atualizada em 18 de agosto de 2026</p>
+</div></header>
+<main>
+
+<p>O complemento Audi Print registra evidências de teste de software: o que foi
+clicado, preenchido ou lido numa página, junto com a captura da tela antes e
+depois. Esta página explica exatamente o que ele guarda e para onde isso vai.</p>
+
+<h2>O que é registrado</h2>
+<p>Somente enquanto você inicia uma sessão de gravação, e somente na aba escolhida:</p>
+<ul>
+  <li>Captura de imagem da aba visível, antes e depois de cada interação</li>
+  <li>O xpath e o HTML do elemento com que você interagiu</li>
+  <li>O texto visível do elemento, e o valor digitado em campos comuns</li>
+  <li>O endereço da página antes e depois, e a data e a hora</li>
+</ul>
+
+<div class="box nunca">
+  <b>Campos de senha nunca têm o valor registrado.</b> O passo guarda qual campo
+  era, jamais o que foi digitado nele.
+</div>
+
+<h2>Onde isso fica</h2>
+<p>Tudo é gravado apenas no seu computador, no armazenamento local do navegador
+(<code>chrome.storage.local</code>). O complemento não possui servidor e não envia
+nada por conta própria. Não há login, cadastro, identificador de usuário,
+publicidade, medição de audiência ou rastreamento entre sites.</p>
+
+<h2>Quando sai do seu computador</h2>
+<p>Apenas por uma ação sua, e de duas formas:</p>
+<ul>
+  <li><b>Exportar JSON</b>: gera um arquivo salvo na sua própria máquina.</li>
+  <li><b>Trazer captura do navegador</b>, no Audi Print: a entrega acontece entre
+      duas abas do seu navegador, sem passar pela internet.</li>
+</ul>
+
+<h2>Se você pedir a descrição automática do passo</h2>
+<p>Isso é um recurso do sistema Audi Print, não do complemento. Ao acioná-lo, as
+duas capturas de tela daquele passo são enviadas ao servidor do Audi Print, que
+consulta a API da NVIDIA (<code>integrate.api.nvidia.com</code>) para gerar o
+texto da evidência. As imagens são usadas só para produzir essa resposta e não
+são guardadas pelo Audi Print depois disso. Se você não usar o recurso, nenhuma
+imagem sai da sua máquina.</p>
+
+<h2>Por quanto tempo</h2>
+<p>As gravações ficam no navegador até você apagá-las. Fechar a aba testada
+mantém as cinco sessões mais recentes e descarta as anteriores. O botão de
+limpar, no complemento, apaga a sessão na hora. Remover o complemento apaga
+tudo o que ele guardou.</p>
+
+<h2>Por que ele pede acesso a todos os sites</h2>
+<p>Porque não há como saber de antemão qual site você vai testar: hoje é o
+sistema de um cliente, amanhã é outro. O acesso é usado exclusivamente para ler
+o elemento com que você interage e capturar a tela, e só depois de você iniciar
+a sessão naquela aba. Sem sessão iniciada, o complemento não registra nada.</p>
+
+<h2>Não fazemos</h2>
+<ul>
+  <li>Não vendemos nem compartilhamos dados com terceiros</li>
+  <li>Não usamos os dados para publicidade nem para treinar modelos</li>
+  <li>Não coletamos nada fora da aba em que você iniciou a sessão</li>
+</ul>
+
+<h2>Contato</h2>
+<p>Dúvidas sobre esta política: <a href="mailto:pedro.rodrigues@auditeste.com.br">pedro.rodrigues@auditeste.com.br</a></p>
+
+<footer>Audi Print · <a href="/">audiprint.up.railway.app</a></footer>
+</main>
+</body>
+</html>
