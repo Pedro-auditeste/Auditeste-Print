@@ -623,7 +623,7 @@ function alertaDeLados(analise) {
   if (/ileg[íi]vel/i.test(lido)) {
     return 'Não deu para ler os rótulos ANTES/DEPOIS no print: confira se a ordem das telas está correta.';
   }
-  return 'A IA leu "' + lido.slice(0, 60) + '" onde deveria estar "1 ANTES": confira se as telas não saíram trocadas.';
+  return 'A faixa do topo foi lida como "' + lido.slice(0, 60) + '" em vez de "1 ANTES": confira se as telas não saíram trocadas.';
 }
 
 const FALLBACK_PRINT = { titulo: 'Ação na tela', obs: 'O cliente avançou da tela anterior para a tela seguinte.' };

@@ -490,6 +490,11 @@
   .controles-tela .tipo{color:var(--muted);white-space:nowrap;}
   .controles-tela code{background:#eef3f6;border:1px solid #cfdce3;border-radius:4px;
     padding:1px 5px;font-family:ui-monospace,Consolas,monospace;}
+  .captura-json{margin-top:12px;}
+  .captura-json > b{color:var(--navy);font-size:.92rem;}
+  .captura-json .acoes-qa{margin:8px 0 6px;}
+  .captura-json pre.json{background:#0d3446;color:#dbeadf;border-radius:8px;padding:12px 14px;
+    margin:0;overflow-x:auto;font:500 12.5px/1.55 ui-monospace,Consolas,monospace;white-space:pre;}
   .localizador-ia{margin-top:8px;font-size:.76rem;}
   .localizador-ia code{display:block;margin-top:4px;background:#eef3f6;border:1px solid #cfdce3;
     border-radius:4px;padding:4px 8px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;}
@@ -2286,9 +2291,44 @@
     catch(_){ return normalizarAnaliseQa({}); }
   }
 
-  function htmlAnaliseQa(a, indiceRegistro){
-    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa
-      || a.localizador || a.controles.length)) return '';
+  /* O bloco que antes trazia o localizador e os controles lidos do print. Agora
+   * traz o que a gravação capturou de verdade, em JSON: xpath, HTML, ação, valor
+   * e as URLs. Palpite tirado de imagem não sobrevive ao primeiro refactor da
+   * tela; xpath lido do DOM, sim. */
+  const CAMPOS_CAPTURA = ['acao', 'elemento', 'rotulo', 'valor', 'html',
+    'urlAntes', 'urlDepois', 'frameUrl', 'timestampAntes', 'timestampDepois'];
+
+  function dadosCapturados(fonte){
+    if(!fonte) return null;
+    const fora = {};
+    for(const c of CAMPOS_CAPTURA){
+      const v = String(fonte[c] == null ? '' : fonte[c]).trim();
+      if(v) fora[c] = v;
+    }
+    return fora.elemento ? fora : null;
+  }
+
+  function jsonCapturado(capt, reg, sufixo){
+    const d = dadosCapturados(capt);
+    if(!d) return '';
+    return `<div class="captura-json">
+      <b>Capturado na gravação</b>
+      <span class="aviso-real">lido do HTML da página, não do print</span>
+      <div class="acoes-qa"><button type="button" class="gerar-desc" data-acao="${reg ? 'copiarCapturaRegistro' : 'copiarCaptura'}"${sufixo}>Copiar JSON</button></div>
+      <pre class="json">${esc(JSON.stringify(d, null, 2))}</pre>
+    </div>`;
+  }
+
+  function copiarCapturaDe(fonte){
+    const d = dadosCapturados(fonte);
+    if(!d) return avisar('Este passo não tem dados de captura.');
+    copiarTextoQa(JSON.stringify(d, null, 2), 'JSON da captura copiado.');
+  }
+
+  function htmlAnaliseQa(a, indiceRegistro, capt){
+    const blocoJson = jsonCapturado(capt, Number.isInteger(indiceRegistro),
+      Number.isInteger(indiceRegistro) ? ` data-passo="${indiceRegistro}"` : '');
+    if(!(a.legenda_curta || a.descricao_detalhada || a.gherkin || a.alerta_qa || blocoJson)) return '';
     const reg = Number.isInteger(indiceRegistro);
     const sufixo = reg ? ` data-passo="${indiceRegistro}"` : '';
     const alternativas = a.cenarios_alternativos.length
@@ -2300,20 +2340,7 @@
         ${a.descricao_detalhada ? `<p>${esc(a.descricao_detalhada)}</p>` : ''}
         ${a.gherkin ? `<pre>${esc(a.gherkin)}</pre><div class="acoes-qa"><button type="button" class="gerar-desc" data-acao="${reg ? 'copiarGherkinRegistro' : 'copiarGherkin'}"${sufixo}>Copiar Gherkin</button></div>` : ''}
         ${alternativas}
-        ${a.elemento ? `<div class="localizador-ia"><b>Elemento no site</b>
-          <span class="aviso-real">lido do HTML da página pelo link</span>
-          <code>${esc(a.elemento)}</code></div>` : ''}
-        ${a.localizador ? `<div class="localizador-ia"><b>Localizador${a.elemento ? ' alternativo' : ' sugerido'}</b>
-          <span class="aviso-palpite">tirado do texto visível no print — confira antes de usar no script</span>
-          <code>${esc(a.localizador)}</code></div>` : ''}
-        ${a.controles.length ? `<div class="controles-tela">
-          <b>Controles desta tela</b>
-          <span class="aviso-palpite">lidos do print — confira antes de usar no script</span>
-          <table><tbody>${a.controles.map(c => `<tr><td>${esc(c.rotulo)}</td>
-            <td class="tipo">${esc(c.tipo)}</td>
-            <td><code>${esc(c.elemento || c.localizador)}</code>${c.elemento
-              ? '<span class="marca-real">id do site</span>' : ''}</td></tr>`).join('')}</tbody></table>
-        </div>` : ''}
+        ${blocoJson}
         ${a.alerta_qa ? `<div class="alerta-qa-msg"><b>Alerta QA:</b> ${esc(a.alerta_qa)}</div>` : ''}
       </details>`;
   }
@@ -2330,8 +2357,8 @@
     const caixa = passo.querySelector(':scope > .analise-qa');
     if(caixa){
       caixa.hidden = !(a.descricao_detalhada || a.gherkin || a.alerta_qa
-        || a.localizador || a.controles.length);
-      caixa.innerHTML = htmlAnaliseQa({ ...a, legenda_curta: '' });
+        || dadosCapturados(passo.dataset));
+      caixa.innerHTML = htmlAnaliseQa({ ...a, legenda_curta: '' }, undefined, passo.dataset);
     }
     return a;
   }
@@ -4072,7 +4099,7 @@
           <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
             <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}</div>
-          ${htmlAnaliseQa(normalizarAnaliseQa(p.analiseQa), i)}
+          ${htmlAnaliseQa(normalizarAnaliseQa(p.analiseQa), i, p)}
         </article>`).join('')}
 
       <div class="caixa-cenarios" id="caixaCenarios" hidden></div>
@@ -4091,6 +4118,7 @@
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
     if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
     if(b.dataset.acao === 'copiarGherkinRegistro') copiarTextoQa(normalizarAnaliseQa(registroAberto?.passos?.[Number(b.dataset.passo)]?.analiseQa).gherkin, 'Gherkin copiado.');
+    if(b.dataset.acao === 'copiarCapturaRegistro') copiarCapturaDe(registroAberto?.passos?.[Number(b.dataset.passo)]);
     if(b.dataset.acao === 'adicionarAlternativoRegistro') adicionarAlternativoRegistro(Number(b.dataset.passo), Number(b.dataset.alternativo));
     if(b.dataset.acao === 'copiarCenario') copiarBlocoCenario(b.dataset.alvo);
     if(b.dataset.video) baixarVideo(Number(b.dataset.video));
@@ -4126,6 +4154,7 @@
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
     if(acao === 'gerarDescricao') gerarDescricaoPasso(a.closest('.passo'));
     if(acao === 'copiarGherkin') copiarTextoQa(analiseDoPasso(a.closest('.passo')).gherkin, 'Gherkin copiado.');
+    if(acao === 'copiarCaptura') copiarCapturaDe(a.closest('.passo')?.dataset);
     if(acao === 'adicionarAlternativo') adicionarAlternativoPasso(a.closest('.passo'), Number(a.dataset.alternativo));
     if(acao === 'removerBlocoA11y'){
       e.preventDefault();

@@ -113,6 +113,16 @@ const DESCRICAO_LONGA = 'Antes havia a tela de login com e-mail e senha. '
       'análise detalhada não pode ser cortada'
     );
     assert.ok(await pagina.$eval('.passo', (el) => el.classList.contains('alerta-qa')));
+
+    // O bloco de palpites deu lugar ao JSON do que a gravacao capturou.
+    const json = JSON.parse(await pagina.$eval('.passo .captura-json pre.json', (el) => el.textContent));
+    assert.strictEqual(json.elemento, '//*[@id="btn-entrar"]', 'o xpath real tem de estar no JSON');
+    assert.strictEqual(json.acao, 'Clicar');
+    assert.strictEqual(json.rotulo, 'Entrar');
+    assert.strictEqual(json.urlDepois, 'https://exemplo.test/dashboard');
+    assert.ok(json.html.includes('btn-entrar'), 'o HTML do elemento tem de estar no JSON');
+    assert.strictEqual(await pagina.$$eval('.passo .localizador-ia, .passo .controles-tela', (e) => e.length), 0,
+      'os palpites lidos do print não podem mais aparecer');
     assert.strictEqual(corpoDescricao.elemento, '//*[@id="btn-entrar"]');
     assert.ok('modulo' in corpoDescricao && 'tipoTeste' in corpoDescricao);
     assert.ok(/^data:image\/jpeg;base64,/.test(corpoDescricao.par), 'par visual composto enviado');

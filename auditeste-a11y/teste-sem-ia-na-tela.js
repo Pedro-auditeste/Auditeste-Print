@@ -47,6 +47,22 @@ const arquivos = [
   path.join(__dirname, '..', 'audi-print', 'evidencias-auditeste.html')
 ];
 
+/* O alerta de lados trocados vinha do servidor escrito com "A IA leu", e
+ * chegava na tela do cliente sem passar por nenhum dos dois HTML acima. */
+const DO_SERVIDOR = [
+  path.join(__dirname, 'agente-cenarios.js'),
+  path.join(__dirname, 'servidor.js')
+];
+
+function frasesDe(arquivo) {
+  const src = fs.readFileSync(arquivo, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  return [...src.matchAll(/'([^'\\n]{4,})'|"([^"\\n]{4,})"/g)]
+    .map((m) => m[1] || m[2])
+    .filter((f) => / /.test(f) && /[a-zA-ZÀ-ú]/.test(f));
+}
+
 for (const arq of arquivos) {
   const nome = path.basename(path.dirname(arq)) + '/' + path.basename(arq);
   console.log('--- ' + nome + ' ---');
@@ -60,6 +76,14 @@ for (const arq of arquivos) {
   caso('nenhuma mensagem montada em JS cita IA', () => {
     const maus = mensagensDoJs(html).filter((x) => PROIBIDO.test(x));
     assert.deepStrictEqual(maus, [], 'em mensagem: ' + maus.map((m) => m.slice(0, 70)).join(' | '));
+  });
+}
+
+console.log('--- frases que o servidor manda para a tela ---');
+for (const arq of DO_SERVIDOR) {
+  caso(path.basename(arq) + ' nao manda texto citando IA', () => {
+    const maus = frasesDe(arq).filter((f) => PROIBIDO.test(f));
+    assert.deepStrictEqual(maus, [], 'no servidor: ' + maus.join(' | '));
   });
 }
 

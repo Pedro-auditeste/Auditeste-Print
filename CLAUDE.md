@@ -120,6 +120,11 @@ existir, então só o ouvinte não detectava nada.
 Campo de senha nunca tem o valor gravado, e o rótulo de um campo nunca é o
 `value` — senão o passo vira "Preencheu PROMO10 com PROMO10".
 
+**O bloco do passo mostra o JSON capturado, não palpite lido do print.** O
+localizador sugerido e a tabela de controles saíram: os dois vinham do modelo
+olhando a imagem, e envelheciam mal. No lugar vai `jsonCapturado`, com xpath,
+HTML, ação, valor e URLs que a gravação leu do DOM, e um botão de copiar.
+
 **O print "antes" vem de uma reserva, não do clique.** Pedir a captura só depois
 do clique chega tarde: quando a mensagem alcança o service worker, a página já
 rodou o handler dela e o Chrome já repintou, então o "antes" saía mostrando a
