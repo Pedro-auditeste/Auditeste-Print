@@ -48,6 +48,13 @@ console.log('--- Dockerfile da raiz ---');
 const r = regras();
 const origens = origensDosCopy(path.join(RAIZ, 'Dockerfile'));
 
+caso('a pasta da extensão entra na imagem', () => {
+  // Sem ela, /extensao.zip existe e o arquivo não.
+  assert.ok(origens.includes('audi-print-scanner'), 'a extensão não é copiada');
+  assert.ok(!ignorado('audi-print-scanner', r), '.dockerignore bloqueia a extensão');
+  assert.ok(fs.existsSync(path.join(RAIZ, 'audi-print-scanner', 'manifest.json')), 'sem manifest.json');
+});
+
 caso('há COPY para conferir', () => {
   assert.ok(origens.length >= 3, 'poucos COPY encontrados: ' + origens.length);
 });

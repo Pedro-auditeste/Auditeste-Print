@@ -1150,6 +1150,7 @@
     <div class="cabecalho-passos">
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden title="Traz os cliques, preenchimentos e leituras já capturados no navegador">Trazer captura do navegador</button>
+      <button type="button" class="btn pequeno" data-acao="baixarExtensao" id="btnBaixarExtensao" title="Baixa o complemento que registra o xpath de cada interação">Instalar complemento</button>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
     <div id="videoAtual"></div>
@@ -2851,9 +2852,55 @@
     });
   }
 
+  let complementoAtivo = false;
+
   function mostrarBotaoCaptura(){
+    complementoAtivo = true;
     const b = document.getElementById('btnPuxarExtensao');
     if(b) b.hidden = false;
+    // Instalado, o convite para instalar so atrapalha.
+    const i = document.getElementById('btnBaixarExtensao');
+    if(i) i.hidden = true;
+  }
+
+  /* Página web não instala complemento sozinha — o Chrome tirou isso em 2018.
+   * O que dá é entregar o pacote pronto e mostrar os três passos. */
+  async function baixarExtensao(){
+    if(complementoAtivo){
+      informar('O complemento já está instalado e ativo nesta página. Use <b>Trazer captura do navegador</b> '
+        + 'depois de testar no site.', 'Já instalado');
+      return;
+    }
+    const btn = document.getElementById('btnBaixarExtensao');
+    if(btn) btn.disabled = true;
+    try{
+      const alvo = await resolverPonteIA();
+      if(!alvo.url) throw new Error('não encontrei a ponte');
+      const resp = await fetch(alvo.url + '/extensao.zip', { signal: AbortSignal.timeout(60000) });
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'audi-print-complemento.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=> URL.revokeObjectURL(a.href), 30000);
+      informar(
+        '<b>1.</b> Descompacte o arquivo baixado numa pasta fixa. Não apague essa pasta depois: '
+        + 'o Chrome lê o complemento dela toda vez que abre.<br>'
+        + '<b>2.</b> Abra <b>chrome://extensions</b> e ligue o <b>Modo do desenvolvedor</b>, no canto superior direito.<br>'
+        + '<b>3.</b> Clique em <b>Carregar sem compactação</b> e escolha a pasta descompactada.<br><br>'
+        + 'Depois recarregue esta página. No site a testar, abra o complemento e inicie a sessão; '
+        + 'clique, preencha, limpe e selecione texto normalmente. Volte aqui em '
+        + '<b>Trazer captura do navegador</b> e cada passo virá com o xpath e o HTML do elemento.',
+        'Complemento baixado · faltam 3 passos');
+    }catch(err){
+      informar('Não consegui baixar o complemento: ' + ((err && err.message) || 'erro')
+        + '. A pasta também está no repositório, em audi-print-scanner.', 'Falha no download');
+    }finally{
+      if(btn) btn.disabled = false;
+    }
   }
 
   /* O anúncio do complemento sai em document_start e costuma chegar antes deste
@@ -4118,6 +4165,7 @@
       if(bloco){ bloco.remove(); atualizar(); avisar('Bloco removido.'); }
     }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
+    if(acao === 'baixarExtensao') return baixarExtensao();
     if(acao === 'excluirPassos') excluirPassosCapturados();
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });

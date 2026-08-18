@@ -21,6 +21,7 @@
     "teste-rolagem": "node teste-rolagem.js",
     "teste-abre": "node teste-print-abre.js",
     "teste-extensao": "node teste-extensao-para-print.js",
+    "teste-baixar": "node teste-baixar-extensao.js",
     "teste-docker": "node teste-docker.js",
     "teste-sem-ia": "node teste-sem-ia-na-tela.js",
     "teste-legibilidade": "node teste-legibilidade-par.js",

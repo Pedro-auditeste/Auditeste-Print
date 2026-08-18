@@ -120,6 +120,13 @@ existir, então só o ouvinte não detectava nada.
 Campo de senha nunca tem o valor gravado, e o rótulo de um campo nunca é o
 `value` — senão o passo vira "Preencheu PROMO10 com PROMO10".
 
+O botão **Instalar complemento** baixa `/extensao.zip`, montado por `extensao.js`
+(zip escrito na mão, método stored, sem dependência nova). Página web **não
+instala complemento sozinha** — o Chrome tirou isso em 2018 —, então o download
+vem acompanhado dos três passos do `chrome://extensions`. Instalação em um clique
+só existiria publicando na Chrome Web Store. `teste-baixar-extensao.js` baixa,
+descompacta e carrega o pacote num Chrome de verdade: zip que abre não prova nada.
+
 ## Idioma
 
 Código, commits e UI em **português**. Mensagens de commit descrevem o efeito para
