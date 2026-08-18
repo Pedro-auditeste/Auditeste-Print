@@ -292,6 +292,10 @@
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.tipo === 'AUDI_SESSAO') ligarRealce(msg.ativa);
+    // Passo novo chegando do background: repassa para a pagina do Print.
+    if (msg && msg.tipo === 'AUDI_NOVO_PASSO' && window === window.top && paginaDoPrint()) {
+      window.postMessage({ tipo: 'AUDI_PRINT_PASSO', passo: msg.passo, origem: msg.origem }, location.origin);
+    }
   });
 
   /* Ponte para o Print puxar a gravacao sem exportar e importar arquivo.

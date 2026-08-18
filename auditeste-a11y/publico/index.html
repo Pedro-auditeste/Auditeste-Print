@@ -2937,6 +2937,53 @@
     if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_EXTENSAO_PRESENTE') return;
     mostrarBotaoCaptura();
   });
+
+  /* Passo capturado no site cai aqui sozinho, sem ninguém clicar em trazer.
+   * Acrescenta, nunca recarrega a lista: apagar o que já está na tela para
+   * repor tudo perderia edição feita à mão. */
+  const idsDaExtensao = new Set();
+
+  window.addEventListener('message', (ev) => {
+    if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_PRINT_PASSO') return;
+    mostrarBotaoCaptura();
+    receberPassoDaExtensao(ev.data.passo, ev.data.origem);
+  });
+
+  function receberPassoDaExtensao(p, origem){
+    // Só entra em gravação aberta: fora dela não existe lista para receber.
+    if(!p || !lista || !document.getElementById('telaGravador')?.classList.contains('ativa')) return;
+    if(p.id && idsDaExtensao.has(p.id)) return;   // o botão manual pode trazer o mesmo
+    if(p.id) idsDaExtensao.add(p.id);
+    montarPassoDaExtensao(p);
+    if(origem) preencherCabecalho(origem);
+    atualizar();
+    if(typeof avisar === 'function') avisar(tituloCurto(p) + ' · chegou do navegador');
+  }
+
+  function tituloCurto(p){
+    return String(p.titulo || p.acao || 'Passo').slice(0, 60);
+  }
+
+  function preencherCabecalho(origem){
+    const campoMod = document.querySelector('[data-campo="modulo"]');
+    if(campoMod && !campoMod.textContent.trim() && origem.titulo) campoMod.textContent = origem.titulo.slice(0, 80);
+    const campoObs = document.querySelector('[data-campo="observacoes"]');
+    if(campoObs && !campoObs.textContent.trim() && origem.url) campoObs.textContent = 'Teste em ' + origem.url;
+  }
+
+  function montarPassoDaExtensao(p){
+    const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
+    marcarQa(el, p);
+    const figs = p.imagens || [];
+    el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
+    figs.forEach(im => {
+      const blob = dataUrlParaBlob(im.dataUrl || im);
+      if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
+    });
+    const capturas = [...el.querySelectorAll('figure')].filter(f => f._blob);
+    if(capturas.length >= 2) descreverTelaIA(el, capturas[0]._blob, capturas[1]._blob);
+    return el;
+  }
   pedirAoNavegador(null, 2500).then((r) => { if(r) mostrarBotaoCaptura(); });
 
   async function puxarDaExtensao(){
@@ -2993,17 +3040,10 @@
     } else {
       caixaVideo.innerHTML = '';
     }
+    idsDaExtensao.clear();
     (dados.passos || []).forEach(p => {
-      const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
-      marcarQa(el, p);
-      const figs = p.imagens || [];
-      el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
-      figs.forEach(im => {
-        const blob = dataUrlParaBlob(im.dataUrl || im);
-        if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
-      });
-      const capturas = [...el.querySelectorAll('figure')].filter(f => f._blob);
-      if(capturas.length >= 2) descreverTelaIA(el, capturas[0]._blob, capturas[1]._blob);
+      if(p.id) idsDaExtensao.add(p.id);
+      montarPassoDaExtensao(p);
     });
     const campoMod = document.querySelector('[data-campo="modulo"]');
     if(campoMod && !campoMod.textContent.trim() && dados.titulo) campoMod.textContent = dados.titulo.slice(0, 80);

@@ -151,6 +151,7 @@ async function finalizar(tabId) {
       sessao.pendente = null;
       sessao.finalizando = false;
       await gravar(tabId, sessao);
+      empurrarParaPrint(sessao.passos[sessao.passos.length - 1], sessao);
     } catch (erro) {
       sessao.finalizando = false;
       sessao.erro = erro.message;
@@ -173,6 +174,26 @@ function agendarFinalizacao(tabId) {
 /* O content script nao sabe sozinho se a sessao esta gravando, e o realce so
  * pode existir durante a gravacao. Avisar falha de proposito calado em aba sem
  * content script (chrome://, PDF, aba recem-aberta). */
+/* Onde o Print pode estar aberto. Mesma lista do content script: se mudar aqui,
+ * mude la tambem. */
+const ABAS_PRINT = ['https://audiprint.up.railway.app/*',
+  'http://localhost/*', 'http://127.0.0.1/*'];
+
+/* Passo pronto vai direto para o Print, sem o usuario ir la clicar em trazer.
+ * Falha calada de proposito: sem o Print aberto nao ha para quem mandar, e a
+ * gravacao continua guardada para o botao manual. */
+async function empurrarParaPrint(passo, sessao) {
+  let abas = [];
+  try { abas = await chrome.tabs.query({ url: ABAS_PRINT }); } catch (_) { return; }
+  for (const aba of abas) {
+    chrome.tabs.sendMessage(aba.id, {
+      tipo: 'AUDI_NOVO_PASSO',
+      passo,
+      origem: { url: sessao.url || '', titulo: sessao.titulo || '' }
+    }).catch(() => {});
+  }
+}
+
 function avisarAba(tabId, ativa) {
   chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_SESSAO', ativa }).catch(() => {});
 }
