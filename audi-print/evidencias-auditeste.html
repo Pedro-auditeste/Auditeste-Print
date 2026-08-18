@@ -1836,6 +1836,28 @@
     }
     document.querySelector('[data-campo="data"]').textContent = new Date().toLocaleDateString('pt-BR');
     irPara('telaGravador');
+    trazerSozinho();
+  }
+
+  /* O caminho normal é gravar no site e só depois abrir o Print. Aí o envio ao
+   * vivo não alcança nada, porque não havia Print aberto na hora. Então abrir a
+   * gravação já busca o que o complemento tem guardado. Só com a lista vazia:
+   * com passo na tela, quem manda é o botão, para não atropelar o que já está aí. */
+  async function trazerSozinho(){
+    if(!lista || lista.querySelector('.passo')) return;
+    const resumo = await pedirAoNavegador(null, 2500);
+    if(!resumo || resumo.erro) return;
+    const evid = (resumo.evidencias || []).filter(e => e.passos);
+    if(!evid.length) return;
+    mostrarBotaoCaptura();
+    // A mais recente: é a que o QA acabou de gravar.
+    const escolhida = evid[0];
+    const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
+    const dados = cheia && !cheia.erro ? cheia.evidencia : null;
+    if(!dados || !(dados.passos || []).length) return;
+    if(lista.querySelector('.passo')) return;   // chegou algo enquanto buscava
+    await aplicarEvidenciaImportada(dados);
+    avisar(dados.passos.length + ' interação(ões) trazidas do navegador.');
   }
 
   function mudarEstado(novo){
