@@ -9,3 +9,6 @@ _teste/
 *.log
 .DS_Store
 Thumbs.db
+
+# scripts de diagnostico temporarios
+auditeste-a11y/_*.js
