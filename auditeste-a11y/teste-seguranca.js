@@ -87,4 +87,24 @@ caso('o aviso com destaque não mostra tag crua', () => {
   assert.ok(/&lt;b&gt;/.test(html), 'o destaque não passa por escape antes');
 });
 
+caso('nenhuma funcao do Print declarada duas vezes', () => {
+  /* Editar um arquivo de 4 mil linhas por busca e substituicao deixa copia
+     para tras: a segunda declaracao vence calada, e a correcao aplicada na
+     primeira nunca roda. Ja aconteceu com completarComONavegador. */
+  const vistos = new Map();
+  const re = new RegExp('\\n  (?:async )?function ([A-Za-z_$][\\w$]*)\\s*\\(', 'g');
+  for (const m of html.matchAll(re)) vistos.set(m[1], (vistos.get(m[1]) || 0) + 1);
+  const repetidas = [...vistos].filter(([, q]) => q > 1).map(([nome, q]) => nome + ' (' + q + 'x)');
+  assert.deepStrictEqual(repetidas, [], 'declaradas mais de uma vez: ' + repetidas.join(', '));
+});
+
+caso('a descricao roda mesmo sem passo novo', () => {
+  const fn = html.slice(html.indexOf('async function completarComONavegador'),
+                        html.indexOf('const trazerSozinho'));
+  assert.ok(/finally[\s\S]*gerarDescricoesPendentes/.test(fn),
+    'gerarDescricoesPendentes precisa rodar no finally: com todos os passos ja '
+    + 'chegados ao vivo, um return antecipado deixava a gravacao sem cenario');
+  assert.ok(fn.indexOf('if(!novos) return;') === -1, 'o return que pulava a descricao voltou');
+});
+
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

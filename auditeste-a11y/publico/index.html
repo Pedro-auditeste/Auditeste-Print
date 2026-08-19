@@ -1873,58 +1873,40 @@
     return Number.isFinite(fim) && (Date.now() - fim) < JANELA_AUTO_MS;
   }
 
-  /* Ao encerrar, recolhe o que a gravação capturou e ainda não está na lista.
-   * O envio ao vivo cobre o caso comum, mas nada garante que todo passo chegou:
-   * o Print pode ter sido aberto no meio, ou estar noutra tela na hora. Aqui é
-   * a última varredura, para ninguém precisar clicar em trazer. */
+  /* Recolhe do complemento o que ainda não está na lista e descreve o que falta.
+   *
+   * Chamada ao abrir a gravação e ao encerrá-la. Os dois casos fazem a mesma
+   * coisa, e manter duas versões disso já custou caro: correção numa não chegava
+   * na outra.
+   *
+   * A descrição roda SEMPRE no fim, mesmo sem passo novo. Antes ela vinha depois
+   * de um `if(!novos) return`, então quando todos os passos já tinham chegado ao
+   * vivo — que é o caso normal — a gravação terminava e nenhum cenário era
+   * gerado: os passos ficavam com o aviso na tela para sempre. */
   async function completarComONavegador(){
     if(!lista) return;
-    const resumo = await pedirAoNavegador(null, 3000);
-    if(!resumo || resumo.erro) return;
-    const evid = (resumo.evidencias || []).filter(e => e.passos);
-    if(!evid.length) return;
-    mostrarBotaoCaptura();
-    const escolhida = evid.find(daGravacaoAtual);
-    if(!escolhida) return;
-    const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
-    const dados = cheia && !cheia.erro ? cheia.evidencia : null;
-    if(!dados) return;
-    const novos = acrescentarPassos(dados);
-    if(!novos) return;
-    await pedirAoNavegador(escolhida.tabId, 5000, true);
-    avisar(novos + ' interação(ões) com xpath trazidas da gravação.');
-    // A gravação acabou: descrever agora não disputa mais com a captura de tela.
-    await gerarDescricoesPendentes();
+    try{
+      const resumo = await pedirAoNavegador(null, 3000);
+      if(!resumo || resumo.erro) return;
+      const evid = (resumo.evidencias || []).filter(e => e.passos);
+      if(!evid.length) return;
+      mostrarBotaoCaptura();
+      const escolhida = evid.find(daGravacaoAtual);
+      if(!escolhida) return;
+      const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
+      const dados = cheia && !cheia.erro ? cheia.evidencia : null;
+      if(!dados) return;
+      const novos = acrescentarPassos(dados);
+      await pedirAoNavegador(escolhida.tabId, 5000, true);
+      if(novos) avisar(novos + ' interação(ões) com xpath trazidas da gravação.');
+    } finally {
+      // Descrever agora não disputa mais com a captura de tela.
+      await gerarDescricoesPendentes();
+    }
   }
 
-  /* Abrir a gravação e encerrá-la fazem a mesma coisa: recolher do complemento o
-   * que ainda não está na lista. Eram duas funções quase iguais, e a correção de
-   * uma não chegava na outra. */
+  /* Abrir a gravação e encerrá-la usam o mesmo caminho. */
   const trazerSozinho = () => completarComONavegador();
-
-  /* Ao encerrar, recolhe o que a gravação capturou e ainda não está na lista.
-   * O envio ao vivo cobre o caso comum, mas nada garante que todo passo chegou:
-   * o Print pode ter sido aberto no meio, ou estar noutra tela na hora. Aqui é
-   * a última varredura, para ninguém precisar clicar em trazer. */
-  async function completarComONavegador(){
-    if(!lista) return;
-    const resumo = await pedirAoNavegador(null, 3000);
-    if(!resumo || resumo.erro) return;
-    const evid = (resumo.evidencias || []).filter(e => e.passos);
-    if(!evid.length) return;
-    mostrarBotaoCaptura();
-    const escolhida = evid.find(daGravacaoAtual);
-    if(!escolhida) return;
-    const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
-    const dados = cheia && !cheia.erro ? cheia.evidencia : null;
-    if(!dados) return;
-    const novos = acrescentarPassos(dados);
-    if(!novos) return;
-    await pedirAoNavegador(escolhida.tabId, 5000, true);
-    avisar(novos + ' interação(ões) com xpath trazidas da gravação.');
-    // A gravação acabou: descrever agora não disputa mais com a captura de tela.
-    await gerarDescricoesPendentes();
-  }
 
   function mudarEstado(novo){
     estado = novo;
