@@ -275,6 +275,25 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       return { sessao };
     }
 
+    /* Parar de compartilhar a tela encerra a sessao junto: sao a mesma gravacao
+     * para quem esta testando. Nao sabemos qual aba, entao para todas as ativas
+     * e desarma o que ainda nao comecou. */
+    if (msg.tipo === 'AUDI_PARAR_TUDO') {
+      armadoAte = 0;
+      const sessoes = await todas();
+      for (const [id, s] of Object.entries(sessoes)) {
+        if (!s || !s.ativa) continue;
+        await finalizar(Number(id));
+        const atual = (await todas())[id];
+        if (atual) {
+          atual.ativa = false;
+          await gravar(Number(id), atual);
+        }
+        avisarAba(Number(id), false);
+      }
+      return { ok: true };
+    }
+
     /* Armar: a proxima aba de site que voce focar vira a sessao gravando. */
     if (msg.tipo === 'AUDI_ARMAR') {
       armadoAte = Date.now() + ARMADO_VALE_MS;

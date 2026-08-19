@@ -1898,6 +1898,10 @@
       return;
     }
     video.srcObject = stream;
+    // Parar pelo botão do próprio Chrome vale o mesmo que parar aqui dentro.
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+      if(stream) parar(true);
+    }, { once: true });
     /* Gravar a tela e gravar as interações começam juntos. A sessão não pode
      * nascer na aba do Print, então o complemento fica armado e começa sozinho
      * na aba do site assim que você for para ela. */
@@ -1956,6 +1960,8 @@
     if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
     video.srcObject = null;
     mudarEstado('parado');
+    // Parar de compartilhar encerra a sessão junto: é a mesma gravação.
+    pedirAoNavegador(null, 3000, false, false, true);
 
     if(!silencioso){
       const total = lista.querySelectorAll('.passo').length;
@@ -2908,7 +2914,7 @@
   /* Quem registra o xpath, o HTML e o tipo de cada interação é o complemento do
    * navegador, por código: ele vê o DOM de verdade. A entrega é por postMessage
    * na própria página, então não é preciso saber o id do complemento. */
-  function pedirAoNavegador(deTab, msTimeout, marcar, armar){
+  function pedirAoNavegador(deTab, msTimeout, marcar, armar, pararTudo){
     return new Promise((ok) => {
       const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
       const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
@@ -2921,7 +2927,7 @@
         ok(d);
       }
       window.addEventListener('message', ouvir);
-      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar }, location.origin);
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar, pararTudo }, location.origin);
     });
   }
 

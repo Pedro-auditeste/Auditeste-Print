@@ -335,7 +335,9 @@
         Object.assign({ tipo: 'AUDI_PRINT_RESPONDE', pedido: d.pedido }, corpo), location.origin
       );
       try {
-        const r = d.armar
+        const r = d.pararTudo
+          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_PARAR_TUDO' })
+          : d.armar
           ? await chrome.runtime.sendMessage({ tipo: 'AUDI_ARMAR' })
           : d.marcar
           ? await chrome.runtime.sendMessage({ tipo: 'AUDI_IMPORTADA', deTab: d.deTab })
