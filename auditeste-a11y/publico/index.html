@@ -2530,13 +2530,13 @@
         const cab = Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho());
         let resp = await fetch(alvo.url + '/descrever', {
           method: 'POST', headers: cab, body: corpo,
-          signal: AbortSignal.timeout(100000)
+          signal: AbortSignal.timeout(170000)
         });
         if(resp.status === 429 || resp.status >= 500){
           await new Promise(r => setTimeout(r, 1200));
           resp = await fetch(alvo.url + '/descrever', {
             method: 'POST', headers: cab, body: corpo,
-            signal: AbortSignal.timeout(100000)
+            signal: AbortSignal.timeout(170000)
           });
         }
         const dados = await resp.json().catch(() => ({}));

@@ -823,9 +823,14 @@ async function descreverParQa(antes, depois, contexto, par) {
     ],
     maxTokens,
     temperature: 0.05,
-    timeoutMs: Math.max(TIMEOUT_MS, 90000)
+    /* Medido em 19/08/2026: o 11b leva de 8 a 21 s so para ler uma imagem de
+     * 7 KB e escrever 2 frases. Com o par e a analise inteira, 90 s estourava e
+     * o passo caia no fallback, sem Gherkin. */
+    timeoutMs: Math.max(TIMEOUT_MS, 150000)
   });
-  let r = await pedir(3000);
+  /* 1600 e nao 3000: no 11b o gargalo e gerar, nao ler. A analise completa cabe
+   * folgada em 1600, e o retry de 4096 continua para o caso raro de truncar. */
+  let r = await pedir(1600);
   if (r.finish_reason === 'length') {
     r = await pedir(
       4096,
