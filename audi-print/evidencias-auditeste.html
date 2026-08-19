@@ -2421,6 +2421,8 @@
     avisar('Cenário alternativo adicionado como passo manual.');
   }
 
+  function lerJson(v){ try{ return v ? JSON.parse(v) : null; }catch(_){ return null; } }
+
   async function descreverTelaIA(passo, blobAntes, blobDepois){
     if(!blobDepois) return;
     const tit = passo.querySelector('.titulo');
@@ -2453,6 +2455,11 @@
           par: par || undefined,
           elemento: passo.dataset.elemento || '',
           rotulo: passo.dataset.rotulo || '',
+          acao: passo.dataset.acao || '',
+          valor: passo.dataset.valor || '',
+          html: passo.dataset.html || '',
+          textoAntes: lerJson(passo.dataset.textoAntes) || undefined,
+          textoDepois: lerJson(passo.dataset.textoDepois) || undefined,
           urlAntes: passo.dataset.urlAntes || '',
           urlDepois: passo.dataset.urlDepois || '',
           modulo: passo.dataset.modulo || document.querySelector('[data-campo="modulo"]')?.textContent.trim() || '',
@@ -3366,6 +3373,8 @@
     passo.dataset.urlAntes = dados.urlAntes || '';
     passo.dataset.urlDepois = dados.urlDepois || '';
     passo.dataset.frameUrl = dados.frameUrl || '';
+    if(dados.textoAntes) passo.dataset.textoAntes = JSON.stringify(dados.textoAntes);
+    if(dados.textoDepois) passo.dataset.textoDepois = JSON.stringify(dados.textoDepois);
     passo.dataset.modulo = dados.modulo || '';
     passo.dataset.tipoTeste = dados.tipoTeste || '';
     if(dados.analiseQa) aplicarAnaliseQa(passo, dados.analiseQa);

@@ -126,6 +126,7 @@ async function finalizar(tabId) {
     try {
       const tab = await chrome.tabs.get(tabId);
       const depois = await capturar(tab);
+      const textoDepois = await chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_TEXTO' }).catch(() => null);
       const p = sessao.pendente;
       const agora = new Date().toISOString();
       sessao.passos.push({
@@ -142,6 +143,8 @@ async function finalizar(tabId) {
         urlAntes: p.urlAntes,
         urlDepois: tab.url || p.urlAntes,
         frameUrl: p.frameUrl || '',
+        textoAntes: p.textoAntes || null,
+        textoDepois: textoDepois || null,
         imagens: [
           { dataUrl: p.antes, legenda: `Antes · ${new Date(p.timestampAntes).toLocaleString('pt-BR')}` },
           { dataUrl: depois, legenda: `Depois · ${new Date(agora).toLocaleString('pt-BR')}` }
@@ -228,6 +231,19 @@ async function comecarSeArmado(tabId) {
 }
 
 chrome.tabs.onActivated.addListener(({ tabId }) => { comecarSeArmado(tabId); });
+
+/* Trocar de JANELA nao dispara onActivated. Quem testa com o Print numa janela e
+ * o site na outra, lado a lado, nunca via a sessao comecar. */
+chrome.windows.onFocusChanged.addListener(async (janelaId) => {
+  if (janelaId === chrome.windows.WINDOW_ID_NONE) return;
+  const [aba] = await chrome.tabs.query({ active: true, windowId: janelaId }).catch(() => []);
+  if (aba) comecarSeArmado(aba.id);
+});
+
+/* Abrir uma aba nova ja no site testado tambem conta. */
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status === 'complete' && tab.active) comecarSeArmado(tabId);
+});
 
 function avisarAba(tabId, ativa) {
   chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_SESSAO', ativa }).catch(() => {});

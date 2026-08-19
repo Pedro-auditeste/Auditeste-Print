@@ -181,6 +181,17 @@
     return limpar;
   }
 
+  /* Barato de proposito: title e h1, nada de percorrer o DOM. A versao anterior
+   * lia a arvore inteira com getComputedStyle a cada interacao e travava a
+   * pagina; isto custa microssegundos e ja tira o titulo das maos do modelo. */
+  function resumoDaTela() {
+    const h1 = document.querySelector('h1');
+    return {
+      titulo: (document.title || '').slice(0, 160),
+      cabecalho: (h1 ? h1.textContent : '').replace(/\s+/g, ' ').trim().slice(0, 160)
+    };
+  }
+
   function registrar(el, tipo, valor) {
     const agora = Date.now();
     if (!el || agora - ultimaAcao < 450) return;
@@ -198,7 +209,8 @@
       rotulo: rotuloDe(el),
       html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
       urlAntes: location.href,
-      frameUrl: window === window.top ? '' : location.href
+      frameUrl: window === window.top ? '' : location.href,
+      textoAntes: resumoDaTela()
     };
 
     const tirarMarca = destacar(el);
@@ -290,7 +302,8 @@
     }
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
+    if (msg && msg.tipo === 'AUDI_TEXTO') { responder(resumoDaTela()); return true; }
     if (msg && msg.tipo === 'AUDI_SESSAO') ligarRealce(msg.ativa);
     // Passo novo chegando do background: repassa para a pagina do Print.
     if (msg && msg.tipo === 'AUDI_NOVO_PASSO' && window === window.top && paginaDoPrint()) {
