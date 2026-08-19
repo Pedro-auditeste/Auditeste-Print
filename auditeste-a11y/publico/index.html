@@ -1845,6 +1845,20 @@
    * com passo na tela, quem manda é o botão, para não atropelar o que já está aí. */
   const JANELA_AUTO_MS = 20 * 60 * 1000;
 
+  /* Uma gravação entra num projeto uma vez só. O que decide é o marcador
+   * "importada", posto no complemento assim que ela é trazida: sem ele, o teste
+   * anterior reaparecia no projeto seguinte. A janela de tempo é o segundo
+   * filtro, para gravação esquecida de ontem não voltar sozinha.
+   *
+   * Não dá para exigir que a sessão tenha começado depois desta gravação: o
+   * caminho normal é testar primeiro e abrir o Print depois. */
+  function daGravacaoAtual(e){
+    if(e.importada) return false;
+    if(e.ativa) return true;
+    const fim = Date.parse(e.encerrada || e.inicio || '');
+    return Number.isFinite(fim) && (Date.now() - fim) < JANELA_AUTO_MS;
+  }
+
   /* Ao encerrar, recolhe o que a gravação capturou e ainda não está na lista.
    * O envio ao vivo cobre o caso comum, mas nada garante que todo passo chegou:
    * o Print pode ter sido aberto no meio, ou estar noutra tela na hora. Aqui é
@@ -1856,12 +1870,7 @@
     const evid = (resumo.evidencias || []).filter(e => e.passos);
     if(!evid.length) return;
     mostrarBotaoCaptura();
-    const agora = Date.now();
-    const recente = (e) => {
-      const fim = Date.parse(e.encerrada || e.inicio || '');
-      return e.ativa || (Number.isFinite(fim) && (agora - fim) < JANELA_AUTO_MS);
-    };
-    const escolhida = evid.find(recente);
+    const escolhida = evid.find(daGravacaoAtual);
     if(!escolhida) return;
     const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
     const dados = cheia && !cheia.erro ? cheia.evidencia : null;
@@ -1873,7 +1882,7 @@
       montarPassoDaExtensao(p);
     });
     preencherCabecalho({ url: dados.url || '', titulo: dados.titulo || '' });
-    pedirAoNavegador(escolhida.tabId, 2000, true);
+    await pedirAoNavegador(escolhida.tabId, 5000, true);
     atualizar();
     avisar(novos.length + ' interação(ões) com xpath trazidas da gravação.');
     // A gravação acabou: descrever agora não disputa mais com a captura de tela.
@@ -1890,21 +1899,15 @@
     /* O Print testa muitos sistemas. Trazer sozinho só a gravação que ainda está
      * acontecendo, ou que acabou de acabar, e que nunca foi trazida antes: sem
      * isso, um projeto novo herda o teste anterior, de outro sistema. */
-    const agora = Date.now();
-    const recente = (e) => {
-      if(e.ativa) return true;
-      const fim = Date.parse(e.encerrada || e.inicio || '');
-      return Number.isFinite(fim) && (agora - fim) < JANELA_AUTO_MS;
-    };
-    const escolhida = evid.find(e => !e.importada && recente(e));
-    if(!escolhida) return;   // nada novo: quem traz é o botão, com você escolhendo
+    const escolhida = evid.find(daGravacaoAtual);
+    if(!escolhida) return;   // nada desta gravação: quem traz é o botão, com você escolhendo
 
     const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
     const dados = cheia && !cheia.erro ? cheia.evidencia : null;
     if(!dados || !(dados.passos || []).length) return;
     if(lista.querySelector('.passo')) return;   // chegou algo enquanto buscava
     await aplicarEvidenciaImportada(dados);
-    pedirAoNavegador(escolhida.tabId, 2000, true);   // não trazer de novo noutro projeto
+    await pedirAoNavegador(escolhida.tabId, 5000, true);   // não trazer de novo noutro projeto
     avisar(dados.passos.length + ' interação(ões) trazidas do navegador.');
     await gerarDescricoesPendentes();
   }
@@ -3170,6 +3173,7 @@
       const dados = cheia.evidencia;
       if(!dados || !(dados.passos || []).length){ avisar('A captura veio vazia.'); return; }
       await aplicarEvidenciaImportada(dados);
+      await pedirAoNavegador(escolhida.tabId, 5000, true);
       avisar(dados.passos.length + ' interação(ões) trazidas com o xpath do elemento.');
       await gerarDescricoesPendentes();
     }catch(err){
