@@ -6,13 +6,16 @@
  *
  *   AGENTE_API_KEY      chave NVIDIA (nvapi-...) ou OpenAI (sk-...)
  *   AGENTE_BASE_URL     padrão https://integrate.api.nvidia.com/v1
- *   AGENTE_MODELO       padrão meta/llama-3.2-90b-vision-instruct
+ *   AGENTE_MODELO       padrão meta/llama-3.2-11b-vision-instruct
  */
 const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/$/, '');
-/* 90b e nao 11b: o print e a parte dificil, e o modelo pequeno errava digito em
- * texto miudo (leu 1.765,98 como 1.705,98). O 11b fica de reserva, para quando o
- * 90b estiver indisponivel ou sem cota. */
-const MODELO = String(process.env.AGENTE_MODELO || 'meta/llama-3.2-90b-vision-instruct').trim();
+/* Medido nesta conta em 19/08/2026, com uma imagem valida:
+ *   11b .................. 200 em 8s
+ *   nemotron-nano-12b-vl . 200 em 1s, mas devolve 500 com o par grande
+ *   90b .................. timeout em 70s, e 504 no gateway, sempre
+ * Por isso o padrao volta para o 11b: e o unico que atende de ponta a ponta.
+ * Trocar de novo so depois de medir, nunca so pelo tamanho do modelo. */
+const MODELO = String(process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct').trim();
 const MODELO_FALLBACK = String(process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct').trim();
 const MAX_IMAGENS = /llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + BASE_URL)
   ? 0
