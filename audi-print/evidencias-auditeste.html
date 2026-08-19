@@ -1898,6 +1898,10 @@
       return;
     }
     video.srcObject = stream;
+    /* Gravar a tela e gravar as interações começam juntos. A sessão não pode
+     * nascer na aba do Print, então o complemento fica armado e começa sozinho
+     * na aba do site assim que você for para ela. */
+    pedirAoNavegador(null, 3000, false, true);
     await video.play();
     stream.getVideoTracks()[0].addEventListener('ended', ()=>{ if(estado !== 'parado') parar(true); });
 
@@ -2937,7 +2941,7 @@
   /* Quem registra o xpath, o HTML e o tipo de cada interação é o complemento do
    * navegador, por código: ele vê o DOM de verdade. A entrega é por postMessage
    * na própria página, então não é preciso saber o id do complemento. */
-  function pedirAoNavegador(deTab, msTimeout, marcar){
+  function pedirAoNavegador(deTab, msTimeout, marcar, armar){
     return new Promise((ok) => {
       const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
       const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
@@ -2950,7 +2954,7 @@
         ok(d);
       }
       window.addEventListener('message', ouvir);
-      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar }, location.origin);
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar }, location.origin);
     });
   }
 

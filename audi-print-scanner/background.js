@@ -200,6 +200,41 @@ async function empurrarParaPrint(passo, sessao) {
   }
 }
 
+/* O Print manda armar quando voce inicia a gravacao. A sessao nao pode comecar
+ * na aba do Print, entao ela comeca na primeira aba de site que voce abrir ou
+ * focar depois disso — que e exatamente a aba que voce vai testar. */
+const ARMADO_VALE_MS = 5 * 60 * 1000;
+let armadoAte = 0;
+
+function ehAbaDePrint(url) {
+  const u = String(url || '');
+  return ORIGENS_PRINT_URL.some((o) => u.startsWith(o));
+}
+const ORIGENS_PRINT_URL = ['https://audiprint.up.railway.app',
+  'http://localhost', 'http://127.0.0.1'];
+
+async function comecarSeArmado(tabId) {
+  if (Date.now() > armadoAte) return;
+  let tab;
+  try { tab = await chrome.tabs.get(tabId); } catch (_) { return; }
+  if (!/^https?:/.test(tab.url || '') || ehAbaDePrint(tab.url)) return;
+  const jaTem = await obter(tabId);
+  if (jaTem?.ativa) return;
+  armadoAte = 0;
+  await gravar(tabId, {
+    ativa: true,
+    inicio: new Date().toISOString(),
+    url: tab.url,
+    titulo: tab.title || '',
+    passos: [],
+    pendente: null,
+    erro: ''
+  });
+  avisarAba(tabId, true);
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => { comecarSeArmado(tabId); });
+
 function avisarAba(tabId, ativa) {
   chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_SESSAO', ativa }).catch(() => {});
 }
@@ -228,6 +263,15 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       await gravar(tabId, sessao);
       avisarAba(tabId, true);
       return { sessao };
+    }
+
+    /* Armar: a proxima aba de site que voce focar vira a sessao gravando. */
+    if (msg.tipo === 'AUDI_ARMAR') {
+      armadoAte = Date.now() + ARMADO_VALE_MS;
+      // Ja esta numa aba de site? entao comeca nela agora mesmo.
+      const [ativa] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (ativa) await comecarSeArmado(ativa.id);
+      return { ok: true, armado: true };
     }
 
     if (msg.tipo === 'AUDI_PARAR') {
