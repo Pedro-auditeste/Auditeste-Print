@@ -1938,7 +1938,9 @@
     /* Gravar a tela e gravar as interações começam juntos. A sessão não pode
      * nascer na aba do Print, então o complemento fica armado e começa sozinho
      * na aba do site assim que você for para ela. */
-    pedirAoNavegador(null, 3000, false, true);
+    pedirAoNavegador(null, 3000, false, true).then((r) => {
+      sessaoDoComplemento = !!(r && !r.erro && r.ok !== false);
+    });
     await video.play();
     stream.getVideoTracks()[0].addEventListener('ended', ()=>{ if(estado !== 'parado') parar(true); });
 
@@ -1994,6 +1996,7 @@
     video.srcObject = null;
     mudarEstado('parado');
     // Parar de compartilhar encerra a sessão junto: é a mesma gravação.
+    sessaoDoComplemento = false;
     pedirAoNavegador(null, 3000, false, false, true)
       // O último passo ainda está fechando quando a parada chega: o print
       // "depois" dele leva pelo menos meio segundo. Buscar antes disso perderia
@@ -2206,7 +2209,12 @@
     capturaPendente = setTimeout(tentar, 400);
   }
 
+  /* Com a sessão do complemento no ar, quem cria passo é a interação, não a
+   * mudança de imagem. Deixar as duas fontes juntas embaralhava a lista: passo
+   * sem xpath, nascido de animação ou banner, no meio dos passos de verdade.
+   * O vídeo continua sendo gravado, e a captura manual continua valendo. */
   function capturar(forcado, pctMudanca, canvasAntes, timestampAntesMs){
+    if(!forcado && sessaoDoComplemento) return;
     if(!video.videoWidth) return;
     if(lista.querySelectorAll('.passo').length >= LIMITE){
       if(forcado) avisar('Limite de ' + LIMITE + ' passos atingido. Encerre e salve a evidência.');
@@ -2425,6 +2433,17 @@
         ${blocoJson}
         ${a.alerta_qa ? `<div class="alerta-qa-msg"><b>Alerta QA:</b> ${esc(a.alerta_qa)}</div>` : ''}
       </details>`;
+  }
+
+  /* O xpath e o HTML já existem no instante em que o passo nasce. Esperar a
+   * descrição para mostrá-los deixava a evidência parecendo vazia justamente
+   * quando o QA quer copiar o seletor. */
+  function mostrarCapturaNoPasso(passo){
+    const caixa = passo.querySelector(':scope > .analise-qa');
+    if(!caixa || caixa.innerHTML.trim()) return;
+    if(!dadosCapturados(passo.dataset)) return;
+    caixa.innerHTML = htmlAnaliseQa(normalizarAnaliseQa({}), undefined, passo.dataset);
+    caixa.hidden = !caixa.innerHTML.trim();
   }
 
   function aplicarAnaliseQa(passo, dados){
@@ -3031,10 +3050,12 @@
    * Acrescenta, nunca recarrega a lista: apagar o que já está na tela para
    * repor tudo perderia edição feita à mão. */
   const idsDaExtensao = new Set();
+  let sessaoDoComplemento = false;
 
   window.addEventListener('message', (ev) => {
     if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_PRINT_PASSO') return;
     mostrarBotaoCaptura();
+    sessaoDoComplemento = true;   // chegou passo: a gravação de interações está viva
     receberPassoDaExtensao(ev.data.passo, ev.data.origem);
   });
 
@@ -3421,6 +3442,7 @@
     passo.dataset.modulo = dados.modulo || '';
     passo.dataset.tipoTeste = dados.tipoTeste || '';
     if(dados.analiseQa) aplicarAnaliseQa(passo, dados.analiseQa);
+    else mostrarCapturaNoPasso(passo);
     const evento = passo.querySelector('.meta-evento');
     const instante = (v) => {
       if(!v) return '';
