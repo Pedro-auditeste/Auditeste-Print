@@ -1876,6 +1876,8 @@
     pedirAoNavegador(escolhida.tabId, 2000, true);
     atualizar();
     avisar(novos.length + ' interação(ões) com xpath trazidas da gravação.');
+    // A gravação acabou: descrever agora não disputa mais com a captura de tela.
+    await gerarDescricoesPendentes();
   }
 
   async function trazerSozinho(){
@@ -1904,6 +1906,7 @@
     await aplicarEvidenciaImportada(dados);
     pedirAoNavegador(escolhida.tabId, 2000, true);   // não trazer de novo noutro projeto
     avisar(dados.passos.length + ' interação(ões) trazidas do navegador.');
+    await gerarDescricoesPendentes();
   }
 
   function mudarEstado(novo){
@@ -3081,7 +3084,8 @@
     if(campoObs && !campoObs.textContent.trim() && origem.url) campoObs.textContent = 'Teste em ' + origem.url;
   }
 
-  const AVISO_DESCRICAO = 'Clique em Trazer captura do navegador para gerar os cenários do teste.';
+  const AVISO_DESCRICAO = 'O cenário deste passo é gerado quando a gravação termina. '
+    + 'Se quiser antecipar, use Trazer captura do navegador.';
 
   /* Descrever durante a gravação disputava com a captura de tela e enfileirava
    * uma chamada de 8 a 20 s por passo. O passo entra pronto no que é certo
