@@ -120,6 +120,14 @@ existir, então só o ouvinte não detectava nada.
 Campo de senha nunca tem o valor gravado, e o rótulo de um campo nunca é o
 `value` — senão o passo vira "Preencheu PROMO10 com PROMO10".
 
+**O que da para saber por codigo nunca e lido da imagem.** A gravacao manda junto
+do print os FATOS lidos do DOM: a acao com o verbo certo, o valor digitado, o
+HTML do elemento, o titulo das duas telas e o diff textual (`diferencaDeTelas`,
+o que apareceu e o que sumiu). O prompt trata isso como verdade absoluta e proibe
+reler na figura o que ja esta escrito ali. Vai tambem um close ampliado da regiao
+da interacao (`recorteDoElemento`), porque em tela cheia reduzida um botao fica
+com 12 pixels de altura.
+
 **O bloco do passo mostra o JSON capturado, não palpite lido do print.** O
 localizador sugerido e a tabela de controles saíram: os dois vinham do modelo
 olhando a imagem, e envelheciam mal. No lugar vai `jsonCapturado`, com xpath,

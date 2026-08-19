@@ -2404,6 +2404,39 @@
     avisar('Cenário alternativo adicionado como passo manual.');
   }
 
+  /* Recorte com folga ao redor do elemento, ampliado. Em tela cheia reduzida a
+   * 1000px um botão fica com 12px de altura; aqui ele volta a ser legível. */
+  async function recorteDoElemento(blob, area){
+    if(!blob || !area) return null;
+    try{
+      const img = await new Promise((ok, erro) => {
+        const i = new Image();
+        i.onload = () => ok(i);
+        i.onerror = () => erro(new Error('imagem ilegivel'));
+        i.src = URL.createObjectURL(blob);
+      });
+      const folga = 0.12;
+      const x = Math.max(0, (area.x - folga) * img.width);
+      const y = Math.max(0, (area.y - folga) * img.height);
+      const w = Math.min(img.width - x, (area.w + folga * 2) * img.width);
+      const h = Math.min(img.height - y, (area.h + folga * 2) * img.height);
+      if(w < 8 || h < 8) return null;
+      const escala = Math.min(3, Math.max(1, 520 / w));
+      const c = document.createElement('canvas');
+      c.width = Math.round(w * escala);
+      c.height = Math.round(h * escala);
+      const g = c.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(img, x, y, w, h, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      return c.toDataURL('image/jpeg', 0.9);
+    }catch(_){ return null; }
+  }
+
+  function lerJsonDataset(valor){
+    try{ return valor ? JSON.parse(valor) : null; }catch(_){ return null; }
+  }
+
   async function descreverTelaIA(passo, blobAntes, blobDepois){
     if(!blobDepois) return;
     const tit = passo.querySelector('.titulo');
@@ -2429,6 +2462,7 @@
         // Sem encolherLeve aqui: o par ja sai dentro do orcamento e reamostrar
         // de novo borraria os rotulos ANTES/DEPOIS que orientam a IA.
         const par = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
+        const recorte = await recorteDoElemento(blobAntes, lerJsonDataset(passo.dataset.area));
         if(!depois) throw new Error('não consegui reduzir a captura');
         const corpo = JSON.stringify({
           imagem: depois,
@@ -2436,6 +2470,12 @@
           par: par || undefined,
           elemento: passo.dataset.elemento || '',
           rotulo: passo.dataset.rotulo || '',
+          acao: passo.dataset.acao || '',
+          valor: passo.dataset.valor || '',
+          html: passo.dataset.html || '',
+          textoAntes: lerJsonDataset(passo.dataset.textoAntes) || undefined,
+          textoDepois: lerJsonDataset(passo.dataset.textoDepois) || undefined,
+          recorte: recorte || undefined,
           urlAntes: passo.dataset.urlAntes || '',
           urlDepois: passo.dataset.urlDepois || '',
           modulo: passo.dataset.modulo || document.querySelector('[data-campo="modulo"]')?.textContent.trim() || '',
@@ -3349,6 +3389,9 @@
     passo.dataset.urlAntes = dados.urlAntes || '';
     passo.dataset.urlDepois = dados.urlDepois || '';
     passo.dataset.frameUrl = dados.frameUrl || '';
+    if(dados.area) passo.dataset.area = JSON.stringify(dados.area);
+    if(dados.textoAntes) passo.dataset.textoAntes = JSON.stringify(dados.textoAntes);
+    if(dados.textoDepois) passo.dataset.textoDepois = JSON.stringify(dados.textoDepois);
     passo.dataset.modulo = dados.modulo || '';
     passo.dataset.tipoTeste = dados.tipoTeste || '';
     if(dados.analiseQa) aplicarAnaliseQa(passo, dados.analiseQa);

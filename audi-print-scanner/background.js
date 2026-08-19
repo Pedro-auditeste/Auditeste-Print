@@ -126,6 +126,9 @@ async function finalizar(tabId) {
     try {
       const tab = await chrome.tabs.get(tabId);
       const depois = await capturar(tab);
+      // O texto da tela nova sai do DOM, nao do print: e o que impede o modelo
+      // de tentar adivinhar numero, valor e mensagem lendo pixel.
+      const textoDepois = await chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_TEXTO' }).catch(() => null);
       const p = sessao.pendente;
       const agora = new Date().toISOString();
       sessao.passos.push({
@@ -142,6 +145,9 @@ async function finalizar(tabId) {
         urlAntes: p.urlAntes,
         urlDepois: tab.url || p.urlAntes,
         frameUrl: p.frameUrl || '',
+        area: p.area || null,
+        textoAntes: p.textoAntes || null,
+        textoDepois: textoDepois || null,
         imagens: [
           { dataUrl: p.antes, legenda: `Antes · ${new Date(p.timestampAntes).toLocaleString('pt-BR')}` },
           { dataUrl: depois, legenda: `Depois · ${new Date(agora).toLocaleString('pt-BR')}` }
