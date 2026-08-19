@@ -1845,6 +1845,39 @@
    * com passo na tela, quem manda é o botão, para não atropelar o que já está aí. */
   const JANELA_AUTO_MS = 20 * 60 * 1000;
 
+  /* Ao encerrar, recolhe o que a gravação capturou e ainda não está na lista.
+   * O envio ao vivo cobre o caso comum, mas nada garante que todo passo chegou:
+   * o Print pode ter sido aberto no meio, ou estar noutra tela na hora. Aqui é
+   * a última varredura, para ninguém precisar clicar em trazer. */
+  async function completarComONavegador(){
+    if(!lista) return;
+    const resumo = await pedirAoNavegador(null, 3000);
+    if(!resumo || resumo.erro) return;
+    const evid = (resumo.evidencias || []).filter(e => e.passos);
+    if(!evid.length) return;
+    mostrarBotaoCaptura();
+    const agora = Date.now();
+    const recente = (e) => {
+      const fim = Date.parse(e.encerrada || e.inicio || '');
+      return e.ativa || (Number.isFinite(fim) && (agora - fim) < JANELA_AUTO_MS);
+    };
+    const escolhida = evid.find(recente);
+    if(!escolhida) return;
+    const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
+    const dados = cheia && !cheia.erro ? cheia.evidencia : null;
+    if(!dados) return;
+    const novos = (dados.passos || []).filter(p => !p.id || !idsDaExtensao.has(p.id));
+    if(!novos.length) return;
+    novos.forEach(p => {
+      if(p.id) idsDaExtensao.add(p.id);
+      montarPassoDaExtensao(p);
+    });
+    preencherCabecalho({ url: dados.url || '', titulo: dados.titulo || '' });
+    pedirAoNavegador(escolhida.tabId, 2000, true);
+    atualizar();
+    avisar(novos.length + ' interação(ões) com xpath trazidas da gravação.');
+  }
+
   async function trazerSozinho(){
     if(!lista || lista.querySelector('.passo')) return;
     const resumo = await pedirAoNavegador(null, 2500);
@@ -1961,7 +1994,11 @@
     video.srcObject = null;
     mudarEstado('parado');
     // Parar de compartilhar encerra a sessão junto: é a mesma gravação.
-    pedirAoNavegador(null, 3000, false, false, true);
+    pedirAoNavegador(null, 3000, false, false, true)
+      // O último passo ainda está fechando quando a parada chega: o print
+      // "depois" dele leva pelo menos meio segundo. Buscar antes disso perderia
+      // justamente a última interação do teste.
+      .then(() => setTimeout(completarComONavegador, 1500));
 
     if(!silencioso){
       const total = lista.querySelectorAll('.passo').length;
