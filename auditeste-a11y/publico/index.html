@@ -3081,6 +3081,12 @@
     if(campoObs && !campoObs.textContent.trim() && origem.url) campoObs.textContent = 'Teste em ' + origem.url;
   }
 
+  const AVISO_DESCRICAO = 'Clique em Trazer captura do navegador para gerar os cenários do teste.';
+
+  /* Descrever durante a gravação disputava com a captura de tela e enfileirava
+   * uma chamada de 8 a 20 s por passo. O passo entra pronto no que é certo
+   * (xpath, HTML, prints) e a descrição sai depois, de uma vez, quando você
+   * pedir — inclusive já sem os passos que você tiver excluído. */
   function montarPassoDaExtensao(p){
     const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
     marcarQa(el, p);
@@ -3091,8 +3097,33 @@
       if(blob) juntarImagem(el, blob, im.legenda || 'Captura do teste');
     });
     const capturas = [...el.querySelectorAll('figure')].filter(f => f._blob);
-    if(capturas.length >= 2) descreverTelaIA(el, capturas[0]._blob, capturas[1]._blob);
+    if(capturas.length >= 2){
+      const obs = el.querySelector('.obs');
+      if(obs){ obs.textContent = AVISO_DESCRICAO; obs.dataset.auto = '1'; }
+      el.dataset.descricaoEstado = 'pendente';
+      const botao = el.querySelector('.gerar-desc');
+      if(botao) botao.hidden = false;
+    }
     return el;
+  }
+
+  /* Descreve tudo que ainda não foi descrito. A fila de descrição já garante uma
+   * por vez, então aqui é só disparar na ordem dos passos. */
+  async function gerarDescricoesPendentes(){
+    const pendentes = [...lista.querySelectorAll('.passo')].filter((el) => {
+      if(el.dataset.descricaoEstado === 'pronta' || el.dataset.descricaoEstado === 'gerando') return false;
+      return [...el.querySelectorAll('figure')].filter(f => f._blob).length >= 2;
+    });
+    if(!pendentes.length) return 0;
+    avisar('Gerando os cenários de ' + pendentes.length + ' passo(s)...');
+    let feitos = 0;
+    for(const el of pendentes){
+      const figs = [...el.querySelectorAll('figure')].filter(f => f._blob);
+      await descreverTelaIA(el, figs[0]._blob, figs[1]._blob);
+      feitos++;
+    }
+    avisar(feitos + ' cenário(s) gerados.');
+    return feitos;
   }
   pedirAoNavegador(null, 2500).then((r) => { if(r) mostrarBotaoCaptura(); });
 
@@ -3100,14 +3131,21 @@
     const btn = document.getElementById('btnPuxarExtensao');
     if(btn) btn.disabled = true;
     try{
-      const lista = await pedirAoNavegador(null, 3000);
-      if(!lista){
+      /* Com passos já na tela, o botão completa o que faltou e gera os cenários.
+       * Recarregar a lista aqui apagaria o que você já revisou ou editou. */
+      if(lista.querySelector('.passo')){
+        await completarComONavegador();
+        await gerarDescricoesPendentes();
+        return;
+      }
+      const resumo = await pedirAoNavegador(null, 3000);
+      if(!resumo){
         informar('O complemento do navegador não respondeu. Confira se ele está instalado e ativo, e recarregue esta página.',
           'Captura não encontrada');
         return;
       }
-      if(lista.erro){ avisar(lista.erro); return; }
-      const evid = lista.evidencias || [];
+      if(resumo.erro){ avisar(resumo.erro); return; }
+      const evid = resumo.evidencias || [];
       if(!evid.length){
         avisar('Nenhuma captura no navegador. Abra o site, inicie a sessão e interaja com a tela.');
         return;
@@ -3129,6 +3167,7 @@
       if(!dados || !(dados.passos || []).length){ avisar('A captura veio vazia.'); return; }
       await aplicarEvidenciaImportada(dados);
       avisar(dados.passos.length + ' interação(ões) trazidas com o xpath do elemento.');
+      await gerarDescricoesPendentes();
     }catch(err){
       informar('Não consegui trazer a captura: ' + ((err && err.message) || 'erro'), 'Falha ao trazer');
     }finally{
