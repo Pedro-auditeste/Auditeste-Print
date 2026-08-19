@@ -181,53 +181,6 @@
     return limpar;
   }
 
-  /* O que da para saber por codigo nunca deveria ser lido da imagem. Este
-   * resumo vai junto do print e evita o modelo tentar decifrar letra miuda:
-   * numero de pedido, valor, CEP e mensagem de erro chegam exatos. */
-  const LIMITE_TEXTOS = 60;
-
-  function resumoDaTela() {
-    const visivel = (n) => {
-      const r = n.getBoundingClientRect();
-      if (r.width < 2 || r.height < 2) return false;
-      if (r.bottom < 0 || r.top > innerHeight) return false;
-      const e = getComputedStyle(n);
-      return e.visibility !== 'hidden' && e.display !== 'none' && e.opacity !== '0';
-    };
-    const textos = [];
-    const vistos = new Set();
-    const anda = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let no;
-    while ((no = anda.nextNode()) && textos.length < LIMITE_TEXTOS) {
-      const t = String(no.nodeValue || '').replace(/\s+/g, ' ').trim();
-      if (t.length < 2 || vistos.has(t)) continue;
-      const pai = no.parentElement;
-      if (!pai || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(pai.tagName)) continue;
-      if (!visivel(pai)) continue;
-      vistos.add(t);
-      textos.push(t.slice(0, 160));
-    }
-    return {
-      titulo: (document.title || '').slice(0, 160),
-      cabecalho: (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160),
-      url: location.href,
-      textos
-    };
-  }
-
-  /* Onde o elemento estava na tela, em fracao da janela: o Print usa para
-   * recortar um close da regiao no print "antes". */
-  function areaDe(el) {
-    const r = el.getBoundingClientRect();
-    if (!r.width || !r.height) return null;
-    return {
-      x: +(r.left / innerWidth).toFixed(4),
-      y: +(r.top / innerHeight).toFixed(4),
-      w: +(r.width / innerWidth).toFixed(4),
-      h: +(r.height / innerHeight).toFixed(4)
-    };
-  }
-
   function registrar(el, tipo, valor) {
     const agora = Date.now();
     if (!el || agora - ultimaAcao < 450) return;
@@ -245,9 +198,7 @@
       rotulo: rotuloDe(el),
       html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
       urlAntes: location.href,
-      frameUrl: window === window.top ? '' : location.href,
-      area: areaDe(el),
-      textoAntes: resumoDaTela()
+      frameUrl: window === window.top ? '' : location.href
     };
 
     const tirarMarca = destacar(el);
@@ -339,8 +290,7 @@
     }
   }
 
-  chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
-    if (msg && msg.tipo === 'AUDI_TEXTO') { responder(resumoDaTela()); return true; }
+  chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.tipo === 'AUDI_SESSAO') ligarRealce(msg.ativa);
     // Passo novo chegando do background: repassa para a pagina do Print.
     if (msg && msg.tipo === 'AUDI_NOVO_PASSO' && window === window.top && paginaDoPrint()) {
