@@ -25,6 +25,7 @@
     "teste-head": "node teste-head.js",
     "teste-ordem": "node teste-ordem-descricao.js",
     "teste-antes": "node teste-antes-depois.js",
+    "teste-seguranca": "node teste-seguranca.js",
     "teste-docker": "node teste-docker.js",
     "teste-sem-ia": "node teste-sem-ia-na-tela.js",
     "teste-legibilidade": "node teste-legibilidade-par.js",

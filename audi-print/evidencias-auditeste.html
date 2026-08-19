@@ -1306,7 +1306,11 @@
   const tam = b => b < 1048576 ? (b/1024).toFixed(0)+' KB' : (b/1048576).toFixed(1)+' MB';
   const url = b => { const u = URL.createObjectURL(b); urls.push(u); return u; };
   const iniciais = t => t.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();
-  const esc = t => (t||'').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  /* Aspas entram junto: o rótulo e o HTML vêm do site testado e têm aspas o
+   * tempo todo. Sem elas na lista, o dia em que esc() for usado dentro de um
+   * atributo o atributo quebra, e junto vai a segurança da página. */
+  const esc = t => (t == null ? '' : String(t)).replace(/[<>&"']/g,
+    c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;', "'":'&#39;' }[c]));
 
   document.querySelector('[data-campo="data"]').textContent = new Date().toLocaleDateString('pt-BR');
 
@@ -1604,7 +1608,17 @@
     const o = Object.assign({titulo:'Confirmar', subtitulo:'', texto:'', botao:'Confirmar', tipo:'perigo', so:false}, opcoes);
     document.getElementById('tituloConfirma').textContent = o.titulo;
     document.getElementById('subtituloConfirma').textContent = o.subtitulo;
-    document.getElementById('textoConfirma').textContent = o.texto;
+    /* O texto pode trazer <b> e <br> para destacar um passo da instrução. Só
+     * esses dois: tudo mais é escapado, então nem mensagem de erro vinda de fora
+     * consegue injetar marcação. Antes era textContent e o usuário lia as tags. */
+    const alvoTexto = document.getElementById('textoConfirma');
+    if(/<(b|br)/i.test(o.texto || '')){
+      alvoTexto.innerHTML = esc(o.texto)
+        .replace(/&lt;b&gt;/gi, '<b>').replace(/&lt;\/b&gt;/gi, '</b>')
+        .replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+    } else {
+      alvoTexto.textContent = o.texto;
+    }
     document.getElementById('iconeConfirma').textContent = o.tipo === 'aviso' ? 'i' : '!';
     fundoConfirma.querySelector('.modal').classList.toggle('aviso', o.tipo === 'aviso');
     btnSim.textContent = o.botao;
@@ -1875,40 +1889,40 @@
     const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
     const dados = cheia && !cheia.erro ? cheia.evidencia : null;
     if(!dados) return;
-    const novos = (dados.passos || []).filter(p => !p.id || !idsDaExtensao.has(p.id));
-    if(!novos.length) return;
-    novos.forEach(p => {
-      if(p.id) idsDaExtensao.add(p.id);
-      montarPassoDaExtensao(p);
-    });
-    preencherCabecalho({ url: dados.url || '', titulo: dados.titulo || '' });
+    const novos = acrescentarPassos(dados);
+    if(!novos) return;
     await pedirAoNavegador(escolhida.tabId, 5000, true);
-    atualizar();
-    avisar(novos.length + ' interação(ões) com xpath trazidas da gravação.');
+    avisar(novos + ' interação(ões) com xpath trazidas da gravação.');
     // A gravação acabou: descrever agora não disputa mais com a captura de tela.
     await gerarDescricoesPendentes();
   }
 
-  async function trazerSozinho(){
-    if(!lista || lista.querySelector('.passo')) return;
-    const resumo = await pedirAoNavegador(null, 2500);
+  /* Abrir a gravação e encerrá-la fazem a mesma coisa: recolher do complemento o
+   * que ainda não está na lista. Eram duas funções quase iguais, e a correção de
+   * uma não chegava na outra. */
+  const trazerSozinho = () => completarComONavegador();
+
+  /* Ao encerrar, recolhe o que a gravação capturou e ainda não está na lista.
+   * O envio ao vivo cobre o caso comum, mas nada garante que todo passo chegou:
+   * o Print pode ter sido aberto no meio, ou estar noutra tela na hora. Aqui é
+   * a última varredura, para ninguém precisar clicar em trazer. */
+  async function completarComONavegador(){
+    if(!lista) return;
+    const resumo = await pedirAoNavegador(null, 3000);
     if(!resumo || resumo.erro) return;
     const evid = (resumo.evidencias || []).filter(e => e.passos);
-    if(evid.length) mostrarBotaoCaptura();
-
-    /* O Print testa muitos sistemas. Trazer sozinho só a gravação que ainda está
-     * acontecendo, ou que acabou de acabar, e que nunca foi trazida antes: sem
-     * isso, um projeto novo herda o teste anterior, de outro sistema. */
+    if(!evid.length) return;
+    mostrarBotaoCaptura();
     const escolhida = evid.find(daGravacaoAtual);
-    if(!escolhida) return;   // nada desta gravação: quem traz é o botão, com você escolhendo
-
+    if(!escolhida) return;
     const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
     const dados = cheia && !cheia.erro ? cheia.evidencia : null;
-    if(!dados || !(dados.passos || []).length) return;
-    if(lista.querySelector('.passo')) return;   // chegou algo enquanto buscava
-    await aplicarEvidenciaImportada(dados);
-    await pedirAoNavegador(escolhida.tabId, 5000, true);   // não trazer de novo noutro projeto
-    avisar(dados.passos.length + ' interação(ões) trazidas do navegador.');
+    if(!dados) return;
+    const novos = acrescentarPassos(dados);
+    if(!novos) return;
+    await pedirAoNavegador(escolhida.tabId, 5000, true);
+    avisar(novos + ' interação(ões) com xpath trazidas da gravação.');
+    // A gravação acabou: descrever agora não disputa mais com a captura de tela.
     await gerarDescricoesPendentes();
   }
 
@@ -2610,7 +2624,7 @@
     fig.style.margin = '0 0 10px';
     fig._blob = blob;
     fig.innerHTML = `<img src="${url(blob)}" alt="Evidência" title="Clique para ampliar">
-      <figcaption class="legenda" contenteditable role="textbox" aria-label="Legenda da captura">${legenda}</figcaption>`;
+      <figcaption class="legenda" contenteditable role="textbox" aria-label="Legenda da captura">${esc(legenda)}</figcaption>`;
     passo.querySelector('.imagens').appendChild(fig);
   }
 
@@ -3172,9 +3186,9 @@
       if(cheia.erro){ avisar(cheia.erro); return; }
       const dados = cheia.evidencia;
       if(!dados || !(dados.passos || []).length){ avisar('A captura veio vazia.'); return; }
-      await aplicarEvidenciaImportada(dados);
+      const novos = acrescentarPassos(dados);
       await pedirAoNavegador(escolhida.tabId, 5000, true);
-      avisar(dados.passos.length + ' interação(ões) trazidas com o xpath do elemento.');
+      avisar(novos + ' interação(ões) trazidas com o xpath do elemento.');
       await gerarDescricoesPendentes();
     }catch(err){
       informar('Não consegui trazer a captura: ' + ((err && err.message) || 'erro'), 'Falha ao trazer');
@@ -3183,22 +3197,15 @@
     }
   }
 
-  async function aplicarEvidenciaImportada(dados){
-    lista.innerHTML = '';
-    videoBlob = dados.video ? dataUrlParaBlob(dados.video) : null;
-    if(!videoBlob || videoBlob.size < 80000){
-      const viaQuadros = await videoDosQuadros(dados.quadros || []);
-      if(viaQuadros && (!videoBlob || viaQuadros.size > videoBlob.size)) videoBlob = viaQuadros;
-    }
-    if(videoBlob){
-      caixaVideo.innerHTML = '<div class="videobox"><h3>Vídeo da sessão</h3>'
-        + '<div class="meta">' + tam(videoBlob.size) + ' · gravado no teste · será arquivado com esta evidência</div>'
-        + '<video src="' + url(videoBlob) + '" controls></video></div>';
-    } else {
-      caixaVideo.innerHTML = '';
-    }
-    idsDaExtensao.clear();
-    (dados.passos || []).forEach(p => {
+  /* Acrescenta os passos da gravação que ainda não estão na tela.
+   *
+   * Nunca limpa a lista nem a caixa de vídeo: a versão anterior zerava o vídeo
+   * ao importar, porque esperava um vídeo vindo do complemento — que ele nunca
+   * mandou. Quem grava vídeo é a captura de tela do Print, e trazer a captura
+   * apagava esse vídeo junto. */
+  function acrescentarPassos(dados){
+    const novos = (dados.passos || []).filter(p => !p.id || !idsDaExtensao.has(p.id));
+    novos.forEach(p => {
       if(p.id) idsDaExtensao.add(p.id);
       montarPassoDaExtensao(p);
     });
@@ -3206,7 +3213,8 @@
     if(campoMod && !campoMod.textContent.trim() && dados.titulo) campoMod.textContent = dados.titulo.slice(0, 80);
     const campoObs = document.querySelector('[data-campo="observacoes"]');
     if(campoObs && !campoObs.textContent.trim() && dados.url) campoObs.textContent = 'Teste em ' + dados.url;
-    atualizar();
+    if(novos.length) atualizar();
+    return novos.length;
   }
 
   /* ============ PONTE COM O SCANNER LOCAL ============ */
@@ -3553,33 +3561,6 @@
     const u8 = new Uint8Array(bin.length);
     for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     return new Blob([u8], { type: m[1] || 'application/octet-stream' });
-  }
-
-  async function videoDosQuadros(quadros){
-    if(!quadros || !quadros.length || !window.MediaRecorder) return null;
-    const imgs = [];
-    for(const d of quadros){
-      const img = new Image();
-      img.src = d;
-      await new Promise((ok, err) => { img.onload = ok; img.onerror = err; });
-      imgs.push(img);
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = imgs[0].naturalWidth || 1280;
-    canvas.height = imgs[0].naturalHeight || 720;
-    const ctx = canvas.getContext('2d');
-    const stream = canvas.captureStream(8);
-    const rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm' });
-    const chunks = [];
-    rec.ondataavailable = ev => { if(ev.data && ev.data.size) chunks.push(ev.data); };
-    rec.start(200);
-    for(const img of imgs){
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      await new Promise(r => setTimeout(r, 700));
-    }
-    rec.stop();
-    await new Promise(r => { rec.onstop = r; });
-    return chunks.length ? new Blob(chunks, { type: 'video/webm' }) : null;
   }
 
   function atualizar(){

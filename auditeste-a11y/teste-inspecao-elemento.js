@@ -9,7 +9,8 @@ const pegar = (re, nome) => {
   return m[0];
 };
 const fnMarcar = pegar(/  function marcarQa\(passo, dados\)\{[\s\S]*?\n  \}/, 'marcarQa');
-const fnEsc = pegar(/  const esc = t => .*/, 'esc');
+// esc() ocupa mais de uma linha desde que passou a escapar aspas.
+const fnEsc = pegar(/  const esc = t => [\s\S]*?\}\[c\]\)\);/, 'esc');
 // Ancorado no molde que realmente tem meta-qa: ha varios innerHTML no arquivo.
 const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
   .replace(/^el\.innerHTML = `/, '').replace(/`;$/, '');
@@ -23,6 +24,7 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
     const api = new Function(
       fnEsc + '\n'
       + 'function aplicarAnaliseQa(){}\n'
+      + 'function mostrarCapturaNoPasso(){}\n'
       + fnMarcar + '\n'
       + 'return marcarQa;'
     )();

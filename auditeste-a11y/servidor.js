@@ -30,6 +30,7 @@ const chaveAgenteOrigem = resolverChaveAgente();
 const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
@@ -90,16 +91,22 @@ function responder(res, status, corpo, origem) {
 }
 
 function faixaPrivada(ip) {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
+  const s = String(ip).toLowerCase();
+  // ::ffff:127.0.0.1 e IPv4 escrito como IPv6: sem desembrulhar, passava direto.
+  const mapeado = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
+  const alvo = mapeado ? mapeado[1] : s;
+
+  if (net.isIPv4(alvo)) {
+    const [a, b] = alvo.split('.').map(Number);
     return a === 0 || a === 10 || a === 127
       || (a === 172 && b >= 16 && b <= 31)
       || (a === 192 && b === 168)
       || (a === 169 && b === 254)
+      || (a === 100 && b >= 64 && b <= 127)   // CGNAT: rede do provedor, nao e publica
       || a >= 224;
   }
-  const s = ip.toLowerCase();
-  return s === '::1' || s === '::' || s.startsWith('fc') || s.startsWith('fd') || s.startsWith('fe80');
+  return alvo === '::1' || alvo === '::'
+    || alvo.startsWith('fc') || alvo.startsWith('fd') || alvo.startsWith('fe80');
 }
 
 async function recusar(alvo) {
@@ -187,6 +194,19 @@ function mesmaOrigem(req) {
   return false;
 }
 
+/* Comparacao de tamanho fixo: com !== o tempo de resposta conta quantos bytes
+ * bateram, e isso e por onde um token curto vaza. */
+function mesmoSegredo(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  if (x.length !== y.length) {
+    // Compara contra ele mesmo so para gastar o mesmo tempo do caso valido.
+    crypto.timingSafeEqual(x, x);
+    return false;
+  }
+  return crypto.timingSafeEqual(x, y);
+}
+
 function tokenInvalido(req, u) {
   if (!TOKEN) {
     if (ehLoopback) return false;
@@ -194,7 +214,7 @@ function tokenInvalido(req, u) {
   }
   const enviado = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
     || u.searchParams.get('token') || '';
-  return enviado !== TOKEN;
+  return !mesmoSegredo(enviado, TOKEN);
 }
 
 function msgToken(req) {

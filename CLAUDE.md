@@ -120,6 +120,16 @@ existir, então só o ouvinte não detectava nada.
 Campo de senha nunca tem o valor gravado, e o rótulo de um campo nunca é o
 `value` — senão o passo vira "Preencheu PROMO10 com PROMO10".
 
+**`esc()` escapa aspas também.** O rótulo e o HTML vêm do site testado e têm
+aspas o tempo todo; sem elas na lista, o primeiro uso de `esc()` dentro de um
+atributo quebra o atributo. `teste-seguranca.js` trava isso, junto com as faixas
+de IP privado (inclui `::ffff:` e CGNAT) e a comparação de token em tempo fixo.
+
+**Trazer a captura nunca limpa a tela.** `acrescentarPassos` só adiciona o que
+falta, deduplicando por id. A função anterior zerava a caixa de vídeo por esperar
+um vídeo vindo do complemento — que ele nunca mandou —, e o vídeo da gravação de
+tela sumia junto.
+
 **O bloco do passo mostra o JSON capturado, não palpite lido do print.** O
 localizador sugerido e a tabela de controles saíram: os dois vinham do modelo
 olhando a imagem, e envelheciam mal. No lugar vai `jsonCapturado`, com xpath,
