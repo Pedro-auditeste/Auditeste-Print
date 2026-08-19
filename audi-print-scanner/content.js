@@ -372,9 +372,11 @@
         Object.assign({ tipo: 'AUDI_PRINT_RESPONDE', pedido: d.pedido }, corpo), location.origin
       );
       try {
-        const r = d.deTab == null
-          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_EVIDENCIAS' })
-          : await chrome.runtime.sendMessage({ tipo: 'AUDI_EVIDENCIA', deTab: d.deTab });
+        const r = d.marcar
+          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_IMPORTADA', deTab: d.deTab })
+          : d.deTab == null
+            ? await chrome.runtime.sendMessage({ tipo: 'AUDI_EVIDENCIAS' })
+            : await chrome.runtime.sendMessage({ tipo: 'AUDI_EVIDENCIA', deTab: d.deTab });
         responder(r || { erro: 'A extensão não respondeu.' });
       } catch (e) {
         responder({ erro: e.message || 'A extensão não respondeu.' });

@@ -1843,20 +1843,33 @@
    * vivo não alcança nada, porque não havia Print aberto na hora. Então abrir a
    * gravação já busca o que o complemento tem guardado. Só com a lista vazia:
    * com passo na tela, quem manda é o botão, para não atropelar o que já está aí. */
+  const JANELA_AUTO_MS = 20 * 60 * 1000;
+
   async function trazerSozinho(){
     if(!lista || lista.querySelector('.passo')) return;
     const resumo = await pedirAoNavegador(null, 2500);
     if(!resumo || resumo.erro) return;
     const evid = (resumo.evidencias || []).filter(e => e.passos);
-    if(!evid.length) return;
-    mostrarBotaoCaptura();
-    // A mais recente: é a que o QA acabou de gravar.
-    const escolhida = evid[0];
+    if(evid.length) mostrarBotaoCaptura();
+
+    /* O Print testa muitos sistemas. Trazer sozinho só a gravação que ainda está
+     * acontecendo, ou que acabou de acabar, e que nunca foi trazida antes: sem
+     * isso, um projeto novo herda o teste anterior, de outro sistema. */
+    const agora = Date.now();
+    const recente = (e) => {
+      if(e.ativa) return true;
+      const fim = Date.parse(e.encerrada || e.inicio || '');
+      return Number.isFinite(fim) && (agora - fim) < JANELA_AUTO_MS;
+    };
+    const escolhida = evid.find(e => !e.importada && recente(e));
+    if(!escolhida) return;   // nada novo: quem traz é o botão, com você escolhendo
+
     const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
     const dados = cheia && !cheia.erro ? cheia.evidencia : null;
     if(!dados || !(dados.passos || []).length) return;
     if(lista.querySelector('.passo')) return;   // chegou algo enquanto buscava
     await aplicarEvidenciaImportada(dados);
+    pedirAoNavegador(escolhida.tabId, 2000, true);   // não trazer de novo noutro projeto
     avisar(dados.passos.length + ' interação(ões) trazidas do navegador.');
   }
 
@@ -2924,7 +2937,7 @@
   /* Quem registra o xpath, o HTML e o tipo de cada interação é o complemento do
    * navegador, por código: ele vê o DOM de verdade. A entrega é por postMessage
    * na própria página, então não é preciso saber o id do complemento. */
-  function pedirAoNavegador(deTab, msTimeout){
+  function pedirAoNavegador(deTab, msTimeout, marcar){
     return new Promise((ok) => {
       const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
       const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
@@ -2937,7 +2950,7 @@
         ok(d);
       }
       window.addEventListener('message', ouvir);
-      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab }, location.origin);
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar }, location.origin);
     });
   }
 

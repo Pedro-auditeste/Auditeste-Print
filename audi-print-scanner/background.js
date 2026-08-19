@@ -293,10 +293,24 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
             titulo: s.titulo || '',
             inicio: s.inicio || '',
             ativa: !!s.ativa,
+            encerrada: s.encerrada || '',
+            importada: !!s.importada,
             passos: s.passos.length
           }))
           .sort((a, b) => String(b.inicio).localeCompare(String(a.inicio)))
       };
+    }
+
+    /* O Print avisa que ja trouxe esta sessao. Sem isso, abrir um projeto novo
+     * herdava a gravacao do teste anterior, de outro sistema. */
+    if (msg.tipo === 'AUDI_IMPORTADA') {
+      const sessoes = await todas();
+      const s = sessoes[msg.deTab];
+      if (s) {
+        s.importada = true;
+        await chrome.storage.local.set({ [CHAVE]: sessoes });
+      }
+      return { ok: true };
     }
 
     // A evidencia inteira, no mesmo formato que o botao Exportar gera.
