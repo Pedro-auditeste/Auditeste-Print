@@ -1866,6 +1866,20 @@
    *
    * Não dá para exigir que a sessão tenha começado depois desta gravação: o
    * caminho normal é testar primeiro e abrir o Print depois. */
+  /* "há 2 dias" diz na hora se a gravação é deste teste; a data sozinha, não. */
+  function idadeDaGravacao(e){
+    if(e.ativa) return 'em andamento';
+    const t = Date.parse(e.encerrada || e.inicio || '');
+    if(!Number.isFinite(t)) return 'sem data';
+    const min = Math.round((Date.now() - t) / 60000);
+    if(min < 1) return 'agora mesmo';
+    if(min < 60) return 'há ' + min + ' min';
+    const h = Math.round(min / 60);
+    if(h < 24) return 'há ' + h + ' h';
+    const d = Math.round(h / 24);
+    return 'há ' + d + (d === 1 ? ' dia' : ' dias');
+  }
+
   function daGravacaoAtual(e){
     if(e.importada) return false;
     if(e.ativa) return true;
@@ -3064,8 +3078,8 @@
   function receberPassoDaExtensao(p, origem){
     // Só entra em gravação aberta: fora dela não existe lista para receber.
     if(!p || !lista || !document.getElementById('telaGravador')?.classList.contains('ativa')) return;
-    if(p.id && idsDaExtensao.has(p.id)) return;   // o botão manual pode trazer o mesmo
-    if(p.id) idsDaExtensao.add(p.id);
+    if(idsDaExtensao.has(chaveDoPasso(p))) return;   // o botão manual pode trazer o mesmo
+    idsDaExtensao.add(chaveDoPasso(p));
     montarPassoDaExtensao(p);
     if(origem) preencherCabecalho(origem);
     atualizar();
@@ -3112,7 +3126,21 @@
 
   /* Descreve tudo que ainda não foi descrito. A fila de descrição já garante uma
    * por vez, então aqui é só disparar na ordem dos passos. */
+  let gerandoTudo = null;
+
   async function gerarDescricoesPendentes(){
+    /* Uma rodada por vez. Sem isto, pedir a geração enquanto a anterior ainda
+     * está na fila descrevia o mesmo passo duas vezes: quem espera na fila
+     * continua "pendente", e a segunda rodada o pegava de novo. */
+    if(gerandoTudo) return gerandoTudo;
+    gerandoTudo = (async () => {
+      try{ return await gerarAgora(); }
+      finally{ gerandoTudo = null; }
+    })();
+    return gerandoTudo;
+  }
+
+  async function gerarAgora(){
     const pendentes = [...lista.querySelectorAll('.passo')].filter((el) => {
       if(el.dataset.descricaoEstado === 'pronta' || el.dataset.descricaoEstado === 'gerando') return false;
       return [...el.querySelectorAll('figure')].filter(f => f._blob).length >= 2;
@@ -3153,15 +3181,25 @@
         avisar('Nenhuma captura no navegador. Abra o site, inicie a sessão e interaja com a tela.');
         return;
       }
-      let escolhida = evid[0];
-      if(evid.length > 1){
-        const opcoes = evid.map((e, i) =>
-          (i + 1) + ') ' + (e.titulo || e.url || 'sem título') + ' — ' + e.passos + ' passo(s)'
-          + (e.ativa ? ' (gravando)' : ''));
-        const resp = prompt('Qual captura você quer trazer?\n\n' + opcoes.join('\n') + '\n\nDigite o número:', '1');
+      /* Gravação desta sessão entra direto. Fora isso o botão PERGUNTA, sempre:
+       * trazer sozinho a mais recente da lista enchia um projeto novo com um
+       * teste de dias atrás, de outro sistema, sem ninguém pedir. */
+      const daVez = evid.filter(daGravacaoAtual);
+      let escolhida = daVez.length === 1 ? daVez[0] : null;
+
+      if(!escolhida){
+        const candidatas = daVez.length ? daVez : evid;
+        const opcoes = candidatas.map((e, i) =>
+          (i + 1) + ') ' + (e.titulo || e.url || 'sem título')
+          + ' — ' + e.passos + ' passo(s)'
+          + ' — ' + idadeDaGravacao(e)
+          + (e.ativa ? ' (gravando agora)' : '')
+          + (e.importada ? ' (já trazida antes)' : ''));
+        const resp = prompt('Qual gravação você quer trazer?\n\n' + opcoes.join('\n')
+          + '\n\nDigite o número, ou cancele para não trazer nada:', daVez.length ? '1' : '');
         const n = Number(resp);
-        if(!resp || !Number.isInteger(n) || n < 1 || n > evid.length) return;
-        escolhida = evid[n - 1];
+        if(!resp || !Number.isInteger(n) || n < 1 || n > candidatas.length) return;
+        escolhida = candidatas[n - 1];
       }
       const cheia = await pedirAoNavegador(escolhida.tabId, 30000);
       if(!cheia){ avisar('O complemento demorou a responder. Tente de novo.'); return; }
@@ -3185,10 +3223,17 @@
    * ao importar, porque esperava um vídeo vindo do complemento — que ele nunca
    * mandou. Quem grava vídeo é a captura de tela do Print, e trazer a captura
    * apagava esse vídeo junto. */
+  /* Sem id, o passo era sempre tratado como novo e entrava de novo a cada
+   * varredura. O complemento manda id, mas evidência antiga ou de outra origem
+   * pode não ter: aí a identidade sai do proprio conteúdo do passo. */
+  function chaveDoPasso(p){
+    return p.id || [p.acao, p.elemento, p.timestampAntes, p.valor].join('|');
+  }
+
   function acrescentarPassos(dados){
-    const novos = (dados.passos || []).filter(p => !p.id || !idsDaExtensao.has(p.id));
+    const novos = (dados.passos || []).filter(p => !idsDaExtensao.has(chaveDoPasso(p)));
     novos.forEach(p => {
-      if(p.id) idsDaExtensao.add(p.id);
+      idsDaExtensao.add(chaveDoPasso(p));
       montarPassoDaExtensao(p);
     });
     const campoMod = document.querySelector('[data-campo="modulo"]');

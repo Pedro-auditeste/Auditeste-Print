@@ -81,7 +81,7 @@ const DESCRICAO_LONGA = 'Antes havia a tela de login com e-mail e senha. '
         const d = ev.data;
         if (ev.source !== window || !d || d.tipo !== 'AUDI_PRINT_PEDE') return;
         const corpo = d.deTab == null
-          ? { evidencias: [{ tabId: 7, url: evid.url, titulo: evid.titulo, inicio: '', ativa: false, passos: 1 }] }
+          ? { evidencias: [{ tabId: 7, url: evid.url, titulo: evid.titulo, inicio: new Date().toISOString(), ativa: false, encerrada: new Date().toISOString(), importada: false, passos: 1 }] }
           : { evidencia: evid };
         postMessage(Object.assign({ tipo: 'AUDI_PRINT_RESPONDE', pedido: d.pedido }, corpo), location.origin);
       });

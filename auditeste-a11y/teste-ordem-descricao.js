@@ -83,7 +83,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
         const d = ev.data;
         if (ev.source !== window || !d || d.tipo !== 'AUDI_PRINT_PEDE') return;
         const corpo = d.deTab == null
-          ? { evidencias: [{ tabId: 7, url: evid.url, titulo: evid.titulo, inicio: '', ativa: false, passos: evid.passos.length }] }
+          ? { evidencias: [{ tabId: 7, url: evid.url, titulo: evid.titulo, inicio: new Date().toISOString(), ativa: false, encerrada: new Date().toISOString(), importada: false, passos: evid.passos.length }] }
           : { evidencia: evid };
         postMessage(Object.assign({ tipo: 'AUDI_PRINT_RESPONDE', pedido: d.pedido }, corpo), location.origin);
       });
