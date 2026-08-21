@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Audi Print · Captura de evidências de teste",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Registra cada interação do teste com o xpath do elemento e o print antes/depois, e roda o scan de acessibilidade.",
   "homepage_url": "https://audiprint.up.railway.app",
   "permissions": ["scripting", "downloads", "storage", "tabs", "unlimitedStorage"],

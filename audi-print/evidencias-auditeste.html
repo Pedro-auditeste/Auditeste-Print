@@ -1816,8 +1816,12 @@
   /* Link so aparece quando o cofre esta ligado neste servidor: oferecer uma
    * tela que responde 503 seria pior que nao oferecer nada. */
   async function verSeTemCofre(){
+    /* Aberto do disco nao tem cofre nenhum, e o fetch relativo viraria
+     * file:///C:/ping, que o Chrome recusa e imprime como erro no console.
+     * O try/catch engolia a excecao, mas nao o erro impresso. */
+    if(!/^https?:$/.test(location.protocol)) return;
     try{
-      const r = await fetch('/ping', { signal: AbortSignal.timeout(4000) });
+      const r = await fetch(ponteUrl() + '/ping', { signal: AbortSignal.timeout(4000) });
       const d = await r.json();
       const el = document.getElementById('linkCofre');
       if(el && d && d.cofre === true) el.hidden = false;

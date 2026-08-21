@@ -67,6 +67,10 @@ const comandos = {
     const { senha, sorteada } = senhaDeEntrada();
     const u = banco.criarUsuario(email, contas.hashSenha(senha));
     banco.vincular(tenantId, u.id, papel || 'consultor');
+    /* Mudanca de permissao e evento auditavel como qualquer outro. Sem isto
+     * a pergunta "quem deu acesso a essa pessoa, e quando" nao tinha resposta,
+     * e ela vem junto com a primeira investigacao de verdade. */
+    banco.auditar(tenantId, null, 'usuario.criado', u.email + ' como ' + (papel || 'consultor'), 'cli');
     console.log('usuário criado e vinculado');
     console.log('  email  ' + u.email);
     console.log('  papel  ' + (papel || 'consultor'));
@@ -82,6 +86,9 @@ const comandos = {
     // Trocar a senha tem que derrubar o que já estava aberto, senão a sessão
     // de quem levou a senha antiga continua valendo.
     banco.revogarSessoesDoUsuario(u.id);
+    for (const v of banco.vinculosDoUsuario(u.id)) {
+      banco.auditar(v.tenant_id, u.id, 'senha.trocada', u.email, 'cli');
+    }
     console.log('senha trocada e sessões abertas revogadas');
     if (sorteada) console.log('  senha  ' + senha + '   (anote agora, não aparece de novo)');
   },
@@ -92,6 +99,7 @@ const comandos = {
     if (!u) { console.error('usuário não encontrado'); process.exit(1); }
     if (!banco.obterTenant(tenantId)) { console.error('cliente não existe'); process.exit(1); }
     banco.vincular(tenantId, u.id, papel || 'consultor');
+    banco.auditar(tenantId, u.id, 'permissao.alterada', u.email + ' como ' + (papel || 'consultor'), 'cli');
     console.log('vínculo gravado: ' + u.email + ' -> ' + tenantId + ' como ' + (papel || 'consultor'));
   },
 

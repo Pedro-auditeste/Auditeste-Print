@@ -30,6 +30,36 @@ const json = (res, status, corpo, extra) => {
   res.end(JSON.stringify(corpo));
 };
 
+/* Freio por sessao nas rotas do cofre.
+ *
+ * O login ja tinha o dele. Faltava o resto: com uma sessao valida dava para
+ * varrer a API a vontade, baixar tudo em minutos ou encher o banco. Nao e
+ * defesa contra ataque distribuido, e teto de uso por sessao, que e o que
+ * cabe num monolito e o que pega o caso real: script solto e automacao
+ * descontrolada. Memoria, nao banco: reiniciar zerar o contador nao e
+ * problema, e escrever no SQLite a cada request seria. */
+const JANELA_MS = 60000;
+const TETO_JANELA = Number(process.env.COFRE_TETO_MINUTO) || 240;
+const usos = new Map();
+
+function freio(sessao) {
+  const agora = Date.now();
+  const atual = usos.get(sessao.tokenHash);
+  if (!atual || agora > atual.ate) {
+    usos.set(sessao.tokenHash, { n: 1, ate: agora + JANELA_MS });
+    /* Limpeza barata: sem isto o mapa cresce com toda sessao que ja morreu. */
+    if (usos.size > 5000) {
+      for (const [k, v] of usos) if (agora > v.ate) usos.delete(k);
+    }
+    return;
+  }
+  if (++atual.n > TETO_JANELA) {
+    const e = new Error('Muitas chamadas seguidas. Espere um minuto.');
+    e.status = 429;
+    throw e;
+  }
+}
+
 function exigirSessao(req) {
   const s = contas.sessaoDe(req);
   if (!s) {
@@ -37,6 +67,7 @@ function exigirSessao(req) {
     e.status = 401;
     throw e;
   }
+  freio(s);
   return s;
 }
 
@@ -320,4 +351,4 @@ async function tratar(req, res, u, lerCorpo) {
   }
 }
 
-module.exports = { tratar, assinar, assinaturaValida, bytesDe, MAX_OBJETO, LINK_VALE_MS };
+module.exports = { tratar, assinar, assinaturaValida, bytesDe, MAX_OBJETO, LINK_VALE_MS, TETO_JANELA };

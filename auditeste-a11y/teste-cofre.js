@@ -414,6 +414,34 @@ async function principal() {
     assert.ok(!/senha|password|base64/i.test(tudo), 'conteúdo sensível foi parar no log');
   });
 
+  console.log('\ncofre · teto de uso e provisionamento\n');
+
+  await caso('sessao que martela demais leva 429', async () => {
+    /* Sessao propria: o teto e por sessao, entao martelar aqui nao pode
+     * derrubar as outras abas do teste. */
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    const api = require('./cofre/api.js');
+    let travou = false;
+    for (let i = 0; i < api.TETO_JANELA + 5; i++) {
+      const r = await n.pedir('/api/projetos');
+      if (r.status === 429) { travou = true; break; }
+    }
+    assert.ok(travou, 'nunca travou: uma sessao sozinha varre a API a vontade');
+  });
+
+  await caso('mudanca de permissao entra na auditoria', async () => {
+    const { execFileSync } = require('child_process');
+    execFileSync(process.execPath,
+      [path.join(__dirname, 'cofre', 'admin.js'), 'vincular', 'solto@auditeste.com', outro.id, 'leitor'],
+      { env: Object.assign({}, process.env, { COFRE_BANCO: ARQUIVO }), encoding: 'utf8' });
+
+    const r = await intruso.pedir('/api/auditoria?limite=500');
+    const achou = r.corpo.eventos.some(e => e.acao === 'permissao.alterada'
+      && String(e.recurso || '').includes('solto@auditeste.com'));
+    assert.ok(achou, 'dar acesso a alguem nao ficou registrado em lugar nenhum');
+  });
+
   console.log('\ncofre · sair\n');
 
   await caso('sair revoga a sessao de verdade', async () => {
