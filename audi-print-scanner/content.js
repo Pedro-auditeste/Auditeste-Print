@@ -192,6 +192,17 @@
     };
   }
 
+  /* O outerHTML e o outro caminho do segredo: mascarar so o campo "valor"
+   * deixava passar o value="..." que o servidor do cliente ja tinha
+   * renderizado no input. O seletor e a estrutura ficam; o conteudo sai. */
+  function htmlSeguro(el) {
+    let bruto = el.outerHTML;
+    if (campoSensivel(el, el.value)) {
+      bruto = bruto.replace(/\svalue\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, ' value="(oculto)"');
+    }
+    return bruto.replace(/\s+/g, ' ').trim().slice(0, 1200);
+  }
+
   function registrar(el, tipo, valor) {
     const agora = Date.now();
     if (!el || agora - ultimaAcao < 450) return;
@@ -207,7 +218,7 @@
       tipo: tipo || 'Clicar',
       valor: String(valor == null ? '' : valor).replace(/\s+/g, ' ').trim().slice(0, 300),
       rotulo: rotuloDe(el),
-      html: el.outerHTML.replace(/\s+/g, ' ').trim().slice(0, 1200),
+      html: htmlSeguro(el),
       urlAntes: location.href,
       frameUrl: window === window.top ? '' : location.href,
       textoAntes: resumoDaTela()
@@ -232,6 +243,55 @@
   /* Preencher e limpar sao o mesmo evento: o que separa e o campo ter ficado
    * vazio. O 'change' so dispara quando o valor mudou de verdade, entao entrar
    * e sair do campo sem digitar nao vira passo. */
+  /* Campo cujo VALOR nao pode entrar na evidencia.
+   *
+   * O passo continua existindo e o elemento continua identificado: some so o
+   * conteudo digitado. type=password cobria senha e mais nada, e a evidencia
+   * atravessa a ponte ate a IA, entao CPF e cartao digitados num input de
+   * texto comum saiam inteiros.
+   *
+   * Duas frentes, porque uma so nao basta: o nome do campo (funciona antes de
+   * digitar qualquer coisa) e o formato do valor (funciona quando o campo se
+   * chama "documento" e nao diz o que guarda). */
+  const NOME_SENSIVEL = /senha|password|passwd|cpf|cnpj|cart[aã]o|cardnumber|creditcard|cvv|cvc|csc|token|secret|apikey|api[-_]?key|chave|pin|rg\b|passaporte|ag[eê]ncia|agencia/i;
+  const AUTO_SENSIVEL = /password|cc-number|cc-csc|cc-exp|one-time-code/i;
+
+  /** Luhn: sem isso, todo numero longo viraria "cartao" e a evidencia perderia
+   *  codigo de pedido, protocolo e nota fiscal sem motivo. */
+  function passaLuhn(digitos) {
+    let soma = 0;
+    let dobra = false;
+    for (let i = digitos.length - 1; i >= 0; i--) {
+      let d = digitos.charCodeAt(i) - 48;
+      if (dobra) { d *= 2; if (d > 9) d -= 9; }
+      soma += d;
+      dobra = !dobra;
+    }
+    return soma % 10 === 0;
+  }
+
+  function valorSensivel(valor) {
+    const t = String(valor || '').trim();
+    if (!t) return false;
+    // CPF e CNPJ escritos com ou sem mascara.
+    if (/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(t)) return true;
+    if (/^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/.test(t)) return true;
+    const so = t.replace(/[\s.-]/g, '');
+    if (/^\d{13,19}$/.test(so) && passaLuhn(so)) return true;
+    return false;
+  }
+
+  function campoSensivel(el, valor) {
+    if (el.type === 'password') return true;
+    if (AUTO_SENSIVEL.test(el.getAttribute('autocomplete') || '')) return true;
+    const rotulos = [
+      el.name, el.id, el.getAttribute('placeholder'),
+      el.getAttribute('aria-label'), el.getAttribute('data-testid')
+    ].filter(Boolean).join(' ');
+    if (NOME_SENSIVEL.test(rotulos)) return true;
+    return valorSensivel(valor);
+  }
+
   document.addEventListener('change', (evento) => {
     const el = evento.composedPath()[0];
     if (!(el instanceof Element)) return;
@@ -246,7 +306,7 @@
       ? (el.selectedOptions?.[0]?.text || el.value)
       : el.value;
     // Senha nunca vai para a evidencia: o passo registra o campo, nao o segredo.
-    const seguro = el.type === 'password' ? '' : valor;
+    const seguro = campoSensivel(el, valor) ? '' : valor;
     registrar(el, String(valor).trim() ? 'Preencher' : 'Limpar', seguro);
   }, true);
 
@@ -318,10 +378,15 @@
    * outro endereco, acrescente-o aqui. */
   const ORIGENS_PRINT = ['https://audiprint.up.railway.app'];
 
-  /** Local e a maquina do proprio usuario, entao qualquer porta serve. */
+  /* Local e a maquina do proprio usuario, entao qualquer porta serve.
+   *
+   * file: saiu daqui de proposito. Ele liberava QUALQUER html aberto do disco,
+   * e um arquivo baixado por engano so precisava pedir AUDI_EVIDENCIAS para
+   * receber os prints e o HTML de todas as abas gravadas. Para usar o Print
+   * local, sirva por 127.0.0.1 (npm run servidor), nao por clique duplo. */
   function paginaDoPrint() {
     if (ORIGENS_PRINT.includes(location.origin)) return true;
-    if (location.protocol === 'file:') return true;
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return false;
     return location.hostname === '127.0.0.1' || location.hostname === 'localhost'
       || location.hostname === '[::1]';
   }
@@ -335,7 +400,9 @@
         Object.assign({ tipo: 'AUDI_PRINT_RESPONDE', pedido: d.pedido }, corpo), location.origin
       );
       try {
-        const r = d.pararTudo
+        const r = d.descartar
+          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_DESCARTAR' })
+          : d.pararTudo
           ? await chrome.runtime.sendMessage({ tipo: 'AUDI_PARAR_TUDO' })
           : d.armar
           ? await chrome.runtime.sendMessage({ tipo: 'AUDI_ARMAR' })

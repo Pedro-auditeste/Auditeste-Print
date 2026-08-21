@@ -81,8 +81,32 @@ function cabecalho(origem) {
     'Access-Control-Allow-Origin': permitida,
     'Access-Control-Allow-Headers': 'authorization,content-type',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'X-Content-Type-Options': 'nosniff',
     'Content-Type': 'application/json; charset=utf-8'
   };
+}
+
+/* Cabecalhos de seguranca da pagina.
+ *
+ * Referrer-Policy e same-origin de proposito, nao no-referrer: sem token o
+ * portao da ponte cai no Referer (mesmaOrigem), e GET de mesma origem no
+ * Chrome nao manda Origin. no-referrer aqui derrubaria os botoes de scan.
+ *
+ * A CSP fica nos tres diretivos que nao dependem de como a pagina foi
+ * escrita. script-src exigiria tirar todo o inline destas 4470 linhas, e
+ * uma CSP que precisa de 'unsafe-inline' para o script nao protege de nada.
+ *
+ * HSTS so quando a requisicao veio por https: o navegador ignora o
+ * cabecalho em http, e em 127.0.0.1 mandar isso nao tem sentido nenhum. */
+function cabecalhoSeguro(req) {
+  const cab = {
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'same-origin',
+    'Content-Security-Policy': "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+  };
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  if (proto === 'https') cab['Strict-Transport-Security'] = 'max-age=31536000';
+  return cab;
 }
 
 function responder(res, status, corpo, origem) {
@@ -144,7 +168,10 @@ function servirArquivo(req, res, pathname) {
   if (!arquivo.startsWith(PUBLICO + path.sep) && arquivo !== PUBLICO) return false;
   if (!fs.existsSync(arquivo) || !fs.statSync(arquivo).isFile()) return false;
   const ext = path.extname(arquivo);
-  const cab = { 'Content-Type': TIPOS[ext] || 'application/octet-stream' };
+  const cab = Object.assign(
+    { 'Content-Type': TIPOS[ext] || 'application/octet-stream' },
+    cabecalhoSeguro(req)
+  );
   if (ext === '.html') cab['Cache-Control'] = 'no-store';
   res.writeHead(200, cab);
   // HEAD leva so os cabecalhos. Validador de URL costuma checar por HEAD, e

@@ -314,6 +314,10 @@
   .modal .corpo-modal{padding:22px 26px 8px;display:flex;flex-direction:column;gap:16px;}
   .modal label{display:block;}
   .modal .rot{margin-bottom:5px;}
+  .linha-opcao{display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
+  .linha-opcao input{margin-top:3px;flex:0 0 auto;width:16px;height:16px;accent-color:var(--navy);}
+  .linha-opcao .rot{margin-bottom:2px;}
+  .linha-opcao small{display:block;color:#5b6472;font-size:.78rem;line-height:1.45;}
   .modal input[type=text]{
     width:100%;font-family:inherit;font-size:1rem;color:var(--ink);
     border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:#fff;
@@ -1210,6 +1214,13 @@
         <span class="rot">Cliente</span>
         <input type="text" id="campoCliente" placeholder="Opcional" autocomplete="off">
       </label>
+      <label class="linha-opcao">
+        <input type="checkbox" id="campoIA" checked>
+        <span>
+          <span class="rot">Permitir descrição automática dos prints</span>
+          <small>Envia o print, o HTML do elemento e a URL da tela para o serviço de descrição. Desmarque quando o cliente não autorizar que a evidência saia desta máquina.</small>
+        </span>
+      </label>
       <div>
         <span class="rot">Logo do cliente</span>
         <div class="escolhe-logo" id="escolheLogo">
@@ -1241,12 +1252,19 @@
   let db = null;
   function abrirDB(){
     return new Promise((ok, erro) => {
-      const req = indexedDB.open('auditeste_evidencias', 1);
+      /* v2 acrescenta "envios": o registro de tudo que saiu desta máquina para
+       * a IA. Só cria o que falta, nunca recria o que existe, então banco de
+       * v1 abre com as evidências antigas intactas. */
+      const req = indexedDB.open('auditeste_evidencias', 2);
       req.onupgradeneeded = e => {
         const bd = e.target.result;
         if(!bd.objectStoreNames.contains('projetos')) bd.createObjectStore('projetos', {keyPath:'id', autoIncrement:true});
         if(!bd.objectStoreNames.contains('registros')){
           const st = bd.createObjectStore('registros', {keyPath:'id', autoIncrement:true});
+          st.createIndex('projetoId','projetoId',{unique:false});
+        }
+        if(!bd.objectStoreNames.contains('envios')){
+          const st = bd.createObjectStore('envios', {keyPath:'id', autoIncrement:true});
           st.createIndex('projetoId','projetoId',{unique:false});
         }
       };
@@ -1267,6 +1285,38 @@
   const salvarRegistro  = r => pedir(loja('registros','readwrite').add(r));
   const gravarRegistroDB = r => pedir(loja('registros','readwrite').put(r));
   const apagarRegistro  = id => pedir(loja('registros','readwrite').delete(id));
+  const listarEnvios    = pid => pedir(loja('envios','readonly').index('projetoId').getAll(pid));
+  const gravarEnvioDB   = e => pedir(loja('envios','readwrite').add(e));
+  const apagarEnvioDB   = id => pedir(loja('envios','readwrite').delete(id));
+
+  /* ============ CONSENTIMENTO E REGISTRO DE ENVIO À IA ============ */
+  /* O print, o HTML do elemento e a URL do sistema testado saem desta máquina
+   * e vão para o serviço de descrição. Isso é dado do cliente indo para um
+   * terceiro, então precisa de duas coisas que não existiam: alguém ter
+   * autorizado, e ficar escrito que aconteceu.
+   *
+   * Projeto antigo, sem o campo, continua liberado: a trava é o valor false
+   * explícito. Mudar o padrão para bloqueado deixaria todo mundo sem
+   * descrição depois de atualizar, sem entender por quê. */
+  const iaLiberada = p => !p || p.iaPermitida !== false;
+
+  const MOTIVO_IA_BLOQUEADA = 'Descrição automática desligada neste projeto. '
+    + 'Os prints e o HTML continuam sendo capturados e ficam nesta máquina. '
+    + 'Para ligar, abra Renomear no projeto e marque a opção.';
+
+  async function registrarEnvio(rota, destino, quantos, bytes){
+    if(!projetoAtual || !db) return;
+    try{
+      await gravarEnvioDB({
+        projetoId: projetoAtual.id,
+        quando: Date.now(),
+        rota: String(rota || ''),
+        destino: String(destino || ''),
+        passos: quantos || 1,
+        bytes: bytes || 0
+      });
+    }catch(e){ /* o registro não pode derrubar a descrição */ }
+  }
 
   /* ============ ESTADO ============ */
   const lista = document.getElementById('lista');
@@ -1521,6 +1571,7 @@
   const fundoModal = document.getElementById('fundoModal');
   const campoNome = document.getElementById('campoNome');
   const campoCliente = document.getElementById('campoCliente');
+  const campoIA = document.getElementById('campoIA');
   const previaLogo = document.getElementById('previaLogo');
   const textoLogo = document.getElementById('textoLogo');
   let editando = null, logoEscolhida = null, projetoNovo = null;
@@ -1535,6 +1586,8 @@
     document.getElementById('btnConfirmarModal').textContent = projeto ? 'Salvar' : 'Criar projeto';
     campoNome.value = projeto ? projeto.nome : '';
     campoCliente.value = projeto ? (projeto.cliente || '') : '';
+    // Projeto sem o campo veio da versao anterior: continua liberado.
+    campoIA.checked = projeto ? iaLiberada(projeto) : true;
     previaLogo.innerHTML = projeto?.logo ? `<img src="${url(projeto.logo)}" alt="">` : 'sem logo';
     textoLogo.textContent = projeto?.logo ? 'Clique para trocar a imagem' : 'Clique para escolher uma imagem';
     fundoModal.classList.add('aberto');
@@ -1556,6 +1609,7 @@
     const cliente = campoCliente.value.trim();
     if(editando){
       editando.nome = nome; editando.cliente = cliente;
+      editando.iaPermitida = campoIA.checked;
       if(logoEscolhida) editando.logo = logoEscolhida;
       await gravarProjetoDB(editando);
       const id = editando.id;
@@ -1563,7 +1617,8 @@
       await abrirProjeto(id);
       avisar('Projeto atualizado.');
     } else {
-      const id = await criarProjetoDB({nome, cliente, logo:logoEscolhida, criadoEm:Date.now()});
+      const id = await criarProjetoDB({nome, cliente, logo:logoEscolhida,
+        iaPermitida: campoIA.checked, criadoEm:Date.now()});
       fecharFormulario();
       projetoNovo = id;
       await desenharProjetos();
@@ -1631,6 +1686,29 @@
   }
 
   const informar = (texto, titulo) => perguntar({titulo: titulo || 'Aviso', texto, botao:'Entendi', tipo:'aviso', so:true});
+
+  /* "Dados foram enviados para terceiros?" precisa de resposta com data, não
+   * de opinião. Fica por projeto, porque é assim que a pergunta chega: sobre
+   * um cliente, não sobre o Print inteiro. */
+  async function mostrarEnvios(){
+    if(!projetoAtual) return;
+    const envios = (await listarEnvios(projetoAtual.id).catch(()=>[]))
+      .sort((a,b)=> b.quando - a.quando);
+    if(!envios.length){
+      return informar('Nada saiu desta máquina neste projeto.'
+        + (iaLiberada(projetoAtual) ? '' : '<br><br>A descrição automática está desligada aqui.'),
+        'Envios do projeto ' + projetoAtual.nome);
+    }
+    const linhas = envios.slice(0, 40).map(e =>
+      new Date(e.quando).toLocaleString('pt-BR')
+      + ' · ' + e.rota
+      + ' · ' + e.passos + ' passo(s)'
+      + ' · ' + tam(e.bytes || 0)
+      + ' · ' + e.destino).join('<br>');
+    informar('<b>' + envios.length + ' envio(s)</b> registrados neste projeto.<br><br>' + linhas
+      + (envios.length > 40 ? '<br><br>(mostrando os 40 mais recentes)' : ''),
+      'Envios do projeto ' + projetoAtual.nome);
+  }
 
   btnSim.addEventListener('click', ()=> fecharConfirma(true));
   btnNao.addEventListener('click', ()=> fecharConfirma(false));
@@ -1757,11 +1835,19 @@
       <div class="acoes">
         <button class="btn escuro pequeno" data-acao="logoProjeto">${projetoAtual.logo ? 'Trocar logo' : 'Adicionar logo'}</button>
         <button class="btn escuro pequeno" data-acao="renomear">Renomear</button>
+        <button class="btn escuro pequeno" data-acao="verEnvios" title="O que já saiu desta máquina neste projeto">Envios</button>
         ${botaoExcluir('data-acao="excluirProjeto"', 'Excluir')}
       </div>`;
 
-    document.getElementById('resumoProjeto').textContent =
-      `${regs.length} evidência(s) · ${regs.filter(r=>r.video).length} com vídeo`;
+    /* O estado do consentimento fica na cara do projeto, não escondido no
+     * formulário: quem abre precisa saber se a evidência deste cliente pode
+     * sair da máquina antes de gravar, não depois. */
+    const envios = await listarEnvios(id).catch(()=>[]);
+    document.getElementById('resumoProjeto').innerHTML =
+      `${regs.length} evidência(s) · ${regs.filter(r=>r.video).length} com vídeo · `
+      + (iaLiberada(projetoAtual)
+          ? `descrição automática <b>ligada</b> · ${envios.length} envio(s) registrado(s)`
+          : 'descrição automática <b>desligada</b> · nada sai desta máquina');
 
     const alvo = document.getElementById('listaRegistros');
     alvo.innerHTML = regs.length ? '' :
@@ -1807,14 +1893,18 @@
     }
     if(b.dataset.acao === 'logoProjeto') return abrirFormulario(projetoAtual);
     if(b.dataset.acao === 'renomear') return abrirFormulario(projetoAtual);
+    if(b.dataset.acao === 'verEnvios') return mostrarEnvios();
     if(b.dataset.acao === 'excluirProjeto'){
       await animarExclusao(b);
       const regs = await listarRegistros(projetoAtual.id);
       const ok = await perguntar({titulo:'Excluir projeto', subtitulo:'Esta ação não pode ser desfeita',
-        texto:`O projeto ${projetoAtual.nome} e as ${regs.length} evidência(s) dentro dele serão apagados deste computador.`, botao:'Excluir tudo'});
+        texto:`O projeto <b>${esc(projetoAtual.nome)}</b> e as ${regs.length} evidência(s) dentro dele serão apagados deste computador.<br>As gravações já trazidas para o Print também saem do complemento.`, botao:'Excluir tudo'});
       if(!ok) return;
       for(const r of regs) await apagarRegistro(r.id);
       await apagarProjetoDB(projetoAtual.id);
+      // O registro de envio morre com o projeto: ele e sobre este cliente.
+      for(const e of await listarEnvios(projetoAtual.id).catch(()=>[])) await apagarEnvioDB(e.id);
+      await descartarNaExtensao();
       projetoAtual = null;
       return desenharProjetos();
     }
@@ -2517,6 +2607,15 @@
     passo.dataset.descricaoEstado = 'gerando';
     const tarefa = async () => {
       try{
+        /* Antes de qualquer coisa: este projeto autorizou sair da máquina?
+         * A checagem fica aqui, no único ponto por onde a evidência
+         * atravessa, e não no botão: assim vale também para o caminho
+         * automático que dispara sozinho no fim da gravação. */
+        if(!iaLiberada(projetoAtual)){
+          const e = new Error(MOTIVO_IA_BLOQUEADA);
+          e.bloqueado = true;
+          throw e;
+        }
         const alvo = await resolverPonteIA();
         if(!alvo.info || !alvo.info.cenarios){
           throw new Error('Serviço de descrição indisponível. Abra http://127.0.0.1:8900 ou confira a ponte.');
@@ -2544,6 +2643,7 @@
           tipoTeste: passo.dataset.tipoTeste || document.querySelector('[data-campo="tipo"]')?.value || ''
         });
         const cab = Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho());
+        await registrarEnvio('/descrever', alvo.url, 1, corpo.length);
         let resp = await fetch(alvo.url + '/descrever', {
           method: 'POST', headers: cab, body: corpo,
           signal: AbortSignal.timeout(170000)
@@ -2986,7 +3086,7 @@
   /* Quem registra o xpath, o HTML e o tipo de cada interação é o complemento do
    * navegador, por código: ele vê o DOM de verdade. A entrega é por postMessage
    * na própria página, então não é preciso saber o id do complemento. */
-  function pedirAoNavegador(deTab, msTimeout, marcar, armar, pararTudo){
+  function pedirAoNavegador(deTab, msTimeout, marcar, armar, pararTudo, descartar){
     return new Promise((ok) => {
       const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
       const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
@@ -2999,8 +3099,17 @@
         ok(d);
       }
       window.addEventListener('message', ouvir);
-      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar, pararTudo }, location.origin);
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar, pararTudo, descartar }, location.origin);
     });
+  }
+
+  /* Excluir aqui tem que apagar lá também. A evidência tem duas cópias, e
+   * apagar só a do Print deixava a outra viva no complemento, pronta para
+   * voltar na próxima importação. Silencioso de propósito: sem complemento
+   * instalado não há o que descartar, e isso não é erro. */
+  async function descartarNaExtensao(){
+    try{ await pedirAoNavegador(null, 3000, false, false, false, true); }
+    catch(e){}
   }
 
   let complementoAtivo = false;
@@ -3318,6 +3427,8 @@
   function motivoDescricao(err, msg){
     const status = err && err.status;
     const fim = ' Os prints foram preservados.';
+    // Bloqueio por consentimento não é falha: é o sistema obedecendo.
+    if(err && err.bloqueado) return err.message;
     if(status === 401){
       return ponteToken()
         ? 'O token informado não confere. Corrija no campo "token" da tela inicial e clique em Descrever de novo.' + fim
@@ -4156,6 +4267,12 @@
     const dizer = (txt, ruim) => { if(el){ el.textContent = txt; el.className = 'estado-cenarios' + (ruim ? ' off' : ''); el.hidden = false; } };
     if(!(r.passos || []).length){ dizer('Este registro não tem passos.', true); return; }
 
+    if(!iaLiberada(projetoAtual)){
+      dizer(MOTIVO_IA_BLOQUEADA, true);
+      avisar('Descrição automática desligada neste projeto.');
+      return;
+    }
+
     dizer('Verificando o serviço de cenários...');
     const alvo = await resolverPonteIA();
     const iaLigada = !!(alvo.info && alvo.info.cenarios);
@@ -4179,10 +4296,12 @@
       }));
 
       dizer('Gerando cenários. Pode levar até 90 segundos...');
+      const corpoCenarios = JSON.stringify({ ficha: r.ficha, passos });
+      await registrarEnvio('/cenarios', alvo.url, passos.length, corpoCenarios.length);
       const resp = await fetch(alvo.url + '/cenarios', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho()),
-        body: JSON.stringify({ ficha: r.ficha, passos }),
+        body: corpoCenarios,
         signal: AbortSignal.timeout(120000)
       });
       const dados = await resp.json().catch(() => ({}));

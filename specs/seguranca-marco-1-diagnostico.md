@@ -3,7 +3,7 @@
 Investigação sobre o código em `Pedro-auditeste/Auditeste-Print`, branch `seguranca-print`, base `b1dd4dc`.
 Produção verificada em `https://audiprint.up.railway.app` no dia 21/08/2026.
 
-Este documento é diagnóstico. Nenhum código foi alterado.
+Este documento é diagnóstico. A implementação que saiu dele está no apêndice, no fim.
 
 ---
 
@@ -100,7 +100,7 @@ O campo `valor` é mascarado para `input[type=password]` (`content.js:249`). Nen
 | Storage privado | ⚪ NÃO SE APLICA HOJE | Sem bucket. IndexedDB, `chrome.storage.local`, HTML exportado | Evidência num disco não gerenciado, sem cifra própria | P0 |
 | HTTPS/TLS | ✅ IMPLEMENTADO | `http://` responde 301 para `https://`, TLS da Railway | Falta HSTS. Nenhum header de segurança na resposta | P2 |
 | Cripto em repouso | ⚪ NÃO FOI POSSÍVEL VERIFICAR | Depende do BitLocker do notebook, não do repositório | Pedro precisa conferir se as máquinas dos consultores têm cifra de disco | P1 |
-| Ciclo de vida | 🟡 PARCIAL | `criadoEm` no projeto (`index.html:1566`), `inicio`/`encerrada` na sessão (`background.js:431`) | Registro de evidência não tem data própria nem estado | P1 |
+| Ciclo de vida | 🟡 PARCIAL | `criadoEm` no projeto (`index.html:1566`) e no registro (`index.html:3699`), `inicio`/`encerrada` na sessão (`background.js:431`) | Data existe em toda parte; falta estado e, sobretudo, prazo | P1 |
 | Retenção/exclusão | 🟡 PARCIAL | Exclusão em cascata funciona (`index.html:1816`). Extensão poda em 5 sessões (`background.js:420,437`) | Sem prazo. Sessão antiga sobrevive para sempre se houver menos de 5 depois. Excluir projeto não limpa a extensão. HTML exportado é incontrolável | P1 |
 | Secrets | 🟡 PARCIAL | `.env` e `chave.txt` ignorados e nunca versionados (`git log --all` vazio para os dois) | Chave viva exposta pela ponte aberta (achado P0-1) | P0 |
 | Audit log | 🔴 AUSENTE | Só `console.log` operacional (`servidor.js:312,369`) | Impossível responder quem criou, viu, baixou ou excluiu | P0 |
@@ -182,13 +182,13 @@ Sessão de um cliente sobrevive indefinidamente enquanto não houver 5 mais nova
 
 **Correção:** prazo em dias além da contagem, e excluir projeto deve disparar `AUDI_LIMPAR` para as sessões já importadas.
 
-### P1-3 · Registro de evidência sem data própria nem estado de ciclo de vida
+### P1-3 · Ciclo de vida sem estado, e retenção sem prazo
 
-**Onde:** `criarProjetoDB` grava `criadoEm` (`index.html:1566`). `salvarRegistro` (`index.html:1267`) não grava equivalente.
+**Onde:** projeto e registro já gravam `criadoEm` (`index.html:1566` e `index.html:3699`). A sessão da extensão grava `inicio` e `encerrada` (`background.js:431`).
 
-Sem data no registro, política de retenção não tem em que se apoiar.
+Correção de uma afirmação anterior deste documento: a data existe. O que falta é estado do ciclo de vida e, principalmente, prazo. Data sem prazo não é retenção, é só carimbo.
 
-**Correção:** `criadoEm`, `atualizadoEm` e `estado` no registro, com migração dos existentes na abertura do banco.
+**Correção:** prazo aplicado sobre a data que já existe. Estado no registro pode esperar.
 
 ### P1-4 · Nenhum header de segurança na resposta
 
@@ -448,3 +448,31 @@ Riscos 1 e 2 saem com as etapas 0, 1 e 2 do plano. Custo pequeno, sem banco, sem
 O risco 3 não tem versão pequena. Ele não é um defeito a corrigir, é consequência direta de a evidência não ter servidor. A menor sequência honesta é: fechar as etapas 0 a 3, e então decidir o Caminho A ou B da seção 7 antes de escrever qualquer linha das etapas 4 a 9.
 
 E vale dizer com clareza, porque a Epic não considera esta possibilidade: **o Caminho A é uma resposta legítima.** "A evidência nunca chega ao nosso servidor" é uma boa resposta num questionário de segurança, desde que seja verdade, esteja escrita, e o time pare de tratar Marco 2 e Marco 3 como pendência. O que não se sustenta é ficar no meio: local-first na prática, e SaaS auditável no discurso comercial.
+
+
+---
+
+## Apêndice · O que já foi implementado nesta branch
+
+Commit seguinte ao diagnóstico, ainda em `seguranca-print`. Cobre as etapas 1, 2 e 3 do plano. As etapas 4 a 9 continuam paradas, esperando a decisão Caminho A ou B da seção 7.
+
+| Achado | O que mudou | Onde |
+|---|---|---|
+| P0-2 | Consentimento por projeto. Sem ele, nenhum print sai da máquina | `index.html` `iaLiberada` |
+| P0-2 | Registro local de cada envio: quando, rota, quantos passos, tamanho, destino | `index.html` `registrarEnvio`, botão Envios |
+| P1-1 | `file://` deixou de ser tratado como página do Print | `content.js` `paginaDoPrint` |
+| P1-2 | Retenção de 7 dias na extensão, aplicada em todo caminho de leitura | `background.js` `todas`, `vencida` |
+| P1-2 | Excluir projeto descarta a cópia guardada no complemento | `AUDI_DESCARTAR` |
+| P1-4 | `nosniff`, `Referrer-Policy`, CSP parcial, HSTS só em https | `servidor.js` `cabecalhoSeguro` |
+| P1-6 | Mascaramento por nome do campo, por `autocomplete` e por formato do valor, no valor e no `outerHTML` | `content.js` `campoSensivel`, `htmlSeguro` |
+
+Trava de regressão: `auditeste-a11y/teste-privacidade.js`, 20 casos.
+
+**Etapa 0 continua pendente e é a mais urgente**, porque é a única que fecha um bypass já confirmado em produção. É configuração na Railway, não código:
+
+```
+PONTE_TOKEN=<segredo longo e aleatório>
+PONTE_ORIGENS=https://audiprint.up.railway.app
+```
+
+Depois de definir, o mesmo token vai no campo Token da ponte, dentro do Print. Sem isso, `/descrever`, `/cenarios` e `/scan` seguem abertos para qualquer `curl`.

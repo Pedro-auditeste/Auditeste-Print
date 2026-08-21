@@ -28,8 +28,32 @@ function comLock(tabId, tarefa) {
   return atual;
 }
 
+/* Retencao da evidencia guardada aqui.
+ *
+ * A poda por contagem (SESSOES_GUARDADAS) so roda quando uma aba fecha, e so
+ * conta: uma gravacao de um cliente sobrevivia indefinidamente enquanto nao
+ * aparecessem cinco mais novas depois dela. Prazo em dias resolve o caso que
+ * a contagem nao ve, e a checagem mora no todas() de proposito: passa por ela
+ * TODO caminho de leitura, entao sessao vencida nao volta por nenhuma porta.
+ *
+ * Gravacao em andamento nunca vence: o prazo conta do fim, nao do inicio. */
+const DIAS_GUARDADOS = 7;
+const PRAZO_MS = DIAS_GUARDADOS * 24 * 60 * 60 * 1000;
+
+function vencida(s, agora) {
+  if (!s || s.ativa) return false;
+  const fim = Date.parse(s.encerrada || s.inicio || '');
+  return Number.isFinite(fim) && agora - fim > PRAZO_MS;
+}
+
 async function todas() {
-  return (await chrome.storage.local.get(CHAVE))[CHAVE] || {};
+  const sessoes = (await chrome.storage.local.get(CHAVE))[CHAVE] || {};
+  const agora = Date.now();
+  const velhas = Object.keys(sessoes).filter((id) => vencida(sessoes[id], agora));
+  if (!velhas.length) return sessoes;
+  for (const id of velhas) delete sessoes[id];
+  await chrome.storage.local.set({ [CHAVE]: sessoes });
+  return sessoes;
 }
 
 async function obter(tabId) {
@@ -292,6 +316,24 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         avisarAba(Number(id), false);
       }
       return { ok: true };
+    }
+
+    /* Excluir o projeto no Print tem que alcancar a copia guardada aqui.
+     * Sem isto a evidencia continuava viva na extensao depois de o QA achar
+     * que tinha apagado tudo, e voltava na proxima importacao.
+     *
+     * So o que ja foi trazido para o Print, e nunca uma gravacao em
+     * andamento: apagar o que esta sendo gravado agora seria perder trabalho. */
+    if (msg.tipo === 'AUDI_DESCARTAR') {
+      const sessoes = await todas();
+      let apagadas = 0;
+      for (const [id, s] of Object.entries(sessoes)) {
+        if (!s || s.ativa || !s.importada) continue;
+        delete sessoes[id];
+        apagadas++;
+      }
+      if (apagadas) await chrome.storage.local.set({ [CHAVE]: sessoes });
+      return { ok: true, apagadas };
     }
 
     /* Armar: a proxima aba de site que voce focar vira a sessao gravando. */
