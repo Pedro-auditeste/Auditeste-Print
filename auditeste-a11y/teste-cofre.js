@@ -414,6 +414,229 @@ async function principal() {
     assert.ok(!/senha|password|base64/i.test(tudo), 'conteúdo sensível foi parar no log');
   });
 
+  console.log('\ncofre · cadastro e equipes\n');
+
+  const google = navegador();
+  const amazon = navegador();
+  let googleTenant = null;
+
+  await caso('cadastro sem convite cria uma EQUIPE NOVA', async () => {
+    const r = await google.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'qa@google.com', senha: 'senha-do-google-1', equipe: 'Google'
+    }});
+    assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
+    assert.strictEqual(r.corpo.sessao.tenantNome, 'Google');
+    assert.strictEqual(r.corpo.sessao.papel, 'admin', 'quem cria a equipe e o admin dela');
+    googleTenant = r.corpo.sessao.tenantId;
+  });
+
+  await caso('a equipe nova nasce vazia, sem enxergar nada de ninguem', async () => {
+    const r = await google.pedir('/api/projetos');
+    assert.deepStrictEqual(r.corpo.projetos, [], 'equipe nova ja veio com projeto de outro');
+  });
+
+  await caso('cadastro exige senha de tamanho minimo', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'curta@teste.com', senha: '123', equipe: 'X'
+    }});
+    assert.strictEqual(r.status, 400);
+  });
+
+  await caso('cadastro exige e-mail plausivel', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'nao-e-email', senha: 'senha-bem-longa-x', equipe: 'X'
+    }});
+    assert.strictEqual(r.status, 400);
+  });
+
+  await caso('cadastro sem convite exige o nome da equipe', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'semequipe@teste.com', senha: 'senha-bem-longa-x'
+    }});
+    assert.strictEqual(r.status, 400);
+  });
+
+  await caso('e-mail repetido nao cria segunda conta', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'qa@google.com', senha: 'outra-senha-longa', equipe: 'Google Falso'
+    }});
+    assert.strictEqual(r.status, 409);
+  });
+
+  await caso('CRITERIO: digitar o nome da outra equipe nao entra nela', async () => {
+    const r = await amazon.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'qa@amazon.com', senha: 'senha-da-amazon-1', equipe: 'Google'
+    }});
+    assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
+    assert.notStrictEqual(r.corpo.sessao.tenantId, googleTenant,
+      'cadastrar com o nome "Google" caiu dentro da equipe Google');
+    assert.strictEqual(r.corpo.sessao.papel, 'admin');
+  });
+
+  let projetoDoGoogle = null;
+
+  await caso('CRITERIO: Amazon nao ve o projeto do Google', async () => {
+    const criado = await google.pedir('/api/projetos', { method: 'POST', json: { nome: 'Busca interna' } });
+    assert.strictEqual(criado.status, 201, JSON.stringify(criado.corpo));
+    projetoDoGoogle = criado.corpo.projeto.id;
+
+    const lista = await amazon.pedir('/api/projetos');
+    assert.deepStrictEqual(lista.corpo.projetos, [], 'a Amazon enxergou projeto do Google');
+
+    const execs = await amazon.pedir('/api/execucoes?projeto=' + projetoDoGoogle);
+    assert.deepStrictEqual(execs.corpo.execucoes, [],
+      'sabendo o id do projeto, a Amazon leu as execucoes do Google');
+
+    const apagar = await amazon.pedir('/api/projetos/' + projetoDoGoogle, { method: 'DELETE' });
+    assert.strictEqual(apagar.status, 404, 'a Amazon conseguiu apagar projeto do Google');
+  });
+
+  await caso('nem a auditoria do Google aparece para a Amazon', async () => {
+    const r = await amazon.pedir('/api/auditoria?limite=500');
+    assert.strictEqual(r.status, 200);
+    const vazou = r.corpo.eventos.filter(e => /google/i.test(e.email || '') || /google/i.test(e.recurso || ''));
+    assert.deepStrictEqual(vazou, [], 'auditoria do Google apareceu para a Amazon');
+  });
+
+  console.log('\ncofre · convites\n');
+
+  let codigo = null;
+
+  await caso('gestor gera convite e o codigo aparece uma vez', async () => {
+    const r = await google.pedir('/api/convites', { method: 'POST', json: { papel: 'consultor', dias: 7 } });
+    assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
+    assert.ok(r.corpo.codigo && r.corpo.codigo.length > 20, 'codigo fraco ou ausente');
+    codigo = r.corpo.codigo;
+
+    const lista = await google.pedir('/api/convites');
+    assert.ok(lista.corpo.convites.length >= 1);
+    const cru = JSON.stringify(lista.corpo.convites);
+    assert.ok(!cru.includes(codigo), 'a listagem devolveu o codigo em texto: o banco so deveria ter o hash');
+  });
+
+  await caso('ninguem convida para um papel acima do proprio', async () => {
+    const conv = navegador();
+    await conv.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'chefe@google.com', senha: 'senha-bem-longa-z', convite: codigo
+    }});
+    // Entrou como consultor: nao pode nem convidar.
+    const r = await conv.pedir('/api/convites', { method: 'POST', json: { papel: 'admin' } });
+    assert.strictEqual(r.status, 403);
+  });
+
+  await caso('CRITERIO: com convite, a pessoa entra na equipe do convite', async () => {
+    const nova = await google.pedir('/api/convites', { method: 'POST', json: { papel: 'consultor' } });
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'dev@google.com', senha: 'senha-bem-longa-y', convite: nova.corpo.codigo
+    }});
+    assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
+    assert.strictEqual(r.corpo.sessao.tenantId, googleTenant, 'nao caiu na equipe do convite');
+    assert.strictEqual(r.corpo.sessao.papel, 'consultor', 'o papel do convite nao foi respeitado');
+
+    const projetos = await n.pedir('/api/projetos');
+    assert.strictEqual(projetos.corpo.projetos.length, 1, 'nao enxergou o projeto da propria equipe');
+  });
+
+  await caso('convite serve uma vez so', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'atrasado@google.com', senha: 'senha-bem-longa-w', convite: codigo
+    }});
+    assert.strictEqual(r.status, 400, 'o mesmo convite entrou duas vezes');
+  });
+
+  await caso('convite inventado nao entra em equipe nenhuma', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'chute@teste.com', senha: 'senha-bem-longa-v', convite: 'codigo-que-eu-inventei-agora'
+    }});
+    assert.strictEqual(r.status, 400);
+  });
+
+  await caso('convite vencido nao vale', async () => {
+    const r = await google.pedir('/api/convites', { method: 'POST', json: { papel: 'leitor' } });
+    const conexao = new (require('node:sqlite').DatabaseSync)(ARQUIVO);
+    conexao.prepare('UPDATE convites SET expira_em = ? WHERE usado_em IS NULL')
+      .run(Date.now() - 1000);
+    conexao.close();
+
+    const n = navegador();
+    const tentativa = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'tarde@google.com', senha: 'senha-bem-longa-u', convite: r.corpo.codigo
+    }});
+    assert.strictEqual(tentativa.status, 400);
+  });
+
+  await caso('criar equipe nova tem teto por origem, entrar por convite nao', async () => {
+    const api = require('./cofre/api.js');
+    const contas2 = require('./cofre/contas.js');
+    let travou = false;
+    for (let i = 0; i < contas2.MAX_EQUIPES_POR_IP + 4; i++) {
+      const n = navegador();
+      const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+        email: 'lote' + i + '@teste.com', senha: 'senha-bem-longa-lote', equipe: 'Equipe ' + i
+      }});
+      if (r.status === 429) { travou = true; break; }
+    }
+    assert.ok(travou, 'da para criar equipe sem limite nenhum a partir da mesma origem');
+
+    /* Com o IP ja travado, o convite tem que continuar funcionando: e o caso
+     * do escritorio inteiro atras de um NAT so. */
+    const conv = await google.pedir('/api/convites', { method: 'POST', json: { papel: 'leitor' } });
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'convidado-tarde@google.com', senha: 'senha-bem-longa-t', convite: conv.corpo.codigo
+    }});
+    assert.strictEqual(r.status, 201,
+      'o freio de equipe nova bloqueou quem chegou com convite valido');
+    assert.ok(api.TETO_JANELA > 0);
+  });
+
+  console.log('\ncofre · trocar de equipe\n');
+
+  await caso('quem esta em duas equipes troca entre elas', async () => {
+    // A Amazon convida alguem do Google: agora essa pessoa esta nas duas.
+    const conviteAmazon = await amazon.pedir('/api/convites', { method: 'POST', json: { papel: 'leitor' } });
+    const conexao = new (require('node:sqlite').DatabaseSync)(ARQUIVO);
+    const dupla = conexao.prepare('SELECT id FROM usuarios WHERE email = ?').get('dev@google.com');
+    conexao.close();
+    assert.ok(dupla, 'usuario de teste sumiu');
+
+    const n = navegador();
+    let r = await n.pedir('/api/entrar', { method: 'POST', json: { email: 'dev@google.com', senha: 'senha-bem-longa-y' } });
+    assert.strictEqual(r.status, 200);
+    const amazonId = (await amazon.pedir('/api/eu')).corpo.tenantId;
+
+    // Sem vinculo ainda: trocar tem que ser recusado.
+    r = await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: amazonId } });
+    assert.strictEqual(r.status, 403, 'trocou para uma equipe da qual nao faz parte');
+
+    // Aceita o convite pela rota de vinculo do proprio cadastro nao serve
+    // (a conta ja existe), entao vincula direto, como faria o admin.
+    const conexao2 = new (require('node:sqlite').DatabaseSync)(ARQUIVO);
+    conexao2.prepare('INSERT INTO memberships (id, tenant_id, usuario_id, papel) VALUES (?,?,?,?)')
+      .run('m-teste-dupla', amazonId, dupla.id, 'leitor');
+    conexao2.close();
+
+    r = await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: amazonId } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
+    assert.strictEqual(r.corpo.sessao.papel, 'leitor', 'levou o papel da equipe errada');
+
+    const eu = await n.pedir('/api/eu');
+    assert.strictEqual(eu.corpo.tenantId, amazonId);
+    assert.strictEqual(eu.corpo.equipes.length, 2, '/api/eu deveria listar as duas equipes');
+
+    const projetos = await n.pedir('/api/projetos');
+    assert.deepStrictEqual(projetos.corpo.projetos, [],
+      'depois de trocar de equipe continuou vendo o projeto da anterior');
+    assert.ok(conviteAmazon.corpo.codigo);
+  });
+
   console.log('\ncofre · teto de uso e provisionamento\n');
 
   await caso('sessao que martela demais leva 429', async () => {

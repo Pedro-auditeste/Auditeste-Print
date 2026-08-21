@@ -42,6 +42,15 @@
   th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--linha);vertical-align:top;}
   th{color:var(--suave);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;}
   .rolar{overflow-x:auto;}
+  .abas{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--linha);}
+  .abas button{flex:1;background:none;border:none;border-bottom:2px solid transparent;
+    padding:10px 6px;font:inherit;font-weight:700;font-size:.9rem;color:var(--suave);cursor:pointer;}
+  .abas button[aria-selected=true]{color:var(--navy);border-bottom-color:var(--navy);}
+  .dica{color:var(--suave);font-size:.82rem;line-height:1.45;margin:0 0 14px;}
+  .codigo{font-family:ui-monospace,Consolas,monospace;font-size:.9rem;background:var(--claro);
+    border:1px solid var(--linha);border-radius:8px;padding:10px;word-break:break-all;margin-top:8px;}
+  select{padding:6px 8px;border:1px solid var(--linha);border-radius:8px;font:inherit;background:#fff;}
+  @media (prefers-color-scheme: dark){ select{background:#1a1f27;color:var(--texto);} .abas button[aria-selected=true]{color:var(--texto);border-bottom-color:var(--texto);} }
   .vazio{color:var(--suave);padding:18px;text-align:center;}
   a{color:var(--azul);}
   @media (prefers-color-scheme: dark){
@@ -61,12 +70,30 @@
   <div id="aviso"></div>
 
   <section id="telaEntrar" class="cartao entrada" hidden>
-    <h2>Entrar</h2>
-    <p class="meta">Use a conta do seu cliente. Não há cadastro aberto: contas são criadas pela administração.</p>
-    <form id="formEntrar" style="margin-top:14px">
+    <div class="abas" role="tablist">
+      <button role="tab" id="abaEntrar" aria-selected="true" aria-controls="painelEntrar">Entrar</button>
+      <button role="tab" id="abaCriar" aria-selected="false" aria-controls="painelCriar">Criar conta</button>
+    </div>
+
+    <form id="painelEntrar" role="tabpanel">
       <label><span>E-mail</span><input type="email" id="email" autocomplete="username" required></label>
       <label><span>Senha</span><input type="password" id="senha" autocomplete="current-password" required></label>
       <button class="btn primario" type="submit" id="btnEntrar" style="width:100%">Entrar</button>
+    </form>
+
+    <form id="painelCriar" role="tabpanel" hidden>
+      <p class="dica" id="dicaCriar">
+        Sem convite, você cria uma <b>equipe nova</b> e vira administrador dela.
+        Cada equipe só enxerga os próprios projetos.
+        Para entrar numa equipe que já existe, cole o convite que alguém dela gerou.
+      </p>
+      <label><span>E-mail</span><input type="email" id="novoEmail" autocomplete="username" required></label>
+      <label><span>Senha</span><input type="password" id="novaSenha" autocomplete="new-password" required></label>
+      <label id="campoEquipe"><span>Nome da equipe</span>
+        <input type="text" id="novaEquipe" placeholder="Ex.: Amazon" autocomplete="organization"></label>
+      <label><span>Convite (opcional)</span>
+        <input type="text" id="novoConvite" placeholder="Cole aqui se recebeu um" autocomplete="off"></label>
+      <button class="btn primario" type="submit" id="btnCriar" style="width:100%">Criar conta</button>
     </form>
   </section>
 
@@ -77,6 +104,7 @@
           <h2>Projetos</h2>
           <div class="meta" id="metaTenant"></div>
         </div>
+        <button class="btn" id="btnConvidar" hidden>Convidar</button>
         <button class="btn" id="btnAuditoria" hidden>Auditoria</button>
       </div>
       <form id="formProjeto" class="linha" style="margin-top:14px">
@@ -171,17 +199,59 @@
       return false;
     }
     eu = r;
-    $('quem').innerHTML = esc(r.email) + ' · <b>' + esc(r.tenantNome) + '</b> · ' + esc(r.papel)
+    const equipes = r.equipes || [];
+    /* Seletor so quando ha mais de uma: com uma equipe so, um select de uma
+     * opcao e ruido que sugere escolha onde nao ha. */
+    const troca = equipes.length > 1
+      ? '<select id="selEquipe" aria-label="Equipe">'
+        + equipes.map(t => '<option value="' + esc(t.id) + '"'
+          + (t.id === r.tenantId ? ' selected' : '') + '>' + esc(t.nome) + '</option>').join('')
+        + '</select>'
+      : '<b>' + esc(r.tenantNome) + '</b>';
+
+    $('quem').innerHTML = esc(r.email) + ' · ' + troca + ' · ' + esc(r.papel)
       + ' <button class="btn" id="btnSair" style="padding:4px 10px">Sair</button>'
       + ' <a href="/" style="color:#cfe0f3">Print</a>';
+
     $('btnSair').addEventListener('click', async () => {
       await api('/api/sair', { method:'POST' });
       location.reload();
     });
+    const sel = $('selEquipe');
+    if(sel) sel.addEventListener('change', async () => {
+      try{
+        await api('/api/trocar-equipe', { json: { tenantId: sel.value } });
+        location.reload();
+      }catch(err){ avisar(err.message, true); }
+    });
     return true;
   }
 
-  $('formEntrar').addEventListener('submit', async e => {
+  function abrir(qualAba){
+    const entrar = qualAba === 'entrar';
+    $('abaEntrar').setAttribute('aria-selected', String(entrar));
+    $('abaCriar').setAttribute('aria-selected', String(!entrar));
+    $('painelEntrar').hidden = !entrar;
+    $('painelCriar').hidden = entrar;
+    avisar('');
+  }
+  $('abaEntrar').addEventListener('click', () => abrir('entrar'));
+  $('abaCriar').addEventListener('click', () => abrir('criar'));
+
+  /* Com convite, o nome da equipe nao e escolha de quem entra: ele vem do
+   * convite. Deixar o campo aberto sugeriria que da para digitar "Amazon" e
+   * cair la dentro, que e justamente o que nao pode acontecer. */
+  $('novoConvite').addEventListener('input', () => {
+    const temConvite = !!$('novoConvite').value.trim();
+    $('campoEquipe').hidden = temConvite;
+    $('dicaCriar').innerHTML = temConvite
+      ? 'Voce vai entrar na equipe do convite, com o papel que ele define. O convite vale uma vez so.'
+      : 'Sem convite, voce cria uma <b>equipe nova</b> e vira administrador dela. '
+        + 'Cada equipe so enxerga os proprios projetos. '
+        + 'Para entrar numa equipe que ja existe, cole o convite que alguem dela gerou.';
+  });
+
+  $('painelEntrar').addEventListener('submit', async e => {
     e.preventDefault();
     $('btnEntrar').disabled = true;
     try{
@@ -196,6 +266,32 @@
     }
   });
 
+  $('painelCriar').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('btnCriar').disabled = true;
+    try{
+      await api('/api/cadastrar', { json: {
+        email: $('novoEmail').value.trim(),
+        senha: $('novaSenha').value,
+        equipe: $('novaEquipe').value.trim(),
+        convite: $('novoConvite').value.trim()
+      }});
+      $('novaSenha').value = '';
+      await conferirSessao();
+      await abrirProjetos();
+      avisar('Conta criada.');
+    }catch(err){
+      avisar(err.message, true);
+      // Ja tem conta: leva para a aba certa em vez de deixar a pessoa presa.
+      if(err.status === 409){
+        $('email').value = $('novoEmail').value.trim();
+        abrir('entrar');
+      }
+    }finally{
+      $('btnCriar').disabled = false;
+    }
+  });
+
   /* ---------- projetos ---------- */
 
   async function abrirProjetos(){
@@ -203,6 +299,7 @@
     $('metaTenant').textContent = 'Evidências deste cliente são apagadas automaticamente após '
       + eu.retencaoDias + ' dias.';
     $('btnAuditoria').hidden = !pode('gestor');
+    $('btnConvidar').hidden = !pode('gestor');
 
     const { projetos } = await api('/api/projetos');
     const alvo = $('listaProjetos');
@@ -320,11 +417,32 @@
 
   $('btnVoltarAuditoria').addEventListener('click', abrirProjetos);
 
+  $('btnConvidar').addEventListener('click', async () => {
+    const papel = prompt('Convidar para a equipe ' + eu.tenantNome + ' com qual papel?'
+      + String.fromCharCode(10) + String.fromCharCode(10)
+      + 'leitor, consultor, gestor ou admin', 'consultor');
+    if(!papel) return;
+    try{
+      const r = await api('/api/convites', { json: { papel: papel.trim().toLowerCase(), dias: 7 } });
+      /* O codigo aparece uma vez so, entao fica na tela ate a pessoa sair da
+       * pagina, e nao some sozinho como os outros avisos. */
+      $('aviso').innerHTML = '<div class="aviso bom">Convite de <b>' + esc(r.papel)
+        + '</b> criado. Vale 7 dias e serve uma vez so. Copie agora, ele nao aparece de novo:'
+        + '<div class="codigo">' + esc(r.codigo) + '</div></div>';
+    }catch(err){ avisar(err.message, true); }
+  });
+
   /* ---------- entrada ---------- */
 
   (async () => {
     try{
-      if(await conferirSessao()) await abrirProjetos();
+      if(await conferirSessao()){ await abrirProjetos(); return; }
+      const cfg = await api('/api/cadastro').catch(()=>({ aberto:true }));
+      if(!cfg.aberto){
+        $('abaCriar').textContent = 'Tenho um convite';
+        $('campoEquipe').hidden = true;
+        $('dicaCriar').textContent = 'So se entra por convite. Peca a quem ja usa o sistema.';
+      }
     }catch(err){
       avisar(err.status === 503
         ? err.message

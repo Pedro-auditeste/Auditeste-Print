@@ -140,6 +140,131 @@ function entrar(req, email, senha, tenantPedido) {
   };
 }
 
+/* ---------- cadastro ---------- */
+
+const SENHA_MINIMA = 10;
+const CADASTRO_ABERTO = String(process.env.COFRE_CADASTRO || 'aberto').toLowerCase() !== 'fechado';
+const MAX_EQUIPES_POR_IP = Number(process.env.COFRE_MAX_EQUIPES_IP) || 5;
+
+const novoCodigo = () => crypto.randomBytes(18).toString('base64url');
+
+/* Criar conta.
+ *
+ * Duas portas, e a diferenca entre elas e o coracao do isolamento:
+ *
+ *   sem convite  -> nasce uma EQUIPE NOVA, e a pessoa vira admin dela. Nao
+ *                   ha como escolher entrar numa equipe existente digitando
+ *                   o nome: se houvesse, "cadastrar" seria o caminho para
+ *                   ver a evidencia de outro cliente, que e o furo que o
+ *                   tenant existe para fechar;
+ *   com convite  -> entra na equipe do convite, com o papel que o convite
+ *                   define, e o codigo queima no uso.
+ *
+ * Ou seja: ninguem entra na equipe da Amazon sem alguem da Amazon convidar. */
+function cadastrar(req, dados) {
+  const email = String(dados.email || '').trim().toLowerCase();
+  const senha = String(dados.senha || '');
+  const codigo = String(dados.convite || '').trim();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const e = new Error('Informe um e-mail válido.');
+    e.status = 400;
+    throw e;
+  }
+  if (senha.length < SENHA_MINIMA) {
+    const e = new Error('A senha precisa de pelo menos ' + SENHA_MINIMA + ' caracteres.');
+    e.status = 400;
+    throw e;
+  }
+
+  /* Freio por origem, e SO para quem cria equipe nova.
+   *
+   * A primeira versao contava todo cadastro, inclusive os com convite, e o
+   * teste mostrou o efeito: um escritorio inteiro atras de um IP so travava
+   * na sexta pessoa a entrar. Quem chega com convite ja passou pelo portao
+   * de verdade, que e um codigo de uso unico gerado por alguem de dentro.
+   * O que precisa de freio e a porta aberta: criar equipe sem nada. */
+  const chaveIp = 'cadastro:' + ipDe(req);
+
+  let convite = null;
+  if (codigo) {
+    convite = banco.convitePorHash(hashToken(codigo));
+    if (!convite) {
+      const e = new Error('Convite inválido, já usado ou vencido.');
+      e.status = 400;
+      throw e;
+    }
+  } else {
+    if (banco.tentativasDe(chaveIp) >= MAX_EQUIPES_POR_IP) {
+      const e = new Error('Muitas equipes criadas daqui. Tente de novo mais tarde.');
+      e.status = 429;
+      throw e;
+    }
+    if (!CADASTRO_ABERTO) {
+      const e = new Error('Cadastro aberto está desligado. Peça um convite a quem já usa o sistema.');
+      e.status = 403;
+      throw e;
+    }
+    if (!String(dados.equipe || '').trim()) {
+      const e = new Error('Informe o nome da equipe.');
+      e.status = 400;
+      throw e;
+    }
+  }
+
+  /* E-mail repetido responde igual a qualquer outro erro de cadastro? Nao:
+   * aqui a pessoa PRECISA saber que ja tem conta, senao fica travada sem
+   * entender. O que existe de verdade a proteger e a senha, nao a lista de
+   * quem se cadastrou num sistema em que qualquer um pode se cadastrar. */
+  if (banco.usuarioPorEmail(email)) {
+    if (!convite) banco.tentativaFalhou(chaveIp, JANELA_TENTATIVAS_MS);
+    const e = new Error('Já existe uma conta com este e-mail. Use Entrar.');
+    e.status = 409;
+    throw e;
+  }
+
+  const r = banco.cadastrar({
+    email, senhaHash: hashSenha(senha),
+    equipe: String(dados.equipe || '').trim(), convite
+  });
+
+  if (!convite) banco.tentativaFalhou(chaveIp, JANELA_TENTATIVAS_MS);
+  banco.auditar(r.tenantId, r.usuario.id,
+    convite ? 'conta.criada_por_convite' : 'equipe.criada',
+    email + ' como ' + r.papel, ipDe(req));
+
+  const token = novoToken();
+  banco.criarSessao(hashToken(token), r.usuario.id, r.tenantId, DURACAO_MS);
+  return {
+    token,
+    cookie: cookieSessao(req, token, DURACAO_MS),
+    sessao: {
+      email, tenantId: r.tenantId, tenantNome: r.tenantNome, papel: r.papel,
+      clientes: [{ id: r.tenantId, nome: r.tenantNome }]
+    }
+  };
+}
+
+/* Trocar de equipe sem sair e entrar de novo. So faz sentido depois dos
+ * convites: antes disso ninguem pertencia a duas. */
+function trocarEquipe(req, sessaoAtual, tenantId) {
+  const v = banco.vinculo(tenantId, sessaoAtual.usuarioId);
+  if (!v) {
+    const e = new Error('Você não faz parte desta equipe.');
+    e.status = 403;
+    throw e;
+  }
+  banco.revogarSessao(sessaoAtual.tokenHash);
+  const token = novoToken();
+  banco.criarSessao(hashToken(token), sessaoAtual.usuarioId, tenantId, DURACAO_MS);
+  const t = banco.obterTenant(tenantId);
+  banco.auditar(tenantId, sessaoAtual.usuarioId, 'equipe.trocada', t ? t.nome : tenantId, ipDe(req));
+  return {
+    cookie: cookieSessao(req, token, DURACAO_MS),
+    sessao: { tenantId, tenantNome: t ? t.nome : '', papel: v.papel }
+  };
+}
+
 function sair(req) {
   const token = lerCookie(req, COOKIE);
   if (token) {
@@ -196,7 +321,8 @@ function podeOuErro(sessao, papelMinimo) {
 const HASH_ISCA = hashSenha(crypto.randomBytes(32).toString('hex'));
 
 module.exports = {
-  hashSenha, conferirSenha, entrar, sair, sessaoDe, podeOuErro,
+  hashSenha, conferirSenha, entrar, cadastrar, trocarEquipe, sair, sessaoDe, podeOuErro,
+  novoCodigo, SENHA_MINIMA, CADASTRO_ABERTO, MAX_EQUIPES_POR_IP,
   lerCookie, cookieLimpo, ipDe, hashToken, novoToken,
   COOKIE, DURACAO_MS, MAX_TENTATIVAS, PAPEIS
 };

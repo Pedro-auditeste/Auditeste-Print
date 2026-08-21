@@ -98,6 +98,39 @@ const PIXEL_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
     await pagina.waitForSelector('#telaEntrar:not([hidden])', { timeout: 10000 });
   });
 
+  await caso('a aba Criar conta abre e pede o nome da equipe', async () => {
+    await pagina.click('#abaCriar');
+    await pagina.waitForSelector('#painelCriar:not([hidden])', { timeout: 10000 });
+    const equipeVisivel = await pagina.$eval('#campoEquipe', el => !el.hidden);
+    if (!equipeVisivel) throw new Error('sem convite, o nome da equipe tem que ser pedido');
+  });
+
+  await caso('colar um convite esconde o campo de equipe', async () => {
+    await pagina.type('#novoConvite', 'qualquer-coisa');
+    await pagina.waitForFunction(
+      () => document.getElementById('campoEquipe').hidden, { timeout: 10000 });
+    await pagina.$eval('#novoConvite', el => { el.value = ''; });
+    await pagina.$eval('#novoConvite', el => el.dispatchEvent(new Event('input')));
+  });
+
+  await caso('criar conta pela tela cria uma equipe nova', async () => {
+    await pagina.type('#novoEmail', 'time@amazon.com');
+    await pagina.type('#novaSenha', 'senha-bem-longa-am');
+    await pagina.type('#novaEquipe', 'Amazon');
+    await pagina.click('#btnCriar');
+    await pagina.waitForSelector('#telaProjetos:not([hidden])', { timeout: 15000 });
+    const quem = await pagina.$eval('#quem', el => el.textContent);
+    if (!/Amazon/.test(quem)) throw new Error('cabecalho sem a equipe nova: ' + quem);
+    if (!/admin/.test(quem)) throw new Error('quem cria a equipe deveria ser admin: ' + quem);
+    const projetos = await pagina.$$eval('[data-projeto]', els => els.length);
+    if (projetos !== 0) throw new Error('equipe nova ja nasceu com projeto: ' + projetos);
+  });
+
+  await caso('sair da equipe nova e voltar para a tela de entrada', async () => {
+    await pagina.click('#btnSair');
+    await pagina.waitForSelector('#telaEntrar:not([hidden])', { timeout: 15000 });
+  });
+
   await caso('senha errada mostra o aviso, nao entra', async () => {
     await pagina.type('#email', 'qa@auditeste.com');
     await pagina.type('#senha', 'errada');

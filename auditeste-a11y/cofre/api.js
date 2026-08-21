@@ -139,6 +139,58 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
+    if (p === '/api/cadastrar' && req.method === 'POST') {
+      const c = await lerCorpo(req);
+      const r = contas.cadastrar(req, c);
+      json(res, 201, { ok: true, sessao: r.sessao }, { 'Set-Cookie': r.cookie });
+      return true;
+    }
+
+    /* O que a tela de entrada precisa saber antes de desenhar as abas. */
+    if (p === '/api/cadastro') {
+      json(res, 200, { aberto: contas.CADASTRO_ABERTO, senhaMinima: contas.SENHA_MINIMA });
+      return true;
+    }
+
+    if (p === '/api/trocar-equipe' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      const c = await lerCorpo(req);
+      const r = contas.trocarEquipe(req, s, String(c.tenantId || ''));
+      json(res, 200, { ok: true, sessao: r.sessao }, { 'Set-Cookie': r.cookie });
+      return true;
+    }
+
+    /* ---------- convites ---------- */
+
+    if (p === '/api/convites' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'gestor');
+      const c = await lerCorpo(req);
+      const papel = ['leitor', 'consultor', 'gestor', 'admin'].includes(c.papel) ? c.papel : 'consultor';
+      /* Ninguem convida para um papel acima do seu: senao "gestor" seria so
+       * o caminho mais longo para virar admin. */
+      if (contas.PAPEIS[papel] > contas.PAPEIS[s.papel]) {
+        json(res, 403, { erro: 'Você não pode convidar para um papel acima do seu.' });
+        return true;
+      }
+      const codigo = contas.novoCodigo();
+      banco.criarConvite(s.tenantId, s.usuarioId, papel, contas.hashToken(codigo), c.dias);
+      banco.auditar(s.tenantId, s.usuarioId, 'convite.criado', 'papel ' + papel, s.ip);
+      /* O codigo aparece uma vez. Depois disso so existe o hash. */
+      json(res, 201, { codigo, papel });
+      return true;
+    }
+
+    if (p === '/api/convites' && req.method === 'GET') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'gestor');
+      const lista = banco.listarConvites(s.tenantId)
+        .map(c => ({ papel: c.papel, criado_em: c.criado_em, expira_em: c.expira_em,
+          usado_em: c.usado_em, usado_por_email: c.usado_por_email }));
+      json(res, 200, { convites: lista });
+      return true;
+    }
+
     if (p === '/api/sair' && req.method === 'POST') {
       json(res, 200, { ok: true }, { 'Set-Cookie': contas.sair(req) });
       return true;
@@ -149,7 +201,9 @@ async function tratar(req, res, u, lerCorpo) {
       if (!s) { json(res, 200, { autenticado: false }); return true; }
       json(res, 200, {
         autenticado: true, email: s.email, papel: s.papel,
-        tenantId: s.tenantId, tenantNome: s.tenantNome, retencaoDias: s.retencaoDias
+        tenantId: s.tenantId, tenantNome: s.tenantNome, retencaoDias: s.retencaoDias,
+        equipes: banco.vinculosDoUsuario(s.usuarioId)
+          .map(v => ({ id: v.tenant_id, nome: v.tenant_nome, papel: v.papel }))
       });
       return true;
     }

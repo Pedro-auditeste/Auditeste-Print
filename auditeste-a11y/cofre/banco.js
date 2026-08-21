@@ -111,6 +111,17 @@ CREATE TABLE IF NOT EXISTS auditoria (
   quando INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS convites (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  papel TEXT NOT NULL,
+  criado_por TEXT NOT NULL,
+  criado_em INTEGER NOT NULL,
+  expira_em INTEGER NOT NULL,
+  usado_em INTEGER,
+  usado_por TEXT
+);
+
 CREATE TABLE IF NOT EXISTS tentativas (
   chave TEXT PRIMARY KEY,
   contagem INTEGER NOT NULL,
@@ -124,6 +135,7 @@ CREATE INDEX IF NOT EXISTS ix_evid_tenant ON evidencias(tenant_id, execucao_id);
 CREATE INDEX IF NOT EXISTS ix_evid_expira ON evidencias(expira_em);
 CREATE INDEX IF NOT EXISTS ix_obj_evid ON objetos(tenant_id, evidencia_id);
 CREATE INDEX IF NOT EXISTS ix_audit ON auditoria(tenant_id, quando);
+CREATE INDEX IF NOT EXISTS ix_convite_tenant ON convites(tenant_id);
 `;
 
 let db = null;
@@ -241,6 +253,89 @@ const vinculosDoUsuario = usuarioId => (exigir(), db.prepare(
 
 const vinculo = (tenantId, usuarioId) => (exigirTenant(tenantId), exigir(), db.prepare(
   'SELECT * FROM memberships WHERE tenant_id = ? AND usuario_id = ?').get(tenantId, usuarioId) || null);
+
+/* ---------- convites ---------- */
+
+/* Entrar numa equipe que ja existe precisa de convite, e nao de digitar o
+ * nome dela: sem isto, "cadastrar" viraria porta para escolher de qual
+ * cliente se quer ver a evidencia, que e exatamente o furo que o tenant
+ * existe para fechar.
+ *
+ * O banco guarda so o hash do codigo, como faz com a sessao: uma copia do
+ * banco nao pode entregar convite valido de ninguem. */
+function criarConvite(tenantId, usuarioId, papel, hashCodigo, dias) {
+  exigirTenant(tenantId);
+  exigir();
+  const c = {
+    id: hashCodigo, tenant_id: tenantId, papel: papel || 'consultor',
+    criado_por: usuarioId, criado_em: agora(),
+    expira_em: agora() + (Number(dias) || 7) * 86400000
+  };
+  db.prepare(`INSERT INTO convites (id, tenant_id, papel, criado_por, criado_em, expira_em)
+              VALUES (?,?,?,?,?,?)`)
+    .run(c.id, c.tenant_id, c.papel, c.criado_por, c.criado_em, c.expira_em);
+  return c;
+}
+
+/* Sem tenant de proposito: quem chega com um convite ainda nao pertence a
+ * equipe nenhuma, entao aqui o proprio codigo e a credencial. E o unico
+ * ponto do arquivo que consulta sem tenant, e por isso ele so aceita busca
+ * pelo hash, nunca listagem. */
+const convitePorHash = h => (exigir(), db.prepare(
+  `SELECT c.*, t.nome AS tenant_nome FROM convites c JOIN tenants t ON t.id = c.tenant_id
+    WHERE c.id = ? AND c.usado_em IS NULL AND c.expira_em > ?`).get(h, agora()) || null);
+
+function marcarConviteUsado(h, usuarioId) {
+  exigir();
+  db.prepare('UPDATE convites SET usado_em = ?, usado_por = ? WHERE id = ?')
+    .run(agora(), usuarioId, h);
+}
+
+const listarConvites = tenantId => (exigirTenant(tenantId), exigir(), db.prepare(
+  `SELECT c.id, c.papel, c.criado_em, c.expira_em, c.usado_em, u.email AS usado_por_email
+     FROM convites c LEFT JOIN usuarios u ON u.id = c.usado_por
+    WHERE c.tenant_id = ? ORDER BY c.criado_em DESC LIMIT 50`).all(tenantId));
+
+/* Cadastro numa transacao so.
+ *
+ * Criar o usuario e vincular em passos separados podia deixar conta orfa se
+ * o segundo passo falhasse: conta que existe, entra em lugar nenhum, e
+ * bloqueia o e-mail para sempre. */
+function cadastrar({ email, senhaHash, equipe, convite, retencaoDias }) {
+  exigir();
+  db.exec('BEGIN');
+  try {
+    const u = {
+      id: id(), email: String(email).trim().toLowerCase(),
+      senha_hash: senhaHash, criado_em: agora()
+    };
+    db.prepare('INSERT INTO usuarios (id, email, senha_hash, criado_em) VALUES (?,?,?,?)')
+      .run(u.id, u.email, u.senha_hash, u.criado_em);
+
+    let tenantId, papel, tenantNome;
+    if (convite) {
+      tenantId = convite.tenant_id;
+      papel = convite.papel;
+      tenantNome = convite.tenant_nome;
+      db.prepare('UPDATE convites SET usado_em = ?, usado_por = ? WHERE id = ?')
+        .run(agora(), u.id, convite.id);
+    } else {
+      tenantId = id();
+      papel = 'admin';
+      tenantNome = String(equipe);
+      db.prepare('INSERT INTO tenants (id, nome, retencao_dias, criado_em) VALUES (?,?,?,?)')
+        .run(tenantId, tenantNome, Number(retencaoDias) || 90, agora());
+    }
+    db.prepare('INSERT INTO memberships (id, tenant_id, usuario_id, papel) VALUES (?,?,?,?)')
+      .run(id(), tenantId, u.id, papel);
+
+    db.exec('COMMIT');
+    return { usuario: u, tenantId, tenantNome, papel };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
 
 /* ---------- sessões ---------- */
 
@@ -519,6 +614,7 @@ module.exports = {
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
   criarSessao, obterSessao, revogarSessao, revogarSessoesDoUsuario,
+  criarConvite, convitePorHash, marcarConviteUsado, listarConvites, cadastrar,
   criarProjeto, listarProjetos, obterProjeto, excluirProjeto,
   criarExecucao, listarExecucoes, obterExecucao,
   criarEvidencia, anexar, listarEvidencias, obterEvidencia, excluirEvidencia,
