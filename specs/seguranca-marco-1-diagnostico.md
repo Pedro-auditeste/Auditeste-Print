@@ -476,3 +476,97 @@ PONTE_ORIGENS=https://audiprint.up.railway.app
 ```
 
 Depois de definir, o mesmo token vai no campo Token da ponte, dentro do Print. Sem isso, `/descrever`, `/cenarios` e `/scan` seguem abertos para qualquer `curl`.
+
+
+---
+
+## Apêndice B · Caminho B implementado
+
+Decisão tomada: o Print passa a ter servidor de evidência. Etapas 4 a 9 do plano, na branch `seguranca-print`.
+
+### O que foi construído
+
+`auditeste-a11y/cofre/`, sem nenhuma dependência nova:
+
+* `banco.js` — SQLite pelo módulo do próprio Node. Esquema, e todas as consultas.
+* `contas.js` — senha com scrypt, sessão, cookie, papéis, freio de força bruta.
+* `api.js` — as rotas sob `/api`.
+* `admin.js` — provisionamento pela linha de comando.
+
+Mais `publico/cofre.html` (entrar, navegar, excluir, auditoria) e o botão **Enviar ao cofre** dentro do Print.
+
+### Por que SQLite e não Postgres
+
+Postgres traria backup gerenciado de graça, e era a escolha óbvia. Mas nesta máquina não existe Postgres, nem Docker, nem cliente algum: escolher Postgres significaria entregar autenticação, isolamento entre clientes e exclusão de evidência **sem ter rodado nenhum deles uma única vez**. Um controle de segurança não testado é pior que a ausência dele, porque gera confiança.
+
+Com SQLite os 35 casos do `teste-cofre.js` rodam de verdade, contra o servidor de verdade.
+
+**O preço, e ele é real:** SQLite exige um volume na Railway. Em disco efêmero, o deploy seguinte apaga a evidência do cliente sem avisar. Isso está no plano de subida abaixo, e não é opcional.
+
+Migrar para Postgres depois é trabalho contido: `banco.js` é o único arquivo que fala SQL.
+
+### Decisões que valem revisão
+
+**O isolamento é estrutural, não disciplinar.** Toda função de consulta em `banco.js` passa por `exigirTenant()` antes de montar SQL, e o `tenant_id` entra no `WHERE`. Buscar pelo id e conferir o dono depois já é ter lido o dado do outro cliente. Consulta sem tenant lança erro, e existe teste para isso.
+
+**O tenant vem da sessão e de nenhum outro lugar.** Nenhuma rota aceita tenant no corpo ou na query. Aceitar seria devolver ao cliente a chave do próprio isolamento.
+
+**Não existe URL pública de evidência.** O arquivo só sai por rota autorizada. Há link assinado por HMAC, de 5 minutos, para quando é preciso uma URL que se sustente sozinha; a assinatura amarra objeto, cliente e validade, e os três são testados contra adulteração.
+
+**Objeto e metadado morrem juntos, na mesma transação.** Apagar só a linha da evidência deixaria o arquivo órfão, e órfão é exatamente o arquivo que ninguém sabe que ainda existe.
+
+**Retenção roda no processo, não em cron externo.** O prazo tem que valer mesmo que ninguém lembre de agendar nada.
+
+**Tirar o vínculo derruba a sessão na hora.** Sem isso, desligar alguém só teria efeito no próximo login, que pode nunca acontecer.
+
+**A primeira conta nasce por linha de comando.** Uma rota de "criar o primeiro admin" fica aberta até alguém usá-la, e quem chegar antes vira o dono do sistema.
+
+**Cofre desligado não é erro.** Sem `COFRE_BANCO`, o Print local funciona exatamente como antes e só `/api` responde 503 explicando o que falta. Recurso novo não pode derrubar o que já estava no ar.
+
+### Matriz do Marco 1, depois
+
+| Controle | Antes | Depois |
+|---|---|---|
+| Tenancy | 🔴 | ✅ `tenant_id` em toda tabela de cliente, obrigatório na consulta |
+| Autenticação | 🔴 | ✅ scrypt, sessão com hash no banco, expiração, revogação, freio |
+| Autorização | 🔴 | ✅ por recurso e por tenant, mais papéis (leitor/consultor/gestor/admin) |
+| Storage privado | ⚪ | ✅ sem URL pública; link assinado curto quando necessário |
+| HTTPS/TLS | ✅ | ✅ mais HSTS |
+| Cripto em repouso | ⚪ | ⚪ do volume da Railway. Continua sendo o que Pedro precisa conferir |
+| Ciclo de vida | 🟡 | ✅ criação, prazo e estado em toda evidência |
+| Retenção/exclusão | 🟡 | ✅ prazo por cliente, varredura automática, exclusão de metadado com objeto, exclusão total do cliente |
+| Secrets | 🟡 | ✅ nada versionado; falta apenas a etapa 0 |
+| Audit log | 🔴 | ✅ login, criação, consulta, download, exclusão e permissões, por cliente |
+
+Um item segue ⚪ de propósito: cifra em repouso depende da configuração do volume, não do código, e marcar como implementado sem ver seria exatamente o que a regra 5 do prompt proíbe.
+
+### Como subir
+
+Depois de mesclar, no serviço da Railway:
+
+1. **Volume.** Monte um volume, por exemplo em `/dados`. Sem isso a evidência morre no próximo deploy.
+2. **Variáveis:**
+
+```
+COFRE_BANCO=/dados/cofre.db
+COFRE_SEGREDO=<aleatório longo>
+PONTE_TOKEN=<aleatório longo>
+PONTE_ORIGENS=https://audiprint.up.railway.app
+```
+
+3. **Primeira conta**, pelo shell do serviço:
+
+```
+node cofre/admin.js criar-cliente "Ailos" 90
+node cofre/admin.js criar-usuario voce@auditeste.com <tenantId> admin
+```
+
+A senha aparece uma vez. Ou defina `COFRE_SENHA` antes, com pelo menos 12 caracteres.
+
+4. Abra `/cofre.html` e entre.
+
+O `Dockerfile` subiu de `node:20` para `node:24`, porque `node:sqlite` só existe do 22 em diante. Se esse bump quebrar o build, voltar para `node:20` é seguro: o cofre se desliga sozinho e o Print continua igual.
+
+### O que continua fora
+
+Backup e restauração testada, SSO, rate limit por IP nas rotas do cofre, DAST e pentest. Tudo Marco 2 e 3, e agora existe a base sobre a qual eles fazem sentido.

@@ -71,11 +71,28 @@ caso('nenhum COPY é bloqueado pelo .dockerignore', () => {
 });
 
 caso('o que servidor.js requer está entre os COPY', () => {
+  /* Duas formas de COPY, e as duas contam: arquivo solto (a11y.js) e pasta
+   * inteira (cofre). Comparar só o basename entendia a primeira e reprovava
+   * a segunda, que é justamente a que o build precisa. */
   const copiados = new Set(origens.map((o) => path.basename(o)));
   const src = fs.readFileSync(path.join(__dirname, 'servidor.js'), 'utf8');
   const locais = [...src.matchAll(/require\('\.\/([^']+)'\)/g)].map((m) => m[1]);
-  const fora = locais.filter((f) => !copiados.has(f));
+  const fora = locais.filter((f) => !copiados.has(f) && !copiados.has(f.split('/')[0]));
   assert.deepStrictEqual(fora, [], 'servidor.js requer, mas o Dockerfile não copia: ' + fora.join(', '));
+});
+
+caso('o que o cofre requer também vai junto', () => {
+  const dir = path.join(__dirname, 'cofre');
+  if (!fs.existsSync(dir)) return;
+  const faltando = [];
+  for (const arq of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+    const src = fs.readFileSync(path.join(dir, arq), 'utf8');
+    for (const m of src.matchAll(/require\('(\.\.?\/[^']+)'\)/g)) {
+      const alvo = path.resolve(dir, m[1]);
+      if (!fs.existsSync(alvo)) faltando.push(arq + ' -> ' + m[1]);
+    }
+  }
+  assert.deepStrictEqual(faltando, [], 'require sem arquivo: ' + faltando.join(', '));
 });
 
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

@@ -36,6 +36,8 @@ const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
 const { zipExtensao } = require('./extensao.js');
+const bancoCofre = require('./cofre/banco.js');
+const apiCofre = require('./cofre/api.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
@@ -251,6 +253,35 @@ function msgToken(req) {
   return 'token inválido ou ausente';
 }
 
+/* Cofre de evidencias no servidor.
+ *
+ * Desligado por padrao, e desligado NAO e erro: sem COFRE_BANCO o Print
+ * local continua funcionando exatamente como antes, e so as rotas /api
+ * respondem 503 explicando o que falta. Um recurso novo nao pode ser capaz
+ * de derrubar o que ja estava no ar.
+ *
+ * Na Railway o caminho TEM que cair num volume. Em disco efemero, o deploy
+ * seguinte apaga a evidencia do cliente sem avisar ninguem. */
+const cofreLigado = !!bancoCofre.abrir();
+
+/* Retencao roda no processo, nao em cron externo: o prazo tem que valer
+ * mesmo que ninguem lembre de agendar nada. */
+const VARRER_MS = Number(process.env.COFRE_VARRER_MS) || 60 * 60 * 1000;
+if (cofreLigado) {
+  const varrer = () => {
+    try {
+      const r = bancoCofre.varrerVencidas();
+      if (r.evidencias || r.orfaos) {
+        console.log(`retencao: ${r.evidencias} evidencia(s) vencida(s), ${r.orfaos} orfao(s)`);
+      }
+    } catch (err) {
+      console.log('retencao FALHOU: ' + err.message);
+    }
+  };
+  varrer();
+  setInterval(varrer, VARRER_MS).unref();
+}
+
 let rodando = 0;
 
 const servidor = http.createServer(async (req, res) => {
@@ -260,6 +291,12 @@ const servidor = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cabecalho(origem));
     return res.end();
+  }
+
+  /* O cofre vem antes das rotas antigas: ele tem o proprio portao (sessao),
+   * e passar por tokenInvalido faria a pagina de login exigir estar logado. */
+  if (u.pathname.startsWith('/api/')) {
+    return void (await apiCofre.tratar(req, res, u, lerCorpo));
   }
 
   if (u.pathname === '/ping' || u.pathname === '/health') {
@@ -274,6 +311,7 @@ const servidor = http.createServer(async (req, res) => {
       ocupado: rodando,
       limite: MAX,
       cenarios: !!process.env.AGENTE_API_KEY,
+    cofre: cofreLigado || bancoCofre.porque(),
       chrome: !!caminhoChrome(),
       modelo: MODELO,
       base: BASE_URL,
@@ -415,6 +453,7 @@ servidor.listen(PORTA, HOST, () => {
   const st = statusMotores();
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
   if (envs.length) console.log('env: ' + envs.join(', '));
+  console.log(`cofre: ${cofreLigado ? 'ligado (' + (process.env.COFRE_BANCO || '') + ')' : 'desligado — ' + bancoCofre.porque()}`);
   console.log(`token: ${TOKEN ? 'exigido' : 'não'} · máx ${MAX} simultâneos`
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);

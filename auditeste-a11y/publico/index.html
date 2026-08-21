@@ -1001,6 +1001,7 @@
     </div>
 
     <div class="espaco" id="espaco"></div>
+    <p class="espaco" id="linkCofre" hidden>Evidência de cliente também pode ser guardada no servidor, sob conta e cliente identificados: <a href="/cofre.html">abrir o cofre</a>.</p>
     <div class="aviso">
       <b>Onde as evidências ficam</b>
       O arquivo é local, guardado neste navegador e neste computador. Limpar dados de navegação apaga tudo.
@@ -1811,6 +1812,17 @@
       campoBusca.focus();
     }
   });
+
+  /* Link so aparece quando o cofre esta ligado neste servidor: oferecer uma
+   * tela que responde 503 seria pior que nao oferecer nada. */
+  async function verSeTemCofre(){
+    try{
+      const r = await fetch('/ping', { signal: AbortSignal.timeout(4000) });
+      const d = await r.json();
+      const el = document.getElementById('linkCofre');
+      if(el && d && d.cofre === true) el.hidden = false;
+    }catch(e){}
+  }
 
   async function estimarEspaco(){
     const el = document.getElementById('espaco');
@@ -3835,6 +3847,100 @@
     return true;
   }
 
+  /* ============ ENVIAR AO COFRE ============ */
+  /* O Print continua sendo local: a evidencia nasce e vive nesta maquina.
+   * Publicar e uma decisao explicita, por evidencia, e o servidor e quem
+   * decide sob qual cliente ela cai — o cofre le o tenant da sessao e ignora
+   * qualquer cliente que a pagina tentasse mandar junto. */
+  async function cofreEu(){
+    try{
+      const r = await fetch('/api/eu', { headers:{ Accept:'application/json' } });
+      if(!r.ok) return null;
+      const d = await r.json();
+      return d.autenticado ? d : null;
+    }catch(e){ return null; }
+  }
+
+  async function cofrePedir(caminho, corpo, metodo){
+    const o = { method: metodo || (corpo ? 'POST' : 'GET') };
+    if(corpo){
+      o.headers = { 'Content-Type':'application/json' };
+      o.body = JSON.stringify(corpo);
+    }
+    const r = await fetch(caminho, o);
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.erro || ('HTTP ' + r.status));
+    return d;
+  }
+
+  async function publicarNoCofre(r, botao){
+    if(!r) return;
+    const eu = await cofreEu();
+    if(!eu){
+      const ir = await perguntar({
+        titulo: 'Entrar no cofre',
+        subtitulo: 'A evidencia so entra sob um cliente identificado',
+        texto: 'Para guardar no servidor voce precisa entrar. Abrir a tela de entrada agora?',
+        botao: 'Abrir', tipo: 'aviso'
+      });
+      if(ir) window.open('/cofre.html', '_blank');
+      return;
+    }
+
+    const ok = await perguntar({
+      titulo: 'Enviar ao cofre',
+      subtitulo: 'Cliente: ' + eu.tenantNome,
+      texto: 'Esta evidencia sai desta maquina e passa a ficar guardada no servidor, '
+        + 'sob <b>' + esc(eu.tenantNome) + '</b>, apagada automaticamente depois de '
+        + eu.retencaoDias + ' dias.<br>Quem enviou e quando fica registrado na auditoria.',
+      botao: 'Enviar', tipo: 'aviso'
+    });
+    if(!ok) return;
+
+    if(botao){ botao.disabled = true; botao.textContent = 'Enviando...'; }
+    try{
+      const nome = r.projetoNome || 'Projeto sem nome';
+      const { projetos } = await cofrePedir('/api/projetos');
+      let alvo = projetos.find(p => p.nome === nome);
+      if(!alvo) alvo = (await cofrePedir('/api/projetos', { nome })).projeto;
+
+      const titulo = (r.ficha && r.ficha.registro) || 'Evidencia';
+      const { execucao } = await cofrePedir('/api/execucoes', { projetoId: alvo.id, titulo });
+
+      let enviados = 0;
+      const passos = r.passos || [];
+      for(let i = 0; i < passos.length; i++){
+        const p = passos[i];
+        const imagens = (p.imagens || []).filter(im => im.blob);
+        /* Duas imagens = antes e depois, na ordem em que o Print as guarda.
+         * Uma so = e o depois: o antes e o que pode faltar, nunca o contrario. */
+        const antes = imagens.length > 1 ? await blobParaTexto(imagens[0].blob) : null;
+        const depois = imagens.length ? await blobParaTexto(imagens[imagens.length - 1].blob) : null;
+        await cofrePedir('/api/evidencias', {
+          execucaoId: execucao.id,
+          ordem: i + 1,
+          titulo: p.titulo || '',
+          obs: p.obs || '',
+          acao: p.acao || '',
+          elemento: p.elemento || '',
+          valor: p.valor || '',
+          html: p.html || '',
+          urlAntes: p.urlAntes || '',
+          urlDepois: p.urlDepois || '',
+          antes, depois
+        });
+        enviados++;
+        if(botao) botao.textContent = 'Enviando ' + enviados + '/' + passos.length;
+      }
+      avisar(enviados + ' passo(s) guardados no cofre, em ' + eu.tenantNome + '.');
+    }catch(err){
+      informar('Nao consegui enviar: ' + err.message
+        + '<br><br>Os passos continuam aqui nesta maquina, intactos.', 'Falha ao enviar');
+    }finally{
+      if(botao){ botao.disabled = false; botao.textContent = 'Enviar ao cofre'; }
+    }
+  }
+
   /* ============ EXPORTAR HTML ============ */
   const blobParaTexto = blob => new Promise((ok, erro) => {
     const l = new FileReader();
@@ -4395,6 +4501,7 @@
           <button class="btn primario pequeno" data-acao="exportarHtml">Exportar HTML</button>
           <button class="btn escuro pequeno" data-acao="salvarPdf">Salvar em PDF</button>
           <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Gera Gherkin e mapeamento a partir dos passos">Gerar cenários</button>
+          <button class="btn escuro pequeno" data-acao="publicarCofre" title="Guarda esta evidência no servidor, sob o cliente da sua conta">Enviar ao cofre</button>
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
       </div>
@@ -4443,6 +4550,7 @@
     if(b.dataset.acao === 'exportarHtml') exportarHtml(registroAberto);
     if(b.dataset.acao === 'salvarPdf') salvarPdf(registroAberto);
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
+    if(b.dataset.acao === 'publicarCofre') publicarNoCofre(registroAberto, b);
     if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
     if(b.dataset.acao === 'copiarGherkinRegistro') copiarTextoQa(normalizarAnaliseQa(registroAberto?.passos?.[Number(b.dataset.passo)]?.analiseQa).gherkin, 'Gherkin copiado.');
     if(b.dataset.acao === 'copiarCapturaRegistro') copiarCapturaDe(registroAberto?.passos?.[Number(b.dataset.passo)]);
@@ -4576,7 +4684,7 @@
 
   abrirDB()
     .then(()=>{
-      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte();
+      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte(); verSeTemCofre();
       try{ ativarModoCaptura(localStorage.getItem('captura_modo') || 'alteracao'); }catch(e){ ativarModoCaptura('alteracao'); }
       if(location.protocol === 'file:'){
         avisar('Este Print foi aberto pelo arquivo. Use http://127.0.0.1:8900 e recarregue com Ctrl+F5.');

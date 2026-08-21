@@ -1,0 +1,336 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cofre de evidências · Audi Print</title>
+<style>
+  :root{
+    --navy:#0f2740; --azul:#1b4f8a; --claro:#f4f6f9; --linha:#dfe4ec;
+    --texto:#1d2733; --suave:#5b6472; --perigo:#b3261e; --ok:#1c6b3f;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--texto);background:var(--claro);}
+  header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  header h1{font-size:1.05rem;margin:0;font-weight:700;letter-spacing:.01em;}
+  header .quem{margin-left:auto;font-size:.85rem;opacity:.9;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  main{max-width:1080px;margin:0 auto;padding:22px;}
+  .btn{border:1px solid var(--linha);background:#fff;color:var(--texto);border-radius:8px;
+       padding:8px 14px;font:inherit;font-size:.88rem;cursor:pointer;}
+  .btn:hover{border-color:var(--azul);}
+  .btn.primario{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .btn.perigo{border-color:var(--perigo);color:var(--perigo);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .cartao{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:18px;margin-bottom:16px;}
+  .cartao h2{margin:0 0 4px;font-size:1rem;}
+  .cartao .meta{color:var(--suave);font-size:.83rem;}
+  label{display:block;margin-bottom:12px;}
+  label span{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;
+             font-weight:700;color:var(--navy);margin-bottom:4px;}
+  input[type=text],input[type=email],input[type=password]{
+    width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:8px;font:inherit;background:#fff;}
+  .entrada{max-width:380px;margin:8px auto;}
+  .aviso{padding:10px 12px;border-radius:8px;font-size:.87rem;margin-bottom:12px;}
+  .aviso.ruim{background:#fdecea;color:var(--perigo);border:1px solid #f5c6c2;}
+  .aviso.bom{background:#e8f4ec;color:var(--ok);border:1px solid #bfe0cc;}
+  .linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .lista{display:grid;gap:10px;}
+  .item{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid var(--linha);
+        border-radius:10px;padding:12px 14px;}
+  .item .txt{flex:1;min-width:0;}
+  .item b{display:block;}
+  .item small{color:var(--suave);}
+  .item img{width:88px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--linha);background:#fff;}
+  table{width:100%;border-collapse:collapse;font-size:.85rem;}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--linha);vertical-align:top;}
+  th{color:var(--suave);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;}
+  .rolar{overflow-x:auto;}
+  .vazio{color:var(--suave);padding:18px;text-align:center;}
+  a{color:var(--azul);}
+  @media (prefers-color-scheme: dark){
+    :root{--claro:#12161c;--linha:#2b323c;--texto:#e6e9ee;--suave:#98a2b3;}
+    body{background:var(--claro);}
+    .cartao,.item,input[type=text],input[type=email],input[type=password],.btn{background:#1a1f27;}
+    .btn{color:var(--texto);}
+  }
+</style>
+
+<header>
+  <h1>Cofre de evidências</h1>
+  <div class="quem" id="quem"></div>
+</header>
+
+<main>
+  <div id="aviso"></div>
+
+  <section id="telaEntrar" class="cartao entrada" hidden>
+    <h2>Entrar</h2>
+    <p class="meta">Use a conta do seu cliente. Não há cadastro aberto: contas são criadas pela administração.</p>
+    <form id="formEntrar" style="margin-top:14px">
+      <label><span>E-mail</span><input type="email" id="email" autocomplete="username" required></label>
+      <label><span>Senha</span><input type="password" id="senha" autocomplete="current-password" required></label>
+      <button class="btn primario" type="submit" id="btnEntrar" style="width:100%">Entrar</button>
+    </form>
+  </section>
+
+  <section id="telaProjetos" hidden>
+    <div class="cartao">
+      <div class="linha">
+        <div style="flex:1">
+          <h2>Projetos</h2>
+          <div class="meta" id="metaTenant"></div>
+        </div>
+        <button class="btn" id="btnAuditoria" hidden>Auditoria</button>
+      </div>
+      <form id="formProjeto" class="linha" style="margin-top:14px">
+        <input type="text" id="nomeProjeto" placeholder="Nome do projeto" style="flex:1;min-width:180px">
+        <input type="text" id="clienteProjeto" placeholder="Cliente (opcional)" style="flex:1;min-width:160px">
+        <button class="btn primario" type="submit">Criar</button>
+      </form>
+    </div>
+    <div class="lista" id="listaProjetos"></div>
+  </section>
+
+  <section id="telaProjeto" hidden>
+    <div class="cartao">
+      <div class="linha">
+        <div style="flex:1">
+          <h2 id="tituloProjeto"></h2>
+          <div class="meta" id="metaProjeto"></div>
+        </div>
+        <button class="btn" id="btnVoltar">Voltar</button>
+        <button class="btn perigo" id="btnExcluirProjeto" hidden>Excluir projeto</button>
+      </div>
+    </div>
+    <div class="lista" id="listaExecucoes"></div>
+  </section>
+
+  <section id="telaAuditoria" hidden>
+    <div class="cartao">
+      <div class="linha">
+        <div style="flex:1">
+          <h2>Auditoria</h2>
+          <div class="meta">Quem fez o quê, quando, neste cliente.</div>
+        </div>
+        <button class="btn" id="btnVoltarAuditoria">Voltar</button>
+      </div>
+      <div class="rolar" style="margin-top:14px">
+        <table><thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Recurso</th><th>Origem</th></tr></thead>
+        <tbody id="corpoAuditoria"></tbody></table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const esc = t => (t == null ? '' : String(t)).replace(/[<>&"']/g,
+    c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;', "'":'&#39;' }[c]));
+  const quando = ms => new Date(ms).toLocaleString('pt-BR');
+
+  let eu = null;
+  let projetoAberto = null;
+
+  function avisar(texto, ruim){
+    $('aviso').innerHTML = texto
+      ? '<div class="aviso ' + (ruim ? 'ruim' : 'bom') + '">' + esc(texto) + '</div>' : '';
+    if(texto && !ruim) setTimeout(()=>{ $('aviso').innerHTML = ''; }, 4000);
+  }
+
+  async function api(caminho, opcoes){
+    const o = Object.assign({}, opcoes || {});
+    if(o.json !== undefined){
+      o.method = o.method || 'POST';
+      o.headers = { 'Content-Type':'application/json' };
+      o.body = JSON.stringify(o.json);
+      delete o.json;
+    }
+    const r = await fetch(caminho, o);
+    const dados = await r.json().catch(()=>({}));
+    if(!r.ok){
+      const e = new Error(dados.erro || ('HTTP ' + r.status));
+      e.status = r.status;
+      throw e;
+    }
+    return dados;
+  }
+
+  function mostrar(qual){
+    for(const t of ['telaEntrar','telaProjetos','telaProjeto','telaAuditoria']) $(t).hidden = t !== qual;
+  }
+
+  const PODE = { leitor:1, consultor:2, gestor:3, admin:4 };
+  const pode = papel => (PODE[eu && eu.papel] || 0) >= PODE[papel];
+
+  /* ---------- entrar e sair ---------- */
+
+  async function conferirSessao(){
+    const r = await api('/api/eu');
+    if(!r.autenticado){
+      eu = null;
+      $('quem').innerHTML = '<a href="/" style="color:#cfe0f3">Voltar ao Print</a>';
+      mostrar('telaEntrar');
+      return false;
+    }
+    eu = r;
+    $('quem').innerHTML = esc(r.email) + ' · <b>' + esc(r.tenantNome) + '</b> · ' + esc(r.papel)
+      + ' <button class="btn" id="btnSair" style="padding:4px 10px">Sair</button>'
+      + ' <a href="/" style="color:#cfe0f3">Print</a>';
+    $('btnSair').addEventListener('click', async () => {
+      await api('/api/sair', { method:'POST' });
+      location.reload();
+    });
+    return true;
+  }
+
+  $('formEntrar').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('btnEntrar').disabled = true;
+    try{
+      await api('/api/entrar', { json: { email: $('email').value.trim(), senha: $('senha').value } });
+      $('senha').value = '';
+      await conferirSessao();
+      await abrirProjetos();
+    }catch(err){
+      avisar(err.message, true);
+    }finally{
+      $('btnEntrar').disabled = false;
+    }
+  });
+
+  /* ---------- projetos ---------- */
+
+  async function abrirProjetos(){
+    mostrar('telaProjetos');
+    $('metaTenant').textContent = 'Evidências deste cliente são apagadas automaticamente após '
+      + eu.retencaoDias + ' dias.';
+    $('btnAuditoria').hidden = !pode('gestor');
+
+    const { projetos } = await api('/api/projetos');
+    const alvo = $('listaProjetos');
+    if(!projetos.length){
+      alvo.innerHTML = '<div class="vazio">Nenhum projeto ainda. Crie o primeiro acima.</div>';
+      return;
+    }
+    alvo.innerHTML = projetos.map(p =>
+      '<div class="item"><div class="txt"><b>' + esc(p.nome) + '</b>'
+      + '<small>' + esc(p.cliente || 'sem cliente') + ' · criado em ' + quando(p.criado_em) + '</small></div>'
+      + '<button class="btn" data-projeto="' + esc(p.id) + '">Abrir</button></div>').join('');
+  }
+
+  $('formProjeto').addEventListener('submit', async e => {
+    e.preventDefault();
+    const nome = $('nomeProjeto').value.trim();
+    if(!nome) return;
+    try{
+      await api('/api/projetos', { json: { nome, cliente: $('clienteProjeto').value.trim() } });
+      $('nomeProjeto').value = ''; $('clienteProjeto').value = '';
+      avisar('Projeto criado.');
+      await abrirProjetos();
+    }catch(err){ avisar(err.message, true); }
+  });
+
+  $('listaProjetos').addEventListener('click', e => {
+    const b = e.target.closest('[data-projeto]');
+    if(b) abrirProjeto(b.dataset.projeto, b.closest('.item').querySelector('b').textContent);
+  });
+
+  /* ---------- um projeto ---------- */
+
+  async function abrirProjeto(id, nome){
+    projetoAberto = { id, nome };
+    mostrar('telaProjeto');
+    $('tituloProjeto').textContent = nome;
+    $('btnExcluirProjeto').hidden = !pode('gestor');
+
+    const { execucoes } = await api('/api/execucoes?projeto=' + encodeURIComponent(id));
+    $('metaProjeto').textContent = execucoes.length + ' execução(ões)';
+    const alvo = $('listaExecucoes');
+    if(!execucoes.length){
+      alvo.innerHTML = '<div class="vazio">Nenhuma execução enviada para este projeto ainda.'
+        + ' Publique a partir do Print.</div>';
+      return;
+    }
+    alvo.innerHTML = '';
+    for(const x of execucoes){
+      const cartao = document.createElement('div');
+      cartao.className = 'cartao';
+      cartao.innerHTML = '<h2>' + esc(x.titulo || 'Execução') + '</h2>'
+        + '<div class="meta">' + quando(x.iniciada_em) + '</div>'
+        + '<div class="lista" style="margin-top:12px"></div>';
+      alvo.appendChild(cartao);
+
+      const { evidencias } = await api('/api/evidencias?execucao=' + encodeURIComponent(x.id));
+      const dentro = cartao.querySelector('.lista');
+      if(!evidencias.length){
+        dentro.innerHTML = '<div class="vazio">Sem evidências.</div>';
+        continue;
+      }
+      for(const ev of evidencias){
+        const det = await api('/api/evidencias/' + encodeURIComponent(ev.id));
+        const capa = (det.objetos || []).find(o => o.papel === 'depois') || (det.objetos || [])[0];
+        const el = document.createElement('div');
+        el.className = 'item';
+        /* O src aponta para a rota autorizada, com o cookie da sessão. Não
+         * existe URL pública do arquivo: quem não tem sessão leva 401. */
+        el.innerHTML = (capa ? '<img src="/api/objetos/' + esc(capa.id) + '" alt="">' : '<div class="item-sem"></div>')
+          + '<div class="txt"><b>' + esc(ev.titulo || 'Passo ' + ev.ordem) + '</b>'
+          + '<small>' + esc(ev.obs || '') + '</small>'
+          + '<small>criada em ' + quando(ev.criada_em) + ' · vence em ' + quando(ev.expira_em) + '</small></div>'
+          + (pode('gestor') ? '<button class="btn perigo" data-excluir="' + esc(ev.id) + '">Excluir</button>' : '');
+        dentro.appendChild(el);
+      }
+    }
+  }
+
+  $('listaExecucoes').addEventListener('click', async e => {
+    const b = e.target.closest('[data-excluir]');
+    if(!b) return;
+    if(!confirm('Excluir esta evidência? O arquivo sai do servidor junto e não há como desfazer.')) return;
+    try{
+      await api('/api/evidencias/' + encodeURIComponent(b.dataset.excluir), { method:'DELETE' });
+      avisar('Evidência excluída, com o arquivo.');
+      await abrirProjeto(projetoAberto.id, projetoAberto.nome);
+    }catch(err){ avisar(err.message, true); }
+  });
+
+  $('btnVoltar').addEventListener('click', abrirProjetos);
+
+  $('btnExcluirProjeto').addEventListener('click', async () => {
+    if(!confirm('Excluir o projeto ' + projetoAberto.nome
+      + ', todas as execuções e todas as evidências? Não há como desfazer.')) return;
+    try{
+      const r = await api('/api/projetos/' + encodeURIComponent(projetoAberto.id), { method:'DELETE' });
+      avisar(r.removido.evidencias + ' evidência(s) excluída(s), com os arquivos.');
+      await abrirProjetos();
+    }catch(err){ avisar(err.message, true); }
+  });
+
+  /* ---------- auditoria ---------- */
+
+  $('btnAuditoria').addEventListener('click', async () => {
+    try{
+      const { eventos } = await api('/api/auditoria?limite=300');
+      $('corpoAuditoria').innerHTML = eventos.map(e =>
+        '<tr><td>' + quando(e.quando) + '</td><td>' + esc(e.email || '(sem sessão)') + '</td>'
+        + '<td>' + esc(e.acao) + '</td><td>' + esc(e.recurso || '') + '</td>'
+        + '<td>' + esc(e.ip || '') + '</td></tr>').join('')
+        || '<tr><td colspan="5" class="vazio">Nada registrado ainda.</td></tr>';
+      mostrar('telaAuditoria');
+    }catch(err){ avisar(err.message, true); }
+  });
+
+  $('btnVoltarAuditoria').addEventListener('click', abrirProjetos);
+
+  /* ---------- entrada ---------- */
+
+  (async () => {
+    try{
+      if(await conferirSessao()) await abrirProjetos();
+    }catch(err){
+      avisar(err.status === 503
+        ? err.message
+        : 'Não consegui falar com o servidor: ' + err.message, true);
+      mostrar('telaEntrar');
+    }
+  })();
+})();
+</script>
