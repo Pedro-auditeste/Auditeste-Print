@@ -204,6 +204,7 @@ function abrir(caminho) {
     db.exec('PRAGMA journal_mode = WAL');
     db.exec('PRAGMA foreign_keys = ON');
     db.exec(ESQUEMA);
+    migrar();
     motivoDesligado = '';
     return db;
   } catch (err) {
@@ -241,7 +242,85 @@ function exigirTenant(tenantId) {
   return tenantId;
 }
 
+/* Colunas que nasceram depois. CREATE TABLE IF NOT EXISTS nao acrescenta
+ * coluna em tabela que ja existe, entao banco antigo subiria sem ela e
+ * quebraria na primeira consulta. */
+function migrar() {
+  const colunas = db.prepare('PRAGMA table_info(tenants)').all().map(c => c.name);
+  if (!colunas.includes('provedor')) {
+    db.exec('ALTER TABLE tenants ADD COLUMN provedor INTEGER NOT NULL DEFAULT 0');
+  }
+}
+
 /* ---------- tenants, usuários, vínculos ---------- */
+
+/* Equipe provedora: a consultoria que atende varios clientes.
+ *
+ * Quem pertence a ela alcanca a equipe de cada cliente, levando o proprio
+ * papel, e cada entrada fica registrada na auditoria DO CLIENTE, para o
+ * cliente conseguir ver quem entrou.
+ *
+ * A marca so se poe por linha de comando, nunca por rota. Se uma conta
+ * pudesse se declarar provedora, bastaria criar uma equipe para enxergar
+ * todas as outras, e o isolamento viraria enfeite. */
+function marcarProvedor(tenantId, ligado) {
+  exigirTenant(tenantId);
+  exigir();
+  db.prepare('UPDATE tenants SET provedor = ? WHERE id = ?').run(ligado ? 1 : 0, tenantId);
+  return obterTenant(tenantId);
+}
+
+/** O vinculo do usuario numa equipe provedora, se houver. */
+const vinculoProvedor = usuarioId => (exigir(), db.prepare(
+  `SELECT m.tenant_id, m.papel, t.nome AS tenant_nome
+     FROM memberships m JOIN tenants t ON t.id = m.tenant_id
+    WHERE m.usuario_id = ? AND t.provedor = 1
+    ORDER BY t.nome LIMIT 1`).get(usuarioId) || null);
+
+/* Toda equipe que este usuario pode abrir: as dele, mais as dos clientes
+ * quando ele e da provedora. `via` diz por qual porta ele entra, e a tela
+ * usa isso para mostrar que aquele acesso e da consultoria. */
+function equipesAlcancaveis(usuarioId) {
+  exigir();
+  const proprias = vinculosDoUsuario(usuarioId).map(v => ({
+    id: v.tenant_id, nome: v.tenant_nome, papel: v.papel, via: 'membro'
+  }));
+  const prov = vinculoProvedor(usuarioId);
+  if (!prov) return proprias;
+  /* Mesma regra do portao, no mesmo lugar conceitual. O teste pegou os dois
+   * discordando: acessoA recusava o leitor, e esta listagem entregava a ele
+   * a relacao inteira de clientes. Nao vazava acesso, vazava a carteira de
+   * clientes da consultoria, que e informacao comercial. */
+  if (prov.papel === 'leitor') return proprias;
+
+  const jaTem = new Set(proprias.map(t => t.id));
+  const clientes = db.prepare('SELECT id, nome FROM tenants WHERE provedor = 0 ORDER BY nome').all();
+  for (const c of clientes) {
+    if (jaTem.has(c.id)) continue;
+    proprias.push({ id: c.id, nome: c.nome, papel: prov.papel, via: 'provedor' });
+  }
+  return proprias;
+}
+
+/* Como este usuario alcanca ESTA equipe, ou null se nao alcanca.
+ * E o unico lugar que decide isso; sessao e troca de equipe passam por aqui. */
+function acessoA(tenantId, usuarioId) {
+  exigirTenant(tenantId);
+  exigir();
+  const direto = vinculo(tenantId, usuarioId);
+  if (direto) return { papel: direto.papel, via: 'membro' };
+
+  const prov = vinculoProvedor(usuarioId);
+  if (!prov) return null;
+  const alvo = obterTenant(tenantId);
+  /* Provedora nao entra em outra provedora: sao pares, nao cliente uma da
+   * outra, e permitir isso seria escalonamento lateral. */
+  if (!alvo || alvo.provedor) return null;
+  /* Leitor da provedora fica na provedora: papel mais fraco nao sai visitando
+   * cliente. */
+  if (prov.papel === 'leitor') return null;
+  return { papel: prov.papel, via: 'provedor', provedorNome: prov.tenant_nome };
+}
 
 function criarTenant(nome, retencaoDias) {
   exigir();
@@ -705,6 +784,7 @@ module.exports = {
   criarTenant, obterTenant, listarTenants,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
+  marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,
   criarSessao, obterSessao, revogarSessao, revogarSessoesDoUsuario,
   criarConvite, convitePorHash, marcarConviteUsado, listarConvites, cadastrar,
   criarProjeto, listarProjetos, obterProjeto, excluirProjeto,

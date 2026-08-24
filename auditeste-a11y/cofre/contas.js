@@ -248,8 +248,8 @@ function cadastrar(req, dados) {
 /* Trocar de equipe sem sair e entrar de novo. So faz sentido depois dos
  * convites: antes disso ninguem pertencia a duas. */
 function trocarEquipe(req, sessaoAtual, tenantId) {
-  const v = banco.vinculo(tenantId, sessaoAtual.usuarioId);
-  if (!v) {
+  const acesso = banco.acessoA(tenantId, sessaoAtual.usuarioId);
+  if (!acesso) {
     const e = new Error('Você não faz parte desta equipe.');
     e.status = 403;
     throw e;
@@ -258,10 +258,18 @@ function trocarEquipe(req, sessaoAtual, tenantId) {
   const token = novoToken();
   banco.criarSessao(hashToken(token), sessaoAtual.usuarioId, tenantId, DURACAO_MS);
   const t = banco.obterTenant(tenantId);
-  banco.auditar(tenantId, sessaoAtual.usuarioId, 'equipe.trocada', t ? t.nome : tenantId, ipDe(req));
+
+  /* Entrada da consultoria num cliente e evento distinto, e fica na
+   * auditoria DO CLIENTE. O cliente precisa conseguir ver quem entrou na
+   * casa dele; um "equipe.trocada" generico esconderia isso. */
+  banco.auditar(tenantId, sessaoAtual.usuarioId,
+    acesso.via === 'provedor' ? 'equipe.acessada_pela_provedora' : 'equipe.trocada',
+    (t ? t.nome : tenantId) + (acesso.via === 'provedor' ? ' · via ' + acesso.provedorNome : ''),
+    ipDe(req));
+
   return {
     cookie: cookieSessao(req, token, DURACAO_MS),
-    sessao: { tenantId, tenantNome: t ? t.nome : '', papel: v.papel }
+    sessao: { tenantId, tenantNome: t ? t.nome : '', papel: acesso.papel, via: acesso.via }
   };
 }
 
@@ -288,10 +296,12 @@ function sessaoDe(req) {
   if (!s) return null;
   const usuario = banco.usuarioPorId(s.usuario_id);
   if (!usuario) return null;
-  const v = banco.vinculo(s.tenant_id, s.usuario_id);
-  /* Vínculo removido derruba a sessão na hora: sem isto, tirar alguém do
-   * cliente só teria efeito no próximo login, que pode nunca acontecer. */
-  if (!v) return null;
+  /* Um lugar so decide se este usuario alcanca esta equipe: por vinculo
+   * direto, ou por ser da provedora. Perder o acesso derruba a sessao na
+   * hora, senao tirar alguem do cliente so teria efeito no proximo login,
+   * que pode nunca acontecer. */
+  const acesso = banco.acessoA(s.tenant_id, s.usuario_id);
+  if (!acesso) return null;
   const t = banco.obterTenant(s.tenant_id);
   return {
     tokenHash: s.id,
@@ -300,7 +310,9 @@ function sessaoDe(req) {
     tenantId: s.tenant_id,
     tenantNome: t ? t.nome : '',
     retencaoDias: t ? t.retencao_dias : 90,
-    papel: v.papel,
+    papel: acesso.papel,
+    via: acesso.via,
+    provedorNome: acesso.provedorNome || '',
     ip: ipDe(req)
   };
 }

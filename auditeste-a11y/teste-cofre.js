@@ -106,7 +106,9 @@ async function principal() {
 
   proc = spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
     env: Object.assign({}, process.env, {
-      PORT: String(PORTA), HOST: '127.0.0.1',
+      /* 0.0.0.0 e nao loopback: o portao do Print so existe em servidor
+       * exposto, e e justamente ele que estes casos medem. */
+      PORT: String(PORTA), HOST: '0.0.0.0',
       COFRE_BANCO: ARQUIVO, COFRE_SEGREDO: 'segredo-de-teste',
       AGENTE_API_KEY: '', PONTE_TOKEN: ''
     }),
@@ -674,7 +676,144 @@ async function principal() {
     assert.strictEqual(depois.status, 401, 'a sessão continuou valendo depois de sair');
   });
 
+  console.log('\nequipe provedora\n');
+
+  await caso('sem a marca, a Auditeste nao alcanca cliente nenhum', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    const r = await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: googleTenant } });
+    assert.strictEqual(r.status, 403, 'entrou em equipe alheia sem ser provedora');
+  });
+
+  await caso('a marca de provedora nao existe em rota nenhuma', () => {
+    const api = require('fs').readFileSync(path.join(__dirname, 'cofre', 'api.js'), 'utf8');
+    assert.ok(!/marcarProvedor/.test(api),
+      'a API expoe marcarProvedor: qualquer conta criaria uma equipe e viraria provedora de todas');
+  });
+
+  await caso('marcada por linha de comando, a Auditeste passa a alcancar os clientes', async () => {
+    banco.marcarProvedor(ailos.id, true);
+    const n = navegador();
+    const r = await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
+    const eu = await n.pedir('/api/eu');
+    const nomes = eu.corpo.equipes.map(t => t.nome).sort();
+    assert.ok(nomes.includes('Google'), 'nao enxergou a equipe do cliente: ' + nomes.join(','));
+    const google = eu.corpo.equipes.find(t => t.nome === 'Google');
+    assert.strictEqual(google.via, 'provedor', 'deveria vir marcada como acesso de provedora');
+  });
+
+  await caso('CRITERIO: a provedora entra no cliente e enxerga o que e dele', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    const t = await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: googleTenant } });
+    assert.strictEqual(t.status, 200, JSON.stringify(t.corpo));
+    assert.strictEqual(t.corpo.sessao.via, 'provedor');
+
+    const eu = await n.pedir('/api/eu');
+    assert.strictEqual(eu.corpo.tenantId, googleTenant);
+    const projetos = await n.pedir('/api/projetos');
+    assert.ok(projetos.corpo.projetos.length >= 1, 'entrou no cliente e nao viu os projetos dele');
+  });
+
+  await caso('CRITERIO: e consegue EDITAR dentro do cliente', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: googleTenant } });
+    const r = await n.pedir('/api/projetos', { method: 'POST', json: { nome: 'Criado pela consultoria' } });
+    assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
+
+    // e o dono do projeto e o CLIENTE, nao a consultoria
+    assert.strictEqual(r.corpo.projeto.tenant_id, googleTenant,
+      'o projeto caiu na equipe errada');
+  });
+
+  await caso('CRITERIO: a entrada da provedora fica na auditoria DO CLIENTE', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: googleTenant } });
+    const r = await n.pedir('/api/auditoria?limite=200');
+    const entradas = r.corpo.eventos.filter(e => e.acao === 'equipe.acessada_pela_provedora');
+    assert.ok(entradas.length >= 1, 'o cliente nao consegue ver que a consultoria entrou');
+    assert.ok(/Ailos/.test(entradas[0].recurso || ''), 'nao diz qual consultoria entrou');
+  });
+
+  await caso('CRITERIO: cliente NAO vira provedora, e nao alcanca ninguem', async () => {
+    // O Google e cliente. Ele nao pode alcancar a Amazon nem a Auditeste.
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'qa@google.com', senha: 'senha-do-google-1' } });
+    const eu = await n.pedir('/api/eu');
+    assert.strictEqual(eu.corpo.equipes.length, 1, 'cliente enxergou equipe alheia: '
+      + JSON.stringify(eu.corpo.equipes));
+    const r = await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: ailos.id } });
+    assert.strictEqual(r.status, 403, 'cliente entrou na equipe da consultoria');
+  });
+
+  await caso('leitor da provedora fica na provedora', async () => {
+          const u = banco.usuarioPorEmail('leitor-prov@auditeste.com');
+    if (!u) {
+      const novo = banco.criarUsuario('leitor-prov@auditeste.com', contas.hashSenha('senha-bem-longa-l'));
+      banco.vincular(ailos.id, novo.id, 'leitor');
+    }
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'leitor-prov@auditeste.com', senha: 'senha-bem-longa-l' } });
+    const eu = await n.pedir('/api/eu');
+    assert.strictEqual(eu.corpo.equipes.length, 1,
+      'leitor da provedora saiu visitando cliente: ' + JSON.stringify(eu.corpo.equipes));
+  });
+
+  await caso('provedora nao entra em outra provedora', async () => {
+    banco.marcarProvedor(outro.id, true);
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    const r = await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: outro.id } });
+    assert.strictEqual(r.status, 403, 'uma provedora entrou na outra');
+    banco.marcarProvedor(outro.id, false);
+  });
+
+  await caso('tirar a marca fecha a porta na hora', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'admin@auditeste.com', senha: 'senha-bem-longa-1' } });
+    await n.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: googleTenant } });
+    const antes = await n.pedir('/api/eu');
+    assert.strictEqual(antes.corpo.autenticado, true);
+
+    banco.marcarProvedor(ailos.id, false);
+
+    const depois = await n.pedir('/api/eu');
+    assert.strictEqual(depois.corpo.autenticado, false,
+      'a sessao dentro do cliente sobreviveu a perda da marca de provedora');
+    banco.marcarProvedor(ailos.id, true);
+  });
+
   console.log('\nportao do Print\n');
+
+  await caso('em 127.0.0.1 nao ha portao: o Print local e ferramenta de quem esta na maquina', async () => {
+    const { spawn } = require('child_process');
+    const local = spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
+      env: Object.assign({}, process.env, {
+        PORT: '8996', HOST: '127.0.0.1', COFRE_BANCO: ARQUIVO, AGENTE_API_KEY: ''
+      }),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    local.stdout.resume(); local.stderr.resume();
+    try {
+      let subiu = false;
+      for (let i = 0; i < 80; i++) {
+        try { const r = await fetch('http://127.0.0.1:8996/ping'); if (r.ok) { await r.text(); subiu = true; break; } }
+        catch (e) { /* subindo */ }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      assert.ok(subiu, 'o servidor local nao subiu');
+      const r = await fetch('http://127.0.0.1:8996/', { redirect: 'manual' });
+      await r.text();
+      assert.strictEqual(r.status, 200, 'loopback nao deveria ter portao, veio ' + r.status);
+      const ping = await (await fetch('http://127.0.0.1:8996/ping')).json();
+      assert.strictEqual(ping.portao, false, '/ping deveria dizer que nao ha portao em loopback');
+    } finally {
+      try { local.kill(); } catch (e) {}
+    }
+  });
 
   await caso('CRITERIO: sem sessao o HTML do Print nem e servido', async () => {
     const r = await fetch(BASE + '/', { redirect: 'manual' });

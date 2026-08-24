@@ -209,7 +209,7 @@ const servidor = require('child_process');
 console.log('\ncabecalhos da pagina servida\n');
 
 const proc = servidor.spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
-  env: Object.assign({}, process.env, { PORT: '8977', HOST: '127.0.0.1', AGENTE_API_KEY: '' }),
+  env: Object.assign({}, process.env, { PORT: '8977', HOST: '0.0.0.0', AGENTE_API_KEY: '' }),
   stdio: ['ignore', 'pipe', 'pipe']
 });
 
@@ -219,22 +219,46 @@ let subiu = false;
 proc.stdout.on('data', (d) => {
   if (subiu || !/ponte ouvindo/.test(String(d))) return;
   subiu = true;
-  http.get({ host: '127.0.0.1', port: 8977, path: '/' }, (res) => {
-    res.resume();
-    const h = res.headers;
-    caso('nosniff', () => assert.strictEqual(h['x-content-type-options'], 'nosniff'));
-    caso('Referrer-Policy same-origin (no-referrer derrubaria o portao da ponte)', () =>
+  /* Duas portas, e as duas precisam levar os cabecalhos.
+   *
+   * A pagina servida e o caso obvio. O desvio do portao e o que passa
+   * despercebido: resposta curta sem corpo continua sendo resposta, e com o
+   * cofre ligado o "/" e justamente um desvio. Medir so o "/" deixaria de
+   * conferir o HTML de verdade; medir so a pagina deixaria o desvio nu. */
+  function conferirCabecalhos(rotulo, h, esperaHtml) {
+    caso(rotulo + ': nosniff', () =>
+      assert.strictEqual(h['x-content-type-options'], 'nosniff'));
+    caso(rotulo + ': Referrer-Policy same-origin (no-referrer derrubaria o portao da ponte)', () =>
       assert.strictEqual(h['referrer-policy'], 'same-origin'));
-    caso('CSP com frame-ancestors e object-src', () => {
+    caso(rotulo + ': CSP com frame-ancestors e object-src', () => {
       assert.ok(h['content-security-policy'], 'sem CSP');
       assert.ok(/frame-ancestors 'none'/.test(h['content-security-policy']));
       assert.ok(/object-src 'none'/.test(h['content-security-policy']));
     });
-    caso('HSTS fica de fora em http (o navegador ignora, e 127.0.0.1 nao usa tls)', () =>
+    caso(rotulo + ': HSTS fica de fora em http (o navegador ignora, e 127.0.0.1 nao usa tls)', () =>
       assert.strictEqual(h['strict-transport-security'], undefined));
+    if (esperaHtml) {
+      caso(rotulo + ': veio HTML', () =>
+        assert.match(String(h['content-type']), /text\/html/));
+    }
+  }
 
-    console.log(falhas ? '\n' + falhas + ' falha(s)\n' : '\ntudo certo\n');
-    encerrar(falhas ? 1 : 0);
+  http.get({ host: '127.0.0.1', port: 8977, path: '/cofre.html' }, (res) => {
+    res.resume();
+    conferirCabecalhos('pagina servida', res.headers, true);
+
+    http.get({ host: '127.0.0.1', port: 8977, path: '/' }, (r2) => {
+      r2.resume();
+      caso('o portao desvia quem nao entrou', () =>
+        assert.strictEqual(r2.statusCode, 302, 'esperava desvio, veio ' + r2.statusCode));
+      conferirCabecalhos('desvio do portao', r2.headers, false);
+
+      console.log(falhas ? '\n' + falhas + ' falha(s)\n' : '\ntudo certo\n');
+      encerrar(falhas ? 1 : 0);
+    }).on('error', (e) => {
+      console.log('  FALHOU não consegui falar com o servidor: ' + e.message);
+      encerrar(1);
+    });
   }).on('error', (e) => {
     console.log('  FALHOU não consegui falar com o servidor: ' + e.message);
     encerrar(1);

@@ -202,8 +202,8 @@ async function tratar(req, res, u, lerCorpo) {
       json(res, 200, {
         autenticado: true, email: s.email, papel: s.papel,
         tenantId: s.tenantId, tenantNome: s.tenantNome, retencaoDias: s.retencaoDias,
-        equipes: banco.vinculosDoUsuario(s.usuarioId)
-          .map(v => ({ id: v.tenant_id, nome: v.tenant_nome, papel: v.papel }))
+        via: s.via, provedorNome: s.provedorNome,
+        equipes: banco.equipesAlcancaveis(s.usuarioId)
       });
       return true;
     }

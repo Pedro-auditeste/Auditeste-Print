@@ -10,6 +10,7 @@
  *   node cofre/admin.js criar-usuario pedro@auditeste.com <tenantId> admin
  *   node cofre/admin.js senha pedro@auditeste.com
  *   node cofre/admin.js vincular pedro@auditeste.com <tenantId> gestor
+ *   node cofre/admin.js provedor <tenantId> [on|off]
  *   node cofre/admin.js varrer
  *   node cofre/admin.js backup [destino]
  *   node cofre/admin.js conferir <arquivo>
@@ -47,7 +48,8 @@ const comandos = {
     const lista = banco.listarTenants();
     if (!lista.length) return console.log('nenhum cliente cadastrado');
     for (const t of lista) {
-      console.log(t.id + '  ' + t.nome + '  retenção ' + t.retencao_dias + ' dias');
+      console.log(t.id + '  ' + t.nome + '  retenção ' + t.retencao_dias + ' dias'
+        + (t.provedor ? '  [PROVEDORA]' : ''));
     }
   },
 
@@ -104,6 +106,23 @@ const comandos = {
     banco.vincular(tenantId, u.id, papel || 'consultor');
     banco.auditar(tenantId, u.id, 'permissao.alterada', u.email + ' como ' + (papel || 'consultor'), 'cli');
     console.log('vínculo gravado: ' + u.email + ' -> ' + tenantId + ' como ' + (papel || 'consultor'));
+  },
+
+  provedor(tenantId, estado) {
+    if (!tenantId) {
+      console.error('uso: provedor <tenantId> [on|off]');
+      process.exit(1);
+    }
+    if (!banco.obterTenant(tenantId)) { console.error('cliente não existe'); process.exit(1); }
+    const ligar = String(estado || 'on').toLowerCase() !== 'off';
+    const t = banco.marcarProvedor(tenantId, ligar);
+    console.log((ligar ? 'marcada como provedora: ' : 'deixou de ser provedora: ') + t.nome);
+    if (ligar) {
+      console.log('');
+      console.log('Quem for consultor ou acima nesta equipe passa a alcançar a equipe');
+      console.log('de todos os clientes, levando o próprio papel. Cada entrada fica');
+      console.log('registrada na auditoria do cliente.');
+    }
   },
 
   varrer() {

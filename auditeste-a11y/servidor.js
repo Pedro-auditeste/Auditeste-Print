@@ -302,8 +302,17 @@ if (cofreLigado) {
 const PRINT_ABERTO = process.env.COFRE_PRINT_ABERTO === '1';
 const PAGINAS_PROTEGIDAS = new Set(['/', '/index.html']);
 
+/* Uma verdade so sobre o portao. O /ping dizia que ele estava de pe enquanto
+ * em loopback ele nao estava: relatorio que mente sobre o proprio estado e
+ * como se descobre o problema tarde. */
+const PORTAO_DE_PE = cofreLigado && !PRINT_ABERTO && !ehLoopback;
+
 function precisaEntrar(req, u) {
-  if (!cofreLigado || PRINT_ABERTO) return false;
+  /* Loopback nao tem portao, pela mesma razao que nao exige PONTE_TOKEN: em
+   * 127.0.0.1 quem alcanca a pagina ja esta na maquina, e o Print ali e
+   * ferramenta local, com a evidencia no IndexedDB do proprio navegador.
+   * Exigir conta para o QA abrir o proprio Print seria atrito sem defesa. */
+  if (!PORTAO_DE_PE) return false;
   if (!PAGINAS_PROTEGIDAS.has(u.pathname)) return false;
   try {
     return !contasCofre.sessaoDe(req);
@@ -345,7 +354,7 @@ const servidor = http.createServer(async (req, res) => {
       limite: MAX,
       cenarios: !!process.env.AGENTE_API_KEY,
     cofre: cofreLigado || bancoCofre.porque(),
-    portao: cofreLigado && !PRINT_ABERTO,
+    portao: PORTAO_DE_PE,
     semVolume: cofreLigado && bancoCofre.efemero(),
     bancoEm: cofreLigado ? bancoCofre.onde() : undefined,
       chrome: !!caminhoChrome(),
@@ -427,7 +436,11 @@ const servidor = http.createServer(async (req, res) => {
   if (u.pathname !== '/scan') {
     if (precisaEntrar(req, u)) {
       const volta = '/cofre.html?ir=' + encodeURIComponent(u.pathname + u.search);
-      res.writeHead(302, { Location: volta, 'Cache-Control': 'no-store' });
+      /* O desvio tambem leva os cabecalhos de seguranca. Resposta curta sem
+       * corpo continua sendo resposta, e deixar uma porta do site sem eles e
+       * como trancar a da frente e esquecer a dos fundos encostada. */
+      res.writeHead(302, Object.assign(
+        { Location: volta, 'Cache-Control': 'no-store' }, cabecalhoSeguro(req)));
       return res.end();
     }
     if ((req.method === 'GET' || req.method === 'HEAD') && servirArquivo(req, res, u.pathname)) return;
@@ -495,7 +508,7 @@ servidor.listen(PORTA, HOST, () => {
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
   if (envs.length) console.log('env: ' + envs.join(', '));
   console.log(`cofre: ${cofreLigado ? 'ligado (' + (process.env.COFRE_BANCO || '') + ')' : 'desligado — ' + bancoCofre.porque()}`
-    + ` · portao do Print: ${cofreLigado && !PRINT_ABERTO ? 'exige login' : 'aberto'}`);
+    + ` · portao do Print: ${PORTAO_DE_PE ? 'exige login' : 'aberto'}`);
   if (cofreLigado && bancoCofre.efemero()) {
     console.warn('ATENCAO: o cofre esta em disco efemero. Monte um volume em /dados,');
     console.warn('senao o proximo deploy apaga a evidencia guardada.');

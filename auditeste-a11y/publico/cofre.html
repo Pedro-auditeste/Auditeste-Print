@@ -38,6 +38,10 @@
   header h1{font-size:1.05rem;margin:0;font-weight:700;letter-spacing:.01em;}
   header .quem{margin-left:auto;font-size:.85rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   header .quem b{color:var(--green);}
+  /* Dentro de um cliente o topo muda de cor: e a diferenca que precisa ser
+   * vista sem ler, porque o erro caro e gravar no cliente errado. */
+  body.visitante header{background:#5a3a12;border-bottom-color:#e0a33a;}
+  body.visitante header .quem b{color:#f2c266;}
   header a{color:#cfe3ee;}
 
   main{max-width:1040px;margin:0 auto;padding:26px 22px 60px;}
@@ -288,10 +292,14 @@
     const equipes = r.equipes || [];
     /* Seletor so quando ha mais de uma: com uma equipe so, um select de uma
      * opcao e ruido que sugere escolha onde nao ha. */
+    /* O sufixo diz de qual porta cada equipe vem. Sem isso, no seletor a
+     * equipe da consultoria e a de um cliente parecem a mesma coisa, e um
+     * dia alguem grava evidencia no cliente errado achando que esta em casa. */
     const troca = equipes.length > 1
       ? '<select id="selEquipe" aria-label="Equipe">'
         + equipes.map(t => '<option value="' + esc(t.id) + '"'
-          + (t.id === r.tenantId ? ' selected' : '') + '>' + esc(t.nome) + '</option>').join('')
+          + (t.id === r.tenantId ? ' selected' : '') + '>' + esc(t.nome)
+          + (t.via === 'provedor' ? ' (cliente)' : '') + '</option>').join('')
         + '</select>'
       : '<b>' + esc(r.tenantNome) + '</b>';
 
@@ -299,6 +307,7 @@
       + ' <button class="btn" id="btnSair" style="padding:4px 10px">Sair</button>'
       + ' <a href="/" style="color:#cfe0f3">Print</a>';
 
+    document.body.classList.toggle('visitante', r.via === 'provedor');
     $('btnSair').addEventListener('click', async () => {
       await api('/api/sair', { method:'POST' });
       location.reload();
@@ -385,8 +394,12 @@
 
   async function abrirProjetos(){
     mostrar('telaProjetos');
-    $('metaTenant').textContent = 'Evidências deste cliente são apagadas automaticamente após '
-      + eu.retencaoDias + ' dias.';
+    $('metaTenant').innerHTML = 'Evidências deste cliente são apagadas automaticamente após '
+      + eu.retencaoDias + ' dias.'
+      + (eu.via === 'provedor'
+          ? '<br><b>Você está dentro de ' + esc(eu.tenantNome) + ' como ' + esc(eu.provedorNome)
+            + '.</b> Este acesso fica registrado na auditoria deste cliente.'
+          : '');
     $('btnAuditoria').hidden = !pode('gestor');
     $('btnConvidar').hidden = !pode('gestor');
 
