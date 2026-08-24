@@ -12,3 +12,4 @@ Thumbs.db
 
 # scripts de diagnostico temporarios
 auditeste-a11y/_*.js
+auditeste-a11y/dados/

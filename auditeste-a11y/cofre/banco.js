@@ -140,6 +140,33 @@ CREATE INDEX IF NOT EXISTS ix_convite_tenant ON convites(tenant_id);
 
 let db = null;
 let motivoDesligado = '';
+let semVolume = false;
+
+/* Onde o banco fica quando ninguem disse.
+ *
+ * A versao anterior exigia COFRE_BANCO e ficava desligada sem ele. O efeito
+ * pratico foi pior que o risco que eu queria evitar: o login simplesmente
+ * nao existia em producao, e quem precisava dele nao tinha como ligar sem
+ * mexer em variavel de ambiente.
+ *
+ * Entao liga sozinho. O risco do disco efemero nao sumiu, mas mentir sobre
+ * ele e que era inaceitavel: quando cai aqui, semVolume vira true e o
+ * sistema avisa na tela e no /ping, em vez de perder evidencia calado. */
+const VOLUME = '/dados';
+
+function caminhoPadrao() {
+  try {
+    if (fs.existsSync(VOLUME) && fs.statSync(VOLUME).isDirectory()) {
+      semVolume = false;
+      return path.join(VOLUME, 'cofre.db');
+    }
+  } catch (e) { /* sem acesso: cai no efemero */ }
+  semVolume = true;
+  return path.join(__dirname, '..', 'dados', 'cofre.db');
+}
+
+/** true quando o banco esta em disco que o proximo deploy apaga. */
+const efemero = () => semVolume;
 
 const id = () => crypto.randomUUID();
 const agora = () => Date.now();
@@ -153,11 +180,7 @@ function abrir(caminho) {
     motivoDesligado = 'este Node não tem node:sqlite (precisa de 22 ou mais novo)';
     return null;
   }
-  const arquivo = caminho || process.env.COFRE_BANCO || '';
-  if (!arquivo) {
-    motivoDesligado = 'COFRE_BANCO não definido';
-    return null;
-  }
+  const arquivo = caminho || process.env.COFRE_BANCO || caminhoPadrao();
   try {
     if (arquivo !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(arquivo)), { recursive: true });
     db = new DatabaseSync(arquivo);
@@ -661,7 +684,7 @@ function limparTentativas(chave) {
 }
 
 module.exports = {
-  abrir, fechar, ligado, porque, exigirTenant,
+  abrir, fechar, ligado, porque, efemero, exigirTenant,
   criarTenant, obterTenant, listarTenants,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,

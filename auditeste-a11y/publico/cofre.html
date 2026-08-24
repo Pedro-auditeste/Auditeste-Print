@@ -465,6 +465,16 @@
         await abrirProjetos();
         return;
       }
+      /* Disco efemero nao pode ser detalhe escondido em log: quem guarda
+       * evidencia de cliente aqui precisa ver isso antes de guardar. */
+      try{
+        const ping = await (await fetch('/ping')).json();
+        if(ping && ping.semVolume){
+          $('aviso').innerHTML = '<div class="aviso ruim">Este servidor ainda não tem volume. '
+            + 'O cofre funciona, mas <b>o próximo deploy apaga tudo que for guardado</b>. '
+            + 'Monte um volume em <b>/dados</b> antes de usar com cliente de verdade.</div>';
+        }
+      }catch(e){}
       const cfg = await api('/api/cadastro').catch(()=>({ aberto:true }));
       if(!cfg.aberto){
         $('abaCriar').textContent = 'Tenho um convite';

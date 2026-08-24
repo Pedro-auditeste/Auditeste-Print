@@ -346,6 +346,7 @@ const servidor = http.createServer(async (req, res) => {
       cenarios: !!process.env.AGENTE_API_KEY,
     cofre: cofreLigado || bancoCofre.porque(),
     portao: cofreLigado && !PRINT_ABERTO,
+    semVolume: cofreLigado && bancoCofre.efemero(),
       chrome: !!caminhoChrome(),
       modelo: MODELO,
       base: BASE_URL,
@@ -494,6 +495,10 @@ servidor.listen(PORTA, HOST, () => {
   if (envs.length) console.log('env: ' + envs.join(', '));
   console.log(`cofre: ${cofreLigado ? 'ligado (' + (process.env.COFRE_BANCO || '') + ')' : 'desligado — ' + bancoCofre.porque()}`
     + ` · portao do Print: ${cofreLigado && !PRINT_ABERTO ? 'exige login' : 'aberto'}`);
+  if (cofreLigado && bancoCofre.efemero()) {
+    console.warn('ATENCAO: o cofre esta em disco efemero. Monte um volume em /dados,');
+    console.warn('senao o proximo deploy apaga a evidencia guardada.');
+  }
   console.log(`token: ${TOKEN ? 'exigido' : 'não'} · máx ${MAX} simultâneos`
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);
