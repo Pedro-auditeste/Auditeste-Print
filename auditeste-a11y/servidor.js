@@ -347,6 +347,7 @@ const servidor = http.createServer(async (req, res) => {
     cofre: cofreLigado || bancoCofre.porque(),
     portao: cofreLigado && !PRINT_ABERTO,
     semVolume: cofreLigado && bancoCofre.efemero(),
+    bancoEm: cofreLigado ? bancoCofre.onde() : undefined,
       chrome: !!caminhoChrome(),
       modelo: MODELO,
       base: BASE_URL,

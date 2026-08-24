@@ -152,21 +152,32 @@ let semVolume = false;
  * Entao liga sozinho. O risco do disco efemero nao sumiu, mas mentir sobre
  * ele e que era inaceitavel: quando cai aqui, semVolume vira true e o
  * sistema avisa na tela e no /ping, em vez de perder evidencia calado. */
-const VOLUME = '/dados';
+/* Dois nomes porque a Railway usa os dois nos exemplos, e montar em /data
+ * quando o codigo so olha /dados falharia calado: o cofre subiria efemero e
+ * o aviso continuaria na tela sem ninguem entender por que. */
+const VOLUMES = ['/dados', '/data'];
+let ondeEstou = '';
 
 function caminhoPadrao() {
-  try {
-    if (fs.existsSync(VOLUME) && fs.statSync(VOLUME).isDirectory()) {
-      semVolume = false;
-      return path.join(VOLUME, 'cofre.db');
-    }
-  } catch (e) { /* sem acesso: cai no efemero */ }
+  for (const v of VOLUMES) {
+    try {
+      if (fs.existsSync(v) && fs.statSync(v).isDirectory()) {
+        semVolume = false;
+        ondeEstou = path.join(v, 'cofre.db');
+        return ondeEstou;
+      }
+    } catch (e) { /* sem acesso: tenta o proximo */ }
+  }
   semVolume = true;
-  return path.join(__dirname, '..', 'dados', 'cofre.db');
+  ondeEstou = path.join(__dirname, '..', 'dados', 'cofre.db');
+  return ondeEstou;
 }
 
 /** true quando o banco esta em disco que o proximo deploy apaga. */
 const efemero = () => semVolume;
+
+/** Onde o banco ficou, para conferir sem adivinhar. Caminho nao e segredo. */
+const onde = () => ondeEstou;
 
 const id = () => crypto.randomUUID();
 const agora = () => Date.now();
@@ -181,6 +192,12 @@ function abrir(caminho) {
     return null;
   }
   const arquivo = caminho || process.env.COFRE_BANCO || caminhoPadrao();
+  if (caminho || process.env.COFRE_BANCO) {
+    ondeEstou = arquivo;
+    // Caminho dado a mao: so e volume se apontar para um dos pontos de
+    // montagem conhecidos. Fora deles, tratamos como efemero e avisamos.
+    semVolume = !VOLUMES.some(v => path.resolve(arquivo).replace(/\\/g, '/').startsWith(v + '/'));
+  }
   try {
     if (arquivo !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(arquivo)), { recursive: true });
     db = new DatabaseSync(arquivo);
@@ -684,7 +701,7 @@ function limparTentativas(chave) {
 }
 
 module.exports = {
-  abrir, fechar, ligado, porque, efemero, exigirTenant,
+  abrir, fechar, ligado, porque, efemero, onde, exigirTenant,
   criarTenant, obterTenant, listarTenants,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
