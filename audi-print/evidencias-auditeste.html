@@ -3544,7 +3544,23 @@
     ct.addEventListener('change', ()=>{ localStorage.setItem('ponte_token', ct.value.trim()); pingPonte(); });
     const dica = document.querySelector('.dica-ponte');
     if(dica && /^https?:$/.test(location.protocol)){
-      dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). Token só é necessário se a Railway tiver <b>PONTE_TOKEN</b> configurado.';
+      dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). '
+        + 'Fica guardado neste navegador.';
+      /* Com o cofre no ar, sua sessão já autoriza os scans e o campo de token
+       * deixa de fazer sentido no uso normal. Ele fica escondido em vez de
+       * removido: quem abre o Print do disco, ou aponta para outra ponte, não
+       * manda cookie e continua precisando dele. */
+      fetch('/ping', { signal: AbortSignal.timeout(4000) })
+        .then(r => r.json())
+        .then(d => {
+          const campo = document.getElementById('tokenPonte');
+          if(!d || !d.sessaoAutoriza || !campo) return;
+          if((campo.value || '').trim()) return;   // já preenchido: não mexe
+          campo.hidden = true;
+          dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). '
+            + 'Sua sessão já autoriza os scans, não precisa de token.';
+        })
+        .catch(()=>{});
     }
   }
 

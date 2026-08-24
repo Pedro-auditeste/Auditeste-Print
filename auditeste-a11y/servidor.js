@@ -237,17 +237,46 @@ function mesmoSegredo(a, b) {
   return crypto.timingSafeEqual(x, y);
 }
 
-function tokenInvalido(req, u) {
-  if (!TOKEN) {
-    if (ehLoopback) return false;
-    return !mesmaOrigem(req);
+/* Sessao do cofre vale como autorizacao para os scans.
+ *
+ * O PONTE_TOKEN nasceu quando nao havia login: era a unica forma de o
+ * servidor saber que a chamada vinha de alguem autorizado. Com o cofre no ar
+ * existe algo melhor, um cookie HttpOnly que o navegador manda sozinho e que
+ * o usuario nao copia, nao cola e nao perde.
+ *
+ * Isso nao afrouxa nada: quem nao tem nem token nem sessao continua levando
+ * 401, que e exatamente o curl que abriu esta historia. O que muda e parar de
+ * exigir que a pessoa carregue o segredo na mao entre navegadores, porque
+ * segredo que se copia e o segredo que acaba num bloco de notas. */
+function temSessaoDoCofre(req) {
+  if (!cofreLigado) return false;
+  try {
+    return !!contasCofre.sessaoDe(req);
+  } catch (err) {
+    return false;
   }
+}
+
+function tokenInvalido(req, u) {
+  if (ehLoopback) return false;
+  if (temSessaoDoCofre(req)) return false;
+  /* Com o cofre no ar, some a heuristica do mesma-origem.
+   *
+   * Ela sempre foi um remendo: conferia o cabecalho Origin, que so o
+   * navegador garante e qualquer curl forja, e foi exatamente por ali que a
+   * ponte estava aberta para a internet. Existindo sessao de verdade, manter
+   * o remendo como plano B seria manter a porta que a gente veio fechar. */
+  if (cofreLigado) return true;
+  if (!TOKEN) return !mesmaOrigem(req);
   const enviado = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
     || u.searchParams.get('token') || '';
   return !mesmoSegredo(enviado, TOKEN);
 }
 
 function msgToken(req) {
+  if (cofreLigado) {
+    return 'Entre no Print para usar os scans. Se estiver chamando de fora do navegador, use o token da ponte.';
+  }
   if (!TOKEN && !ehLoopback && !mesmaOrigem(req)) {
     return 'Acesso negado. Abra o Print nesta mesma URL ou configure PONTE_TOKEN.';
   }
@@ -361,6 +390,7 @@ const servidor = http.createServer(async (req, res) => {
       aliases: { lighthouse: 'nota' },
       status: motores,
       exigeToken: !!TOKEN,
+      sessaoAutoriza: cofreLigado,
       modo: TOKEN ? 'token' : (ehLoopback ? 'local' : 'mesma-origem'),
       ocupado: rodando,
       limite: MAX,

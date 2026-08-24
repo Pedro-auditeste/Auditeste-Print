@@ -878,6 +878,46 @@ async function principal() {
     assert.strictEqual(calcular('?ir=/index.html'), '/index.html');
   });
 
+  console.log('\nponte: sessao no lugar do token\n');
+
+  await caso('CRITERIO: sem token e sem sessao, a ponte continua fechada', async () => {
+    /* Este e o curl que abriu toda a historia. Ele nao pode voltar a passar
+     * so porque agora existe outro jeito de autorizar. */
+    const r = await fetch(BASE + '/scan?tipo=axe&url=https://example.com', {
+      headers: { Origin: BASE }, redirect: 'manual'
+    });
+    await r.text().catch(() => {});
+    assert.strictEqual(r.status, 401, 'a ponte voltou a aceitar chamada anonima');
+  });
+
+  await caso('CRITERIO: com sessao do cofre, a ponte autoriza sem token nenhum', async () => {
+    const n = navegador();
+    const entrou = await n.pedir('/api/entrar', { method: 'POST', json: { email: 'qa@google.com', senha: 'senha-do-google-1' } });
+    assert.strictEqual(entrou.status, 200, JSON.stringify(entrou.corpo));
+
+    /* tipo invalido de proposito: 400 prova que passou pela autorizacao e
+     * chegou na validacao, sem gastar um scan de verdade no teste. */
+    const r = await n.pedir('/scan?tipo=inexistente&url=https://example.com');
+    assert.notStrictEqual(r.status, 401, 'sessao valida levou 401 na ponte');
+    assert.strictEqual(r.status, 400, 'esperava chegar na validacao, veio ' + r.status);
+  });
+
+  await caso('sessao revogada perde a ponte junto', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'qa@google.com', senha: 'senha-do-google-1' } });
+    const antes = await n.pedir('/scan?tipo=inexistente&url=https://example.com');
+    assert.strictEqual(antes.status, 400);
+
+    await n.pedir('/api/sair', { method: 'POST' });
+    const depois = await n.pedir('/scan?tipo=inexistente&url=https://example.com');
+    assert.strictEqual(depois.status, 401, 'depois de sair a ponte continuou aberta');
+  });
+
+  await caso('/ping conta que a sessao autoriza', async () => {
+    const r = await (await fetch(BASE + '/ping')).json();
+    assert.strictEqual(r.sessaoAutoriza, true);
+  });
+
   console.log('\ncofre · desligado nao quebra o resto\n');
 
   await caso('o Print continua servido com o cofre ligado, para quem entrou', async () => {
