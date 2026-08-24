@@ -2,63 +2,128 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cofre de evidências · Audi Print</title>
 <style>
+  /* Mesma paleta do Print, valor por valor. A versao anterior tinha um modo
+   * escuro que ligava sozinho pelo tema do sistema, entao numa maquina em
+   * modo escuro o cofre virava preto e azul enquanto o Print continuava
+   * claro e verde: duas telas do mesmo produto sem nada em comum.
+   *
+   * O Print nao tem modo escuro. Esta pagina tambem nao tem mais. */
   :root{
-    --navy:#0f2740; --azul:#1b4f8a; --claro:#f4f6f9; --linha:#dfe4ec;
-    --texto:#1d2733; --suave:#5b6472; --perigo:#b3261e; --ok:#1c6b3f;
+    --navy:#0d3446;
+    --navy-deep:#092838;
+    --green:#76c043;
+    --green-dark:#5ea32f;
+    --bg:#f3f4f3;
+    --card:#ffffff;
+    --ink:#1e2a30;
+    --muted:#5b6b73;
+    --line:#e3e7e5;
+    --rec:#d84f4f;
+    --sombra:0 2px 10px rgba(13,52,70,.07);
   }
   *{box-sizing:border-box;}
-  body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--texto);background:var(--claro);}
-  header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-  header h1{font-size:1.05rem;margin:0;font-weight:700;letter-spacing:.01em;}
-  header .quem{margin-left:auto;font-size:.85rem;opacity:.9;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  main{max-width:1080px;margin:0 auto;padding:22px;}
-  .btn{border:1px solid var(--linha);background:#fff;color:var(--texto);border-radius:8px;
-       padding:8px 14px;font:inherit;font-size:.88rem;cursor:pointer;}
-  .btn:hover{border-color:var(--azul);}
-  .btn.primario{background:var(--navy);border-color:var(--navy);color:#fff;}
-  .btn.perigo{border-color:var(--perigo);color:var(--perigo);}
-  .btn:disabled{opacity:.5;cursor:not-allowed;}
-  .cartao{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:18px;margin-bottom:16px;}
-  .cartao h2{margin:0 0 4px;font-size:1rem;}
-  .cartao .meta{color:var(--suave);font-size:.83rem;}
-  label{display:block;margin-bottom:12px;}
-  label span{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;
-             font-weight:700;color:var(--navy);margin-bottom:4px;}
-  input[type=text],input[type=email],input[type=password]{
-    width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:8px;font:inherit;background:#fff;}
-  .entrada{max-width:380px;margin:8px auto;}
-  .aviso{padding:10px 12px;border-radius:8px;font-size:.87rem;margin-bottom:12px;}
-  .aviso.ruim{background:#fdecea;color:var(--perigo);border:1px solid #f5c6c2;}
-  .aviso.bom{background:#e8f4ec;color:var(--ok);border:1px solid #bfe0cc;}
-  .linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-  .lista{display:grid;gap:10px;}
-  .item{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid var(--linha);
-        border-radius:10px;padding:12px 14px;}
-  .item .txt{flex:1;min-width:0;}
-  .item b{display:block;}
-  .item small{color:var(--suave);}
-  .item img{width:88px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--linha);background:#fff;}
-  table{width:100%;border-collapse:collapse;font-size:.85rem;}
-  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--linha);vertical-align:top;}
-  th{color:var(--suave);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;}
-  .rolar{overflow-x:auto;}
-  .abas{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--linha);}
-  .abas button{flex:1;background:none;border:none;border-bottom:2px solid transparent;
-    padding:10px 6px;font:inherit;font-weight:700;font-size:.9rem;color:var(--suave);cursor:pointer;}
-  .abas button[aria-selected=true]{color:var(--navy);border-bottom-color:var(--navy);}
-  .dica{color:var(--suave);font-size:.82rem;line-height:1.45;margin:0 0 14px;}
-  .codigo{font-family:ui-monospace,Consolas,monospace;font-size:.9rem;background:var(--claro);
-    border:1px solid var(--linha);border-radius:8px;padding:10px;word-break:break-all;margin-top:8px;}
-  select{padding:6px 8px;border:1px solid var(--linha);border-radius:8px;font:inherit;background:#fff;}
-  @media (prefers-color-scheme: dark){ select{background:#1a1f27;color:var(--texto);} .abas button[aria-selected=true]{color:var(--texto);border-bottom-color:var(--texto);} }
-  .vazio{color:var(--suave);padding:18px;text-align:center;}
-  a{color:var(--azul);}
-  @media (prefers-color-scheme: dark){
-    :root{--claro:#12161c;--linha:#2b323c;--texto:#e6e9ee;--suave:#98a2b3;}
-    body{background:var(--claro);}
-    .cartao,.item,input[type=text],input[type=email],input[type=password],.btn{background:#1a1f27;}
-    .btn{color:var(--texto);}
+  body{
+    margin:0;
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;
   }
+
+  /* Topo igual ao do Print: navy com a faixa verde embaixo. */
+  header{
+    background:var(--navy);color:#fff;
+    border-bottom:4px solid var(--green);
+    padding:14px 26px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    position:sticky;top:0;z-index:50;
+  }
+  header h1{font-size:1.05rem;margin:0;font-weight:700;letter-spacing:.01em;}
+  header .quem{margin-left:auto;font-size:.85rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  header .quem b{color:var(--green);}
+  header a{color:#cfe3ee;}
+
+  main{max-width:1040px;margin:0 auto;padding:26px 22px 60px;}
+
+  /* Botao em pilula, maiusculo, verde: a assinatura visual do Print. */
+  .btn{
+    font-family:inherit;font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    border-radius:999px;padding:9px 18px;cursor:pointer;white-space:nowrap;
+    background:transparent;border:1.5px solid var(--green);color:var(--green-dark);
+    transition:background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover{background:rgba(118,192,67,.12);}
+  .btn.primario{background:var(--green);border-color:var(--green);color:#fff;}
+  .btn.primario:hover{background:var(--green-dark);border-color:var(--green-dark);}
+  .btn.perigo{border-color:var(--rec);color:var(--rec);}
+  .btn.perigo:hover{background:rgba(216,79,79,.1);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  header .btn{border-color:rgba(255,255,255,.5);color:#fff;padding:5px 14px;font-size:.72rem;}
+  header .btn:hover{background:rgba(255,255,255,.14);}
+
+  .cartao{
+    background:var(--card);border-radius:14px;box-shadow:var(--sombra);
+    border-top:5px solid var(--green);
+    padding:22px;margin-bottom:18px;
+  }
+  .cartao h2{margin:0 0 4px;font-size:1.02rem;color:var(--navy);}
+  .cartao .meta{color:var(--muted);font-size:.85rem;}
+
+  label{display:block;margin-bottom:14px;}
+  label span{
+    display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;
+    font-weight:700;color:var(--navy);margin-bottom:5px;
+  }
+  input[type=text],input[type=email],input[type=password]{
+    width:100%;font-family:inherit;font-size:1rem;color:var(--ink);
+    border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:#fff;
+  }
+  input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(118,192,67,.18);}
+  /* O Chrome pinta campo preenchido de azul claro e some com o texto. */
+  input:-webkit-autofill,input:-webkit-autofill:focus{
+    -webkit-box-shadow:0 0 0 1000px #fff inset;
+    -webkit-text-fill-color:var(--ink);
+  }
+  select{
+    font-family:inherit;font-size:.85rem;color:var(--ink);background:#fff;
+    border:1px solid var(--line);border-radius:999px;padding:5px 12px;
+  }
+
+  .entrada{max-width:400px;margin:40px auto;}
+  .aviso{padding:11px 14px;border-radius:10px;font-size:.87rem;margin-bottom:14px;border:1px solid;}
+  .aviso.ruim{background:#fdecea;color:#a3302a;border-color:#f2c4c0;}
+  .aviso.bom{background:#eef7e6;color:#3d6b22;border-color:#cbe6b4;}
+  .linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .lista{display:grid;gap:12px;}
+  .item{
+    display:flex;gap:14px;align-items:center;background:var(--card);
+    border:1px solid var(--line);border-left:4px solid var(--green);
+    border-radius:12px;padding:12px 16px;box-shadow:var(--sombra);
+  }
+  .item .txt{flex:1;min-width:0;}
+  .item b{display:block;color:var(--navy);}
+  .item small{color:var(--muted);display:block;}
+  .item img{width:92px;height:58px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#fff;}
+
+  table{width:100%;border-collapse:collapse;font-size:.85rem;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{color:var(--muted);font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;}
+  tbody tr:hover{background:#fafbfa;}
+  .rolar{overflow-x:auto;}
+
+  .abas{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--line);}
+  .abas button{
+    flex:1;background:none;border:none;border-bottom:3px solid transparent;
+    padding:10px 6px;font:inherit;font-weight:700;font-size:.9rem;color:var(--muted);cursor:pointer;
+  }
+  .abas button:hover{color:var(--navy);}
+  .abas button[aria-selected=true]{color:var(--navy);border-bottom-color:var(--green);}
+
+  .dica{color:var(--muted);font-size:.83rem;line-height:1.5;margin:0 0 16px;}
+  .dica b{color:var(--navy);}
+  .codigo{
+    font-family:ui-monospace,Consolas,monospace;font-size:.9rem;background:#fff;
+    border:1px solid var(--line);border-radius:10px;padding:11px;word-break:break-all;margin-top:8px;
+  }
+  .vazio{color:var(--muted);padding:22px;text-align:center;}
+  a{color:var(--green-dark);}
 </style>
 
 <header>
