@@ -8,6 +8,7 @@
  *   AGENTE_BASE_URL     padrão https://integrate.api.nvidia.com/v1
  *   AGENTE_MODELO       padrão meta/llama-3.2-11b-vision-instruct
  */
+const injecao = require('./cofre/injecao.js');
 const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/$/, '');
 /* Medido nesta conta em 19/08/2026, com uma imagem valida:
  *   11b .................. 200 em 8s
@@ -786,20 +787,26 @@ async function descreverParQa(antes, depois, contexto, par) {
   /* Lidos do HTML pela gravacao. Sao fatos: o modelo nao precisa deduzi-los da
    * imagem, e nao pode contradize-los. */
   const verbo = VERBO[ctx.acao] || 'interagiu com';
-  const metadados = [
-    ctx.rotulo || ctx.elemento ? `Acao executada: o usuario ${verbo} "${ctx.rotulo || ctx.elemento}"` : '',
-    ctx.valor && ctx.acao !== 'Capturar texto' ? `Valor digitado: "${ctx.valor}"` : '',
-    ctx.valor && ctx.acao === 'Capturar texto' ? `Texto lido: "${ctx.valor}"` : '',
-    `Seletor tecnico: ${ctx.elemento}`,
-    ctx.html ? `HTML do elemento: ${ctx.html}` : '',
-    `URL antes: ${ctx.urlAntes}`,
-    `URL depois: ${ctx.urlDepois}`,
-    ctx.textoAntes ? `Titulo da tela antes: ${ctx.textoAntes.titulo}` : '',
-    ctx.textoDepois ? `Titulo da tela depois: ${ctx.textoDepois.titulo}` : '',
-    mudancaDeTela(ctx.textoAntes, ctx.textoDepois),
-    `Modulo: ${ctx.modulo}`,
-    `Tipo de teste: ${ctx.tipoTeste}`
-  ].filter(Boolean).filter((linha) => !/:[ ]*$/.test(linha)).join('\n');
+
+  /* Tudo daqui para baixo saiu do sistema testado, entao vai dentro de uma
+   * fronteira declarada. Antes ia solto no prompt, misturado com as nossas
+   * orientacoes, e uma frase na tela do cliente valia tanto quanto elas. */
+  const lacre = injecao.novoLacre();
+  const bloco = injecao.blocoDeDados({
+    'Acao executada': ctx.rotulo || ctx.elemento
+      ? `o usuario ${verbo} "${ctx.rotulo || ctx.elemento}"` : '',
+    [ctx.acao === 'Capturar texto' ? 'Texto lido' : 'Valor digitado']: ctx.valor,
+    'Seletor tecnico': ctx.elemento,
+    'HTML do elemento': ctx.html,
+    'URL antes': ctx.urlAntes,
+    'URL depois': ctx.urlDepois,
+    'Titulo da tela antes': ctx.textoAntes ? ctx.textoAntes.titulo : '',
+    'Titulo da tela depois': ctx.textoDepois ? ctx.textoDepois.titulo : '',
+    'Mudanca observada': mudancaDeTela(ctx.textoAntes, ctx.textoDepois),
+    'Modulo': ctx.modulo,
+    'Tipo de teste': ctx.tipoTeste
+  }, lacre);
+  const metadados = bloco.texto;
   const imagens = dataUrlValida(par)
     ? [
         { type: 'text', text: 'IMAGEM COMPOSTA: duas telas empilhadas, separadas por uma barra vermelha horizontal. A de CIMA, sob "1 ANTES", é onde o clique aconteceu. A de BAIXO, sob "2 DEPOIS", é a tela que abriu. Leia as duas faixas antes de descrever.' },
@@ -811,9 +818,17 @@ async function descreverParQa(antes, depois, contexto, par) {
         { type: 'text', text: 'IMAGEM DEPOIS:' },
         { type: 'image_url', image_url: { url: depois } }
       ];
+  /* O alerta viaja junto com a analise. Quem le a evidencia precisa saber que
+   * aquela tela tentou dar ordem ao gerador da descricao: esconder seria pior
+   * que o ataque, porque a prova continuaria parecendo boa. */
+  const alerta = bloco.suspeito
+    ? { conteudoTentouInstruir: true, sinais: bloco.sinais }
+    : null;
+
   const pedir = (maxTokens, reforco) => chamarNvidia({
     messages: [
-      { role: 'system', content: PROMPT_ANALISE_QA + (reforco ? '\n' + reforco : '') },
+      { role: 'system', content: PROMPT_ANALISE_QA + '\n\n' + injecao.regraDeFronteira(lacre)
+          + (reforco ? '\n' + reforco : '') },
       {
         role: 'user',
         content: [
@@ -850,8 +865,28 @@ async function descreverParQa(antes, depois, contexto, par) {
   }
   const aviso = alertaDeLados(analise);
   if (aviso) analise.alerta_qa = analise.alerta_qa ? aviso + ' ' + analise.alerta_qa : aviso;
+
+  /* Conferencia da saida: se a resposta repetiu a fronteira ou trocou de
+   * papel, ela nao descreve a tela, ela obedeceu ao conteudo. Nesse caso a
+   * descricao nao vale e some, sobrando o alerta. */
+  const problema = injecao.saidaSuspeita(
+    String(analise.legenda_curta || '') + ' ' + String(analise.descricao_detalhada || ''), lacre);
+  if (problema) {
+    analise.legenda_curta = 'Conteudo da tela interferiu na descricao';
+    analise.descricao_detalhada = 'A descricao automatica foi descartada porque '
+      + problema + '. Descreva este passo a mao.';
+  }
+
+  const marca = alerta || problema
+    ? 'Atencao: o conteudo desta tela tentou dar instrucoes ao gerador da descricao. '
+      + 'Confira este passo antes de usar como evidencia.'
+    : '';
+  if (marca) analise.alerta_qa = analise.alerta_qa ? marca + ' ' + analise.alerta_qa : marca;
+
   return {
     ...analise,
+    conteudoTentouInstruir: !!(alerta || problema),
+    sinaisDeInstrucao: alerta ? alerta.sinais : [],
     titulo: analise.legenda_curta || analise.titulo_cenario,
     obs: analise.descricao_detalhada || analise.legenda_curta
   };
