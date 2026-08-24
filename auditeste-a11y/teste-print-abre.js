@@ -32,18 +32,38 @@ const ESSENCIAIS = [
     { waitUntil: 'networkidle0' });
   await new Promise((r) => setTimeout(r, 1500));
 
-  const r = await p.evaluate((ids) => ({
-    faltando: ids.filter((id) => !document.getElementById(id)),
-    telas: document.querySelectorAll('.tela').length,
-    rotuloIniciar: (document.getElementById('btnIniciar') || {}).textContent,
-    sobrouTesteAutomatico: !!document.querySelector(
-      '#urlTesteIa, #urlTesteIaHome, #urlTesteIaProjeto, .caixa-link, #estadoTesteIa'
-    )
-  }), ESSENCIAIS);
+  const r = await p.evaluate((ids) => {
+    const loja = document.getElementById('lojaExtensao');
+    /* Simula o complemento se anunciando: os dois convites para instalar
+     * precisam sumir juntos, senao quem ja instalou continua sendo mandado
+     * instalar de novo. */
+    // '*' e nao location.origin: aberta por file:// a origem e a string
+    // "null", e postMessage com esse alvo nao entrega a mensagem.
+    window.postMessage({ tipo: 'AUDI_EXTENSAO_PRESENTE' }, '*');
+    return {
+      faltando: ids.filter((id) => !document.getElementById(id)),
+      telas: document.querySelectorAll('.tela').length,
+      rotuloIniciar: (document.getElementById('btnIniciar') || {}).textContent,
+      sobrouTesteAutomatico: !!document.querySelector(
+        '#urlTesteIa, #urlTesteIaHome, #urlTesteIaProjeto, .caixa-link, #estadoTesteIa'
+      ),
+      lojaHref: loja ? loja.getAttribute('href') : null,
+      lojaAlvo: loja ? loja.getAttribute('target') : null,
+      lojaRel: loja ? loja.getAttribute('rel') : null
+    };
+  }, ESSENCIAIS);
+
+  await new Promise((espera) => setTimeout(espera, 300));
+  const esconderam = await p.evaluate(() =>
+    ['lojaExtensao', 'btnBaixarExtensao'].filter((id) => {
+      const el = document.getElementById(id);
+      return el && !el.hidden;
+    }));
 
   await nav.close();
   console.log(JSON.stringify(r, null, 2));
   console.log('erros de JS: ' + (erros.length ? erros.join(' | ') : 'nenhum'));
+  console.log('loja: ' + r.lojaHref);
 
   assert.deepStrictEqual(r.faltando, [], 'sumiram elementos essenciais');
   assert.ok(r.telas >= 3, 'faltam telas: ' + r.telas);
@@ -52,5 +72,17 @@ const ESSENCIAIS = [
   assert.match(r.rotuloIniciar, /grav/i, 'botão não fala em gravar: ' + r.rotuloIniciar);
   assert.strictEqual(r.sobrouTesteAutomatico, false, 'sobrou peça do teste automático');
   assert.strictEqual(erros.length, 0, 'a página deu erro de JS');
+
+  /* O id da extensao publicada. Errar um caractere manda todo mundo para uma
+   * pagina de "nao encontrado" na Chrome Web Store, e ninguem descobre pelo
+   * codigo: o botao continua bonito e continua clicavel. */
+  assert.strictEqual(r.lojaHref,
+    'https://chromewebstore.google.com/detail/nllfmnhjlgchmenpnanjkdiojgkikfln',
+    'o link da loja mudou ou saiu: ' + r.lojaHref);
+  assert.strictEqual(r.lojaAlvo, '_blank', 'o link da loja tira o QA da gravação em andamento');
+  assert.match(String(r.lojaRel), /noopener/, 'link externo sem noopener');
+  assert.deepStrictEqual(esconderam, [],
+    'com o complemento instalado, ainda sobrou convite para instalar: ' + esconderam.join(', '));
+
   console.log('\nRESULTADO: PASSOU');
 })().catch((e) => { console.error('FALHA: ' + e.message); process.exit(1); });

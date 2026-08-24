@@ -314,6 +314,10 @@
   .modal .corpo-modal{padding:22px 26px 8px;display:flex;flex-direction:column;gap:16px;}
   .modal label{display:block;}
   .modal .rot{margin-bottom:5px;}
+  /* Saida de excecao: fica visivel, mas nao disputa com o caminho da loja. */
+  .btn.discreto{opacity:.6;font-size:.75rem;padding-left:9px;padding-right:9px;}
+  .btn.discreto:hover{opacity:1;}
+  a.btn{display:inline-flex;align-items:center;text-decoration:none;}
   .linha-opcao{display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
   .linha-opcao input{margin-top:3px;flex:0 0 auto;width:16px;height:16px;accent-color:var(--navy);}
   .linha-opcao .rot{margin-bottom:2px;}
@@ -1160,7 +1164,11 @@
     <div class="cabecalho-passos">
       <h2 class="bloco">Passos capturados</h2>
       <button type="button" class="btn pequeno primario" data-acao="puxarExtensao" id="btnPuxarExtensao" hidden title="Traz os cliques, preenchimentos e leituras já capturados no navegador">Trazer captura do navegador</button>
-      <button type="button" class="btn pequeno" data-acao="baixarExtensao" id="btnBaixarExtensao" title="Baixa o complemento que registra o xpath de cada interação">Instalar complemento</button>
+      <a class="btn pequeno" id="lojaExtensao" target="_blank" rel="noopener"
+         href="https://chromewebstore.google.com/detail/nllfmnhjlgchmenpnanjkdiojgkikfln"
+         title="Instala o complemento pela Chrome Web Store, com atualização automática">Instalar complemento</a>
+      <button type="button" class="btn pequeno discreto" data-acao="baixarExtensao" id="btnBaixarExtensao"
+         title="Para máquina onde a Chrome Web Store está bloqueada">.zip</button>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
     <div id="videoAtual"></div>
@@ -3135,12 +3143,17 @@
     const b = document.getElementById('btnPuxarExtensao');
     if(b) b.hidden = false;
     // Instalado, o convite para instalar so atrapalha.
-    const i = document.getElementById('btnBaixarExtensao');
-    if(i) i.hidden = true;
+    for(const id of ['btnBaixarExtensao', 'lojaExtensao']){
+      const i = document.getElementById(id);
+      if(i) i.hidden = true;
+    }
   }
 
-  /* Página web não instala complemento sozinha — o Chrome tirou isso em 2018.
-   * O que dá é entregar o pacote pronto e mostrar os três passos. */
+  /* Instalar pela loja é um clique e atualiza sozinho, então é o caminho
+   * principal. Este .zip existe para o caso que a loja não cobre: máquina de
+   * cliente onde a política da empresa bloqueia a Chrome Web Store, que é
+   * justamente onde o Print vai ser usado. Instalado assim, o complemento
+   * NÃO se atualiza: quem usa esta porta precisa repetir quando mudar. */
   async function baixarExtensao(){
     if(complementoAtivo){
       informar('O complemento já está instalado e ativo nesta página. Use <b>Trazer captura do navegador</b> '
@@ -3163,7 +3176,9 @@
       a.remove();
       setTimeout(()=> URL.revokeObjectURL(a.href), 30000);
       informar(
-        '<b>1.</b> Descompacte o arquivo baixado numa pasta fixa. Não apague essa pasta depois: '
+        'Se a Chrome Web Store estiver liberada nesta máquina, prefira <b>Instalar complemento</b>: '
+        + 'é um clique e o complemento se atualiza sozinho. Instalado pelo .zip, ele não atualiza.<br><br>'
+        + '<b>1.</b> Descompacte o arquivo baixado numa pasta fixa. Não apague essa pasta depois: '
         + 'o Chrome lê o complemento dela toda vez que abre.<br>'
         + '<b>2.</b> Abra <b>chrome://extensions</b> e ligue o <b>Modo do desenvolvedor</b>, no canto superior direito.<br>'
         + '<b>3.</b> Clique em <b>Carregar sem compactação</b> e escolha a pasta descompactada.<br><br>'
