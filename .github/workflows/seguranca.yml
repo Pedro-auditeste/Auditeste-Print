@@ -1,0 +1,93 @@
+# Varredura de segurança contínua.
+#
+# Existe porque "rodamos npm audit uma vez" não é controle: dependência
+# vulnerável aparece quando alguém publica o aviso, não quando a gente mexe
+# no código. Rodar semanalmente pega o que surge sozinho.
+#
+# Não falha o build pelas vulnerabilidades de hoje: as 6 altas atuais estão
+# todas na cadeia do navegador headless (puppeteer, lighthouse, pa11y) e só
+# se resolvem com mudança de versão maior, que precisa de teste próprio.
+# Falhar aqui todo dia por algo conhecido ensina o time a ignorar o alerta,
+# que é o pior resultado possível.
+
+name: seguranca
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 9 * * 1'   # segunda de manhã
+  workflow_dispatch:
+
+jobs:
+  dependencias:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: instalar
+        working-directory: auditeste-a11y
+        run: npm ci --omit=dev --ignore-scripts
+      - name: varredura
+        working-directory: auditeste-a11y
+        continue-on-error: true
+        run: npm audit
+      - name: resumo
+        working-directory: auditeste-a11y
+        run: |
+          npm audit --json > /tmp/audit.json || true
+          node -e "
+            const d = require('/tmp/audit.json');
+            const v = d.vulnerabilities || {};
+            const c = { critical: 0, high: 0, moderate: 0, low: 0 };
+            for (const k of Object.keys(v)) c[v[k].severity] = (c[v[k].severity] || 0) + 1;
+            console.log('criticas: ' + c.critical + ' · altas: ' + c.high
+              + ' · medias: ' + c.moderate + ' · baixas: ' + c.low);
+            if (c.critical > 0) {
+              console.log('');
+              console.log('Vulnerabilidade CRITICA. Esta e a que nao espera a proxima sprint.');
+              process.exit(1);
+            }
+          "
+
+  segredos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: procurar segredo na historia
+        run: |
+          # Padrões que já apareceram neste projeto, mais os genéricos.
+          # nvapi-sua-chave-aqui é o exemplo do .env.example e não conta.
+          achados=$(git log --all -p \
+            | grep -oE "nvapi-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----" \
+            | grep -v "nvapi-sua-chave-aqui" | sort -u || true)
+          if [ -n "$achados" ]; then
+            echo "SEGREDO na história do git:"
+            echo "$achados" | sed 's/\(.\{12\}\).*/\1.../'
+            exit 1
+          fi
+          echo "nenhum segredo na história"
+
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: instalar
+        working-directory: auditeste-a11y
+        run: npm ci --omit=dev --ignore-scripts
+      - name: testes que nao precisam de navegador
+        working-directory: auditeste-a11y
+        run: |
+          node teste-cofre.js
+          node teste-cifra.js
+          node teste-backup.js
+          node teste-privacidade.js
+          node teste-docker.js

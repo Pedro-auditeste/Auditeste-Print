@@ -60,6 +60,100 @@ function freio(sessao) {
   }
 }
 
+/* Freio por ORIGEM, alem do freio por sessao.
+ *
+ * O de sessao so pega quem ja entrou. Antes disso, /api/entrar e
+ * /api/cadastrar ficavam sem teto por IP: o de login e por conta, entao
+ * varrer mil contas diferentes de um IP so nao encostava em nenhum limite. */
+const JANELA_IP_MS = 60000;
+/* Alto de proposito, e mais alto que o teto por sessao.
+ *
+ * Um IP nao e uma pessoa: um escritorio inteiro atras de um NAT chega aqui
+ * como uma origem so, e cada tela do cofre faz varias chamadas. Um teto
+ * apertado nao para ataque nenhum e derruba equipe legitima, que e o pior
+ * dos dois mundos. Isto e teto contra varredura, nao contra uso. */
+const TETO_IP = Number(process.env.COFRE_TETO_IP) || 600;
+const usosIp = new Map();
+
+const ehLocal = ip => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+
+function freioDeOrigem(req) {
+  const ip = contas.ipDe(req) || 'desconhecido';
+  /* Mesma razao do portao e do token: quem chega por loopback ja esta na
+   * maquina. Frear ali so atrapalha quem roda o Print local. */
+  if (ehLocal(ip)) return;
+  const agora = Date.now();
+  const atual = usosIp.get(ip);
+  if (!atual || agora > atual.ate) {
+    usosIp.set(ip, { n: 1, ate: agora + JANELA_IP_MS });
+    if (usosIp.size > 5000) {
+      for (const [k, v] of usosIp) if (agora > v.ate) usosIp.delete(k);
+    }
+    return;
+  }
+  if (++atual.n > TETO_IP) {
+    const e = new Error('Muitas chamadas desta origem. Espere um minuto.');
+    e.status = 429;
+    throw e;
+  }
+}
+
+/* Entrada do cliente e sempre suspeita, ate provar o contrario.
+ *
+ * Nao e so tamanho: um campo que chega como objeto ou array, e nao como
+ * texto, atravessa String() virando "[object Object]" e vira lixo gravado.
+ * Aqui ele e recusado na porta. */
+function texto(valor, campo, max, obrigatorio) {
+  if (valor === undefined || valor === null || valor === '') {
+    if (obrigatorio) {
+      const e = new Error(campo + ' é obrigatório.');
+      e.status = 400;
+      throw e;
+    }
+    return null;
+  }
+  if (typeof valor !== 'string') {
+    const e = new Error(campo + ': esperava texto.');
+    e.status = 400;
+    throw e;
+  }
+  const t = valor.trim();
+  if (t.length > max) {
+    const e = new Error(campo + ': acima de ' + max + ' caracteres.');
+    e.status = 413;
+    throw e;
+  }
+  return t;
+}
+
+function inteiro(valor, campo, min, max) {
+  if (valor === undefined || valor === null || valor === '') return 0;
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n < min || n > max) {
+    const e = new Error(campo + ': número fora do intervalo.');
+    e.status = 400;
+    throw e;
+  }
+  return Math.trunc(n);
+}
+
+/* A resposta leva o que a tela usa, e nada alem.
+ *
+ * tenant_id e criado_por sao identificadores internos: nao ajudam quem esta
+ * do lado de fora e ajudam quem esta mapeando o sistema. */
+const podarProjeto = p => ({
+  id: p.id, nome: p.nome, cliente: p.cliente, criado_em: p.criado_em
+});
+const podarExecucao = x => ({
+  id: x.id, projeto_id: x.projeto_id, titulo: x.titulo, iniciada_em: x.iniciada_em
+});
+const podarEvidencia = e => ({
+  id: e.id, execucao_id: e.execucao_id, ordem: e.ordem, titulo: e.titulo, obs: e.obs,
+  acao: e.acao, elemento: e.elemento, valor: e.valor, html: e.html,
+  url_antes: e.url_antes, url_depois: e.url_depois,
+  criada_em: e.criada_em, expira_em: e.expira_em, estado: e.estado
+});
+
 function exigirSessao(req) {
   const s = contas.sessaoDe(req);
   if (!s) {
@@ -130,6 +224,8 @@ async function tratar(req, res, u, lerCorpo) {
   }
 
   try {
+    freioDeOrigem(req);
+
     /* ---------- sessão ---------- */
 
     if (p === '/api/entrar' && req.method === 'POST') {
@@ -212,7 +308,7 @@ async function tratar(req, res, u, lerCorpo) {
 
     if (p === '/api/projetos' && req.method === 'GET') {
       const s = exigirSessao(req);
-      json(res, 200, { projetos: banco.listarProjetos(s.tenantId) });
+      json(res, 200, { projetos: banco.listarProjetos(s.tenantId).map(podarProjeto) });
       return true;
     }
 
@@ -220,10 +316,11 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
       const c = await lerCorpo(req);
-      if (!String(c.nome || '').trim()) { json(res, 400, { erro: 'nome do projeto é obrigatório' }); return true; }
-      const proj = banco.criarProjeto(s.tenantId, s.usuarioId, c.nome, c.cliente);
+      const nome = texto(c.nome, 'Nome do projeto', 120, true);
+      const cliente = texto(c.cliente, 'Cliente', 120, false);
+      const proj = banco.criarProjeto(s.tenantId, s.usuarioId, nome, cliente);
       banco.auditar(s.tenantId, s.usuarioId, 'projeto.criado', proj.id, s.ip);
-      json(res, 201, { projeto: proj });
+      json(res, 201, { projeto: podarProjeto(proj) });
       return true;
     }
 
@@ -243,8 +340,8 @@ async function tratar(req, res, u, lerCorpo) {
 
     if (p === '/api/execucoes' && req.method === 'GET') {
       const s = exigirSessao(req);
-      const pid = u.searchParams.get('projeto') || '';
-      json(res, 200, { execucoes: banco.listarExecucoes(s.tenantId, pid) });
+      const pid = texto(u.searchParams.get('projeto'), 'projeto', 64, false) || '';
+      json(res, 200, { execucoes: banco.listarExecucoes(s.tenantId, pid).map(podarExecucao) });
       return true;
     }
 
@@ -252,9 +349,11 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
       const c = await lerCorpo(req);
-      const x = banco.criarExecucao(s.tenantId, s.usuarioId, c.projetoId, c.titulo);
+      const projetoId = texto(c.projetoId, 'projetoId', 64, true);
+      const titulo = texto(c.titulo, 'Título', 200, false);
+      const x = banco.criarExecucao(s.tenantId, s.usuarioId, projetoId, titulo);
       banco.auditar(s.tenantId, s.usuarioId, 'execucao.criada', x.id, s.ip);
-      json(res, 201, { execucao: x });
+      json(res, 201, { execucao: podarExecucao(x) });
       return true;
     }
 
@@ -262,8 +361,8 @@ async function tratar(req, res, u, lerCorpo) {
 
     if (p === '/api/evidencias' && req.method === 'GET') {
       const s = exigirSessao(req);
-      const xid = u.searchParams.get('execucao') || '';
-      const lista = banco.listarEvidencias(s.tenantId, xid);
+      const xid = texto(u.searchParams.get('execucao'), 'execucao', 64, false) || '';
+      const lista = banco.listarEvidencias(s.tenantId, xid).map(podarEvidencia);
       banco.auditar(s.tenantId, s.usuarioId, 'evidencia.listada',
         xid + ' (' + lista.length + ')', s.ip);
       json(res, 200, { evidencias: lista });
@@ -276,11 +375,21 @@ async function tratar(req, res, u, lerCorpo) {
       const c = await lerCorpo(req);
       const antes = bytesDe(c.antes, 'antes');
       const depois = bytesDe(c.depois, 'depois');
-      const ev = banco.criarEvidencia(s.tenantId, s.usuarioId, c.execucaoId, {
-        ordem: c.ordem,
-        titulo: c.titulo, obs: c.obs, acao: c.acao, elemento: c.elemento,
-        valor: c.valor, html: c.html, url_antes: c.urlAntes, url_depois: c.urlDepois
-      }, s.retencaoDias);
+      /* Campo a campo, com teto por campo. Nunca o corpo inteiro: passar o
+       * objeto do cliente adiante e como um campo que ninguem previu vira
+       * coluna gravada. */
+      const ev = banco.criarEvidencia(s.tenantId, s.usuarioId,
+        texto(c.execucaoId, 'execucaoId', 64, true), {
+          ordem: inteiro(c.ordem, 'ordem', 0, 100000),
+          titulo: texto(c.titulo, 'Título', 300, false),
+          obs: texto(c.obs, 'Observação', 4000, false),
+          acao: texto(c.acao, 'Ação', 60, false),
+          elemento: texto(c.elemento, 'Elemento', 1000, false),
+          valor: texto(c.valor, 'Valor', 500, false),
+          html: texto(c.html, 'HTML', 4000, false),
+          url_antes: texto(c.urlAntes, 'URL antes', 2000, false),
+          url_depois: texto(c.urlDepois, 'URL depois', 2000, false)
+        }, s.retencaoDias);
       if (antes) banco.anexar(s.tenantId, ev.id, 'antes', antes.tipo, antes.buf);
       if (depois) banco.anexar(s.tenantId, ev.id, 'depois', depois.tipo, depois.buf);
       banco.auditar(s.tenantId, s.usuarioId, 'evidencia.criada', ev.id, s.ip);
@@ -293,9 +402,12 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       const ev = banco.obterEvidencia(s.tenantId, m[1]);
       if (!ev) { json(res, 404, { erro: 'evidência não encontrada' }); return true; }
-      delete ev.tenant_id;
       banco.auditar(s.tenantId, s.usuarioId, 'evidencia.vista', m[1], s.ip);
-      json(res, 200, { evidencia: ev, objetos: banco.objetosDe(s.tenantId, m[1]) });
+      json(res, 200, {
+        evidencia: podarEvidencia(ev),
+        objetos: banco.objetosDe(s.tenantId, m[1])
+          .map(o => ({ id: o.id, papel: o.papel, tipo: o.tipo, bytes: o.bytes }))
+      });
       return true;
     }
 
@@ -405,4 +517,5 @@ async function tratar(req, res, u, lerCorpo) {
   }
 }
 
-module.exports = { tratar, assinar, assinaturaValida, bytesDe, MAX_OBJETO, LINK_VALE_MS, TETO_JANELA };
+module.exports = { tratar, assinar, assinaturaValida, bytesDe, texto, inteiro,
+  MAX_OBJETO, LINK_VALE_MS, TETO_JANELA, TETO_IP };

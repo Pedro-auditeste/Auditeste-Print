@@ -29,7 +29,13 @@
     "teste-docker": "node teste-docker.js",
     "teste-sem-ia": "node teste-sem-ia-na-tela.js",
     "teste-legibilidade": "node teste-legibilidade-par.js",
-    "navegador": "playwright install chromium"
+    "navegador": "playwright install chromium",
+    "seguranca": "npm audit --audit-level=high",
+    "seguranca-completo": "npm audit",
+    "teste-cofre": "node teste-cofre.js",
+    "teste-cifra": "node teste-cifra.js",
+    "teste-backup": "node teste-backup.js",
+    "teste-privacidade": "node teste-privacidade.js"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",

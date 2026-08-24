@@ -723,9 +723,13 @@ async function principal() {
     const r = await n.pedir('/api/projetos', { method: 'POST', json: { nome: 'Criado pela consultoria' } });
     assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
 
-    // e o dono do projeto e o CLIENTE, nao a consultoria
-    assert.strictEqual(r.corpo.projeto.tenant_id, googleTenant,
-      'o projeto caiu na equipe errada');
+    /* A posse se confere no banco, e nao na resposta: a API deixou de
+     * devolver tenant_id de proposito, e conferir no banco e prova mais
+     * forte que acreditar no que o proprio servidor respondeu. */
+    assert.ok(banco.obterProjeto(googleTenant, r.corpo.projeto.id),
+      'o projeto nao ficou na equipe do cliente');
+    assert.strictEqual(banco.obterProjeto(ailos.id, r.corpo.projeto.id), null,
+      'o projeto tambem apareceu na equipe da consultoria');
   });
 
   await caso('CRITERIO: a entrada da provedora fica na auditoria DO CLIENTE', async () => {

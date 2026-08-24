@@ -341,6 +341,18 @@ const servidor = http.createServer(async (req, res) => {
     return void (await apiCofre.tratar(req, res, u, lerCorpo));
   }
 
+  /* HTTPS obrigatorio na borda.
+   *
+   * A Railway ja redireciona, mas a aplicacao nao pode depender de a borda
+   * fazer isso: trocar de hospedagem, ou por um proxy na frente, e o dia em
+   * que o cookie de sessao comeca a viajar em claro sem ninguem perceber. */
+  const protoBorda = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  if (protoBorda === 'http' && !ehLoopback) {
+    const destino = 'https://' + hostPublico(req) + u.pathname + u.search;
+    res.writeHead(301, Object.assign({ Location: destino }, cabecalhoSeguro(req)));
+    return res.end();
+  }
+
   if (u.pathname === '/ping' || u.pathname === '/health') {
     const motores = statusMotores();
     return responder(res, 200, {
@@ -356,16 +368,21 @@ const servidor = http.createServer(async (req, res) => {
     cofre: cofreLigado || bancoCofre.porque(),
     portao: PORTAO_DE_PE,
     semVolume: cofreLigado && bancoCofre.efemero(),
+    cifra: cofreLigado ? bancoCofre.cifraLigada() : undefined,
     bancoEm: cofreLigado ? bancoCofre.onde() : undefined,
       chrome: !!caminhoChrome(),
-      modelo: MODELO,
-      base: BASE_URL,
-      agenteVar: chaveAgenteOrigem || undefined,
-      agenteVars: varsAgenteVisiveis(),
+      /* Detalhe de dentro so para quem esta dentro.
+       *
+       * Modelo, endpoint, nome das variaveis de ambiente e caminho do Chrome
+       * nao ajudam quem usa e ajudam quem esta mapeando o servidor antes de
+       * tentar alguma coisa. Em loopback continuam, porque e ali que eles
+       * servem para diagnosticar. */
+      modelo: ehLoopback ? MODELO : undefined,
+      base: ehLoopback ? BASE_URL : undefined,
+      agenteVar: ehLoopback ? (chaveAgenteOrigem || undefined) : undefined,
+      agenteVars: ehLoopback ? varsAgenteVisiveis() : undefined,
       aviso: !process.env.AGENTE_API_KEY && !ehLoopback
-        ? ('IA desligada: faltou AGENTE_API_KEY. Vars neste serviço: '
-          + (varsAgenteVisiveis().join(', ') || '(nenhuma)')
-          + '. Adicione AGENTE_API_KEY (nvapi-...) no card do serviço, Runtime, e Redeploy.')
+        ? 'Descrição desligada: falta a chave do serviço no ambiente.'
         : EXPOSTO_SEM_TOKEN
           ? 'Sem PONTE_TOKEN: scans funcionam abrindo o Print nesta URL. Defina PONTE_TOKEN para exigir token.'
           : undefined

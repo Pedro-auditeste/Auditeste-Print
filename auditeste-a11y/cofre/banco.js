@@ -532,6 +532,63 @@ const listarExecucoes = (tenantId, projetoId) => (exigirTenant(tenantId), exigir
 const obterExecucao = (tenantId, xid) => (exigirTenant(tenantId), exigir(), db.prepare(
   'SELECT * FROM execucoes WHERE tenant_id = ? AND id = ?').get(tenantId, xid) || null);
 
+/* ---------- cifra do conteudo da evidencia ---------- */
+
+/* O print E a evidencia. Cifrar o resto e deixar o print em claro seria
+ * teatro, entao o que vai cifrado aqui e o corpo do objeto.
+ *
+ * AES-256-GCM: alem de esconder, ele detecta adulteracao. Sem isso alguem
+ * com acesso ao arquivo poderia trocar o conteudo de um print sem deixar
+ * marca, e evidencia que se altera sem quebrar nao e evidencia.
+ *
+ * COFRE_CHAVE ausente = grava em claro, e o /ping diz isso. Preferi degradar
+ * a recusar: recusar transformaria "esqueceu uma variavel" em perda de
+ * servico, e o cofre ja funcionava sem cifra antes disso existir.
+ *
+ * PERDER A CHAVE E PERDER OS PRINTS. Nao ha recuperacao, e e isso que faz
+ * cifra ser cifra. A chave nao pode morar no mesmo lugar do backup. */
+const CIFRA = 'aes-256-gcm';
+const MARCA = Buffer.from('AUDIENC1');   // 8 bytes, identifica objeto cifrado
+
+function chaveDaCifra() {
+  const bruta = String(process.env.COFRE_CHAVE || '').trim();
+  if (!bruta) return null;
+  /* Aceita hex de 64, que e o formato que o comando de gerar produz. Outra
+   * coisa vira chave por derivacao, para nao recusar quem colou uma frase. */
+  if (/^[0-9a-f]{64}$/i.test(bruta)) return Buffer.from(bruta, 'hex');
+  return crypto.createHash('sha256').update(bruta).digest();
+}
+
+const cifraLigada = () => chaveDaCifra() !== null;
+
+function cifrar(buf) {
+  const chave = chaveDaCifra();
+  if (!chave) return buf;
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv(CIFRA, chave, iv);
+  const corpo = Buffer.concat([c.update(buf), c.final()]);
+  return Buffer.concat([MARCA, iv, c.getAuthTag(), corpo]);
+}
+
+/* Le os dois formatos. Banco que ja tinha print em claro continua abrindo
+ * depois de ligar a cifra: o que estava la fica como esta, o novo entra
+ * cifrado. Sem isso ligar a chave apagaria o passado na pratica. */
+function decifrar(dados) {
+  const buf = Buffer.from(dados);
+  if (buf.length < MARCA.length || !buf.subarray(0, MARCA.length).equals(MARCA)) return buf;
+  const chave = chaveDaCifra();
+  if (!chave) {
+    const e = new Error('Este arquivo está cifrado e COFRE_CHAVE não está definida.');
+    e.status = 503;
+    throw e;
+  }
+  const iv = buf.subarray(8, 20);
+  const tag = buf.subarray(20, 36);
+  const d = crypto.createDecipheriv(CIFRA, chave, iv);
+  d.setAuthTag(tag);
+  return Buffer.concat([d.update(buf.subarray(36)), d.final()]);
+}
+
 /* ---------- evidências e objetos ---------- */
 
 const CAMPOS_EVID = ['titulo', 'obs', 'acao', 'elemento', 'valor', 'html', 'url_antes', 'url_depois'];
@@ -581,8 +638,10 @@ function anexar(tenantId, evidenciaId, papel, tipo, buffer) {
     bytes: buffer.length,
     sha256: crypto.createHash('sha256').update(buffer).digest('hex')
   };
+  /* bytes e sha256 sao do conteudo ORIGINAL, nao do cifrado: e por eles que
+   * se confere que o print voltou igual depois de um restore. */
   db.prepare('INSERT INTO objetos (id, tenant_id, evidencia_id, papel, tipo, bytes, sha256, dados) VALUES (?,?,?,?,?,?,?,?)')
-    .run(o.id, o.tenant_id, o.evidencia_id, o.papel, o.tipo, o.bytes, o.sha256, buffer);
+    .run(o.id, o.tenant_id, o.evidencia_id, o.papel, o.tipo, o.bytes, o.sha256, cifrar(buffer));
   return o;
 }
 
@@ -599,8 +658,14 @@ const objetosDe = (tenantId, evidenciaId) => (exigirTenant(tenantId), exigir(), 
   'SELECT id, papel, tipo, bytes, sha256 FROM objetos WHERE tenant_id = ? AND evidencia_id = ?')
   .all(tenantId, evidenciaId));
 
-const obterObjeto = (tenantId, oid) => (exigirTenant(tenantId), exigir(), db.prepare(
-  'SELECT * FROM objetos WHERE tenant_id = ? AND id = ?').get(tenantId, oid) || null);
+function obterObjeto(tenantId, oid) {
+  exigirTenant(tenantId);
+  exigir();
+  const o = db.prepare('SELECT * FROM objetos WHERE tenant_id = ? AND id = ?').get(tenantId, oid);
+  if (!o) return null;
+  o.dados = decifrar(o.dados);
+  return o;
+}
 
 /* Exclusão de verdade: metadado e arquivo saem juntos, na mesma transação.
  * Apagar só a linha da evidência deixaria o objeto órfão no banco, e um
@@ -664,7 +729,7 @@ function excluirDadosDoTenant(tenantId) {
   db.exec('BEGIN');
   try {
     for (const t of ['objetos', 'evidencias', 'execucoes', 'projetos']) {
-      db.prepare('DELETE FROM ' + t + ' WHERE tenant_id = ?').run(tenantId);
+      db.prepare('DELETE FROM ' + tabela(t) + ' WHERE tenant_id = ?').run(tenantId);
     }
     db.exec('COMMIT');
   } catch (err) {
@@ -702,12 +767,25 @@ function snapshot(destino) {
     throw e;
   }
   fs.mkdirSync(path.dirname(path.resolve(destino)), { recursive: true });
+  /* Caminho vem da linha de comando, nunca de requisicao, e ainda assim vai
+   * escapado: e a unica string que este arquivo concatena em SQL, e a regra
+   * de "so parametro" nao pode ter excecao sem trava. */
   db.exec("VACUUM INTO '" + String(destino).replace(/'/g, "''") + "'");
   return destino;
 }
 
 const TABELAS = ['tenants', 'usuarios', 'memberships', 'projetos',
   'execucoes', 'evidencias', 'objetos', 'auditoria'];
+
+/* Nome de tabela nao vai como parametro em SQL, entao as poucas consultas que
+ * o montam passam por aqui. Hoje o nome vem de lista fixa no proprio codigo,
+ * mas "hoje vem de lista fixa" e exatamente o que se diz antes de alguem
+ * passar a receber isso de fora. */
+const NOMES_OK = new Set(TABELAS.concat(['sessoes', 'convites', 'tentativas']));
+function tabela(nome) {
+  if (!NOMES_OK.has(nome)) throw new Error('tabela desconhecida: ' + nome);
+  return nome;
+}
 
 /* Abre um arquivo QUALQUER e diz se ele e um cofre inteiro.
  *
@@ -727,7 +805,7 @@ function conferirArquivo(caminho) {
     const contagem = {};
     for (const t of TABELAS) {
       try {
-        contagem[t] = outro.prepare('SELECT count(*) c FROM ' + t).get().c;
+        contagem[t] = outro.prepare('SELECT count(*) c FROM ' + tabela(t)).get().c;
       } catch (err) {
         throw new Error('não parece um cofre: falta a tabela ' + t);
       }
@@ -781,6 +859,7 @@ function limparTentativas(chave) {
 
 module.exports = {
   abrir, fechar, ligado, porque, efemero, onde, exigirTenant,
+  cifraLigada, cifrar, decifrar,
   criarTenant, obterTenant, listarTenants,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
@@ -792,7 +871,7 @@ module.exports = {
   criarEvidencia, anexar, listarEvidencias, obterEvidencia, excluirEvidencia,
   objetosDe, obterObjeto,
   excluirDadosDoTenant, varrerVencidas,
-  snapshot, conferirArquivo, TABELAS,
+  snapshot, conferirArquivo, TABELAS, tabela,
   auditar, listarAuditoria,
   tentativaFalhou, tentativasDe, limparTentativas
 };
