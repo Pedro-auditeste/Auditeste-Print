@@ -11,6 +11,9 @@
  *   node cofre/admin.js senha pedro@auditeste.com
  *   node cofre/admin.js vincular pedro@auditeste.com <tenantId> gestor
  *   node cofre/admin.js varrer
+ *   node cofre/admin.js backup [destino]
+ *   node cofre/admin.js conferir <arquivo>
+ *   node cofre/admin.js restaurar <arquivo>
  *
  * A senha nunca vai na linha de comando: ela ficaria no histórico do shell.
  * Vem por COFRE_SENHA no ambiente, ou é sorteada e mostrada uma vez.
@@ -107,6 +110,69 @@ const comandos = {
     const r = banco.varrerVencidas();
     console.log('retenção aplicada: ' + r.evidencias + ' evidência(s) vencida(s), '
       + r.orfaos + ' objeto(s) órfão(s)');
+  },
+
+  backup(destino) {
+    const alvo = destino || (process.env.COFRE_BANCO || 'cofre.db')
+      + '.backup-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    banco.snapshot(alvo);
+    /* Conferir agora, e nao na hora de precisar: backup que ninguem abriu e
+     * so um arquivo grande com nome tranquilizador. */
+    const conta = banco.conferirArquivo(alvo);
+    const bytes = require('fs').statSync(alvo).size;
+    console.log('backup criado e conferido');
+    console.log('  arquivo  ' + alvo);
+    console.log('  tamanho  ' + (bytes / 1048576).toFixed(2) + ' MB');
+    for (const [t, n] of Object.entries(conta)) console.log('  ' + t.padEnd(12) + n);
+  },
+
+  conferir(arquivo) {
+    if (!arquivo) { console.error('uso: conferir <arquivo de backup>'); process.exit(1); }
+    const conta = banco.conferirArquivo(arquivo);
+    console.log('arquivo íntegro e com cara de cofre');
+    for (const [t, n] of Object.entries(conta)) console.log('  ' + t.padEnd(12) + n);
+  },
+
+  restaurar(arquivo) {
+    if (!arquivo) { console.error('uso: restaurar <arquivo de backup>'); process.exit(1); }
+    const fs = require('fs');
+    const atual = process.env.COFRE_BANCO;
+    if (!atual) { console.error('COFRE_BANCO não definido'); process.exit(1); }
+
+    // Confere ANTES de encostar no que esta valendo.
+    const conta = banco.conferirArquivo(arquivo);
+
+    /* O banco atual nao e apagado, e renomeado. Restauracao e a operacao que
+     * se faz com pressa e sob estresse, e restaurar o backup errado por cima
+     * do bom nao pode ser irreversivel. */
+    banco.fechar();
+    const guardado = atual + '.antes-de-restaurar-'
+      + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    try {
+      if (fs.existsSync(atual)) fs.renameSync(atual, guardado);
+      for (const sufixo of ['-wal', '-shm']) {
+        if (fs.existsSync(atual + sufixo)) fs.rmSync(atual + sufixo);
+      }
+      fs.copyFileSync(arquivo, atual);
+    } catch (err) {
+      /* No Windows o sistema recusa mexer em arquivo aberto, e recusar e o
+       * comportamento certo. O que nao pode e a pessoa ler EBUSY no meio de
+       * uma restauracao e nao saber o que fazer. */
+      if (err.code === 'EBUSY' || err.code === 'EPERM') {
+        console.error('O banco está aberto por outro processo, então não dá para trocá-lo agora.');
+        console.error('Pare o serviço (ou feche o que estiver usando ' + atual + ') e rode de novo.');
+        console.error('Nada foi alterado.');
+        process.exit(1);
+      }
+      throw err;
+    }
+
+    console.log('restaurado de ' + arquivo);
+    for (const [t, n] of Object.entries(conta)) console.log('  ' + t.padEnd(12) + n);
+    if (fs.existsSync(guardado)) console.log('  o banco anterior ficou em ' + guardado);
+    console.log('');
+    console.log('REINICIE o serviço: o servidor que já estava no ar continua');
+    console.log('lendo o arquivo antigo até reiniciar.');
   }
 };
 

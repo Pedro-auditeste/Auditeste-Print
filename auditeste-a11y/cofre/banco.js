@@ -567,6 +567,58 @@ function varrerVencidas(limite) {
   return { evidencias: vencidas.length, orfaos: orfaos.changes || 0 };
 }
 
+/* ---------- backup ---------- */
+
+/* Copia consistente de um banco em uso.
+ *
+ * VACUUM INTO, e nao copiar o arquivo: o SQLite em WAL guarda escrita
+ * recente num arquivo separado (-wal), entao copiar so o .db no meio de uma
+ * gravacao produz um backup que abre e esta incompleto, que e o pior tipo de
+ * backup: o que parece bom ate a hora de precisar dele. */
+function snapshot(destino) {
+  exigir();
+  if (fs.existsSync(destino)) {
+    const e = new Error('já existe arquivo em ' + destino);
+    e.status = 409;
+    throw e;
+  }
+  fs.mkdirSync(path.dirname(path.resolve(destino)), { recursive: true });
+  db.exec("VACUUM INTO '" + String(destino).replace(/'/g, "''") + "'");
+  return destino;
+}
+
+const TABELAS = ['tenants', 'usuarios', 'memberships', 'projetos',
+  'execucoes', 'evidencias', 'objetos', 'auditoria'];
+
+/* Abre um arquivo QUALQUER e diz se ele e um cofre inteiro.
+ *
+ * Restaurar sem conferir e como ter backup sem testar restauracao: o erro so
+ * aparece depois que o original ja foi por cima. Confere integridade fisica,
+ * presenca das tabelas e ainda devolve a contagem, para dar para comparar com
+ * o que se esperava antes de trocar. */
+function conferirArquivo(caminho) {
+  if (!DatabaseSync) throw new Error('este Node não tem node:sqlite');
+  if (!fs.existsSync(caminho)) throw new Error('arquivo não existe: ' + caminho);
+  const outro = new DatabaseSync(caminho, { readOnly: true });
+  try {
+    const integridade = outro.prepare('PRAGMA integrity_check').get();
+    const veredito = integridade && (integridade.integrity_check || Object.values(integridade)[0]);
+    if (veredito !== 'ok') throw new Error('arquivo corrompido: ' + veredito);
+
+    const contagem = {};
+    for (const t of TABELAS) {
+      try {
+        contagem[t] = outro.prepare('SELECT count(*) c FROM ' + t).get().c;
+      } catch (err) {
+        throw new Error('não parece um cofre: falta a tabela ' + t);
+      }
+    }
+    return contagem;
+  } finally {
+    outro.close();
+  }
+}
+
 /* ---------- auditoria ---------- */
 
 function auditar(tenantId, usuarioId, acao, recurso, ip) {
@@ -620,6 +672,7 @@ module.exports = {
   criarEvidencia, anexar, listarEvidencias, obterEvidencia, excluirEvidencia,
   objetosDe, obterObjeto,
   excluirDadosDoTenant, varrerVencidas,
+  snapshot, conferirArquivo, TABELAS,
   auditar, listarAuditoria,
   tentativaFalhou, tentativasDe, limparTentativas
 };
