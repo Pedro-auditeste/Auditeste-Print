@@ -38,6 +38,7 @@ const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cen
 const { zipExtensao } = require('./extensao.js');
 const bancoCofre = require('./cofre/banco.js');
 const apiCofre = require('./cofre/api.js');
+const contasCofre = require('./cofre/contas.js');
 
 const LIMITE_CORPO = Number(process.env.PONTE_LIMITE_MB || 25) * 1024 * 1024;
 
@@ -282,6 +283,38 @@ if (cofreLigado) {
   setInterval(varrer, VARRER_MS).unref();
 }
 
+/* Portao do Print.
+ *
+ * A regra e uma so, e nao tem chave nova para esquecer ligada: se o cofre
+ * esta ligado, entrar no Print exige sessao. Cofre desligado nao tem a quem
+ * perguntar quem voce e, entao nao ha portao, e o Print funciona como sempre
+ * funcionou. Isso e o que permite ligar o cofre sem trancar ninguem para fora
+ * por engano.
+ *
+ * O portao mora no SERVIDOR de proposito. Checar sessao no JavaScript da
+ * pagina seria um aviso, nao um portao: quem quisesse entrar so precisaria
+ * abrir o console. Aqui o HTML nem chega em quem nao esta autenticado.
+ *
+ * COFRE_PRINT_ABERTO=1 e a saida de emergencia: se o login quebrar, os
+ * projetos gravados vivem no IndexedDB desta origem e a unica porta para eles
+ * e esta pagina. Ficar trancado do lado de fora do proprio dado precisa ter
+ * conserto sem deploy. */
+const PRINT_ABERTO = process.env.COFRE_PRINT_ABERTO === '1';
+const PAGINAS_PROTEGIDAS = new Set(['/', '/index.html']);
+
+function precisaEntrar(req, u) {
+  if (!cofreLigado || PRINT_ABERTO) return false;
+  if (!PAGINAS_PROTEGIDAS.has(u.pathname)) return false;
+  try {
+    return !contasCofre.sessaoDe(req);
+  } catch (err) {
+    // Sem conseguir decidir, nao tranca: indisponibilidade e pior que aberto
+    // numa pagina que, por si so, nao guarda dado de cliente nenhum.
+    console.log('portao FALHOU: ' + err.message);
+    return false;
+  }
+}
+
 let rodando = 0;
 
 const servidor = http.createServer(async (req, res) => {
@@ -312,6 +345,7 @@ const servidor = http.createServer(async (req, res) => {
       limite: MAX,
       cenarios: !!process.env.AGENTE_API_KEY,
     cofre: cofreLigado || bancoCofre.porque(),
+    portao: cofreLigado && !PRINT_ABERTO,
       chrome: !!caminhoChrome(),
       modelo: MODELO,
       base: BASE_URL,
@@ -389,6 +423,11 @@ const servidor = http.createServer(async (req, res) => {
   }
 
   if (u.pathname !== '/scan') {
+    if (precisaEntrar(req, u)) {
+      const volta = '/cofre.html?ir=' + encodeURIComponent(u.pathname + u.search);
+      res.writeHead(302, { Location: volta, 'Cache-Control': 'no-store' });
+      return res.end();
+    }
     if ((req.method === 'GET' || req.method === 'HEAD') && servirArquivo(req, res, u.pathname)) return;
     return responder(res, 404, { erro: 'rota desconhecida' }, origem);
   }
@@ -453,7 +492,8 @@ servidor.listen(PORTA, HOST, () => {
   const st = statusMotores();
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
   if (envs.length) console.log('env: ' + envs.join(', '));
-  console.log(`cofre: ${cofreLigado ? 'ligado (' + (process.env.COFRE_BANCO || '') + ')' : 'desligado — ' + bancoCofre.porque()}`);
+  console.log(`cofre: ${cofreLigado ? 'ligado (' + (process.env.COFRE_BANCO || '') + ')' : 'desligado — ' + bancoCofre.porque()}`
+    + ` · portao do Print: ${cofreLigado && !PRINT_ABERTO ? 'exige login' : 'aberto'}`);
   console.log(`token: ${TOKEN ? 'exigido' : 'não'} · máx ${MAX} simultâneos`
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
     + ` · rede privada: ${PRIVADO_OK ? 'liberada' : 'bloqueada'}`);

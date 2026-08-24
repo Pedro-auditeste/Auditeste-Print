@@ -70,6 +70,7 @@
   <div id="aviso"></div>
 
   <section id="telaEntrar" class="cartao entrada" hidden>
+    <p class="dica" id="dicaPortao" hidden>Entre para usar o Print. Cada equipe só enxerga o próprio trabalho.</p>
     <div class="abas" role="tablist">
       <button role="tab" id="abaEntrar" aria-selected="true" aria-controls="painelEntrar">Entrar</button>
       <button role="tab" id="abaCriar" aria-selected="false" aria-controls="painelCriar">Criar conta</button>
@@ -157,6 +158,26 @@
   let eu = null;
   let projetoAberto = null;
 
+  /* De onde a pessoa foi desviada para ca. O servidor manda ?ir=/ quando o
+   * portao barra a entrada no Print; depois de entrar, ela volta para la em
+   * vez de cair na lista de projetos do cofre, que nao era o que queria.
+   *
+   * So caminho interno: aceitar URL inteira transformaria a tela de entrada
+   * em trampolim para qualquer site, que e o golpe de redirecionamento
+   * aberto, e ele funciona justamente porque o link comeca no nosso dominio. */
+  const paraOndeIr = (() => {
+    const bruto = new URLSearchParams(location.search).get('ir') || '';
+    // O $ no inicio do grupo aceita a barra sozinha, que e o destino mais
+    // comum: sem ele, quem entrasse caia no cofre em vez de voltar ao Print.
+    return /^\/($|[^\/\\])/.test(bruto) ? bruto : '';
+  })();
+
+  function seguirDestino(){
+    if(!paraOndeIr) return false;
+    location.href = paraOndeIr;
+    return true;
+  }
+
   function avisar(texto, ruim){
     $('aviso').innerHTML = texto
       ? '<div class="aviso ' + (ruim ? 'ruim' : 'bom') + '">' + esc(texto) + '</div>' : '';
@@ -235,6 +256,7 @@
     $('painelCriar').hidden = entrar;
     avisar('');
   }
+  if(paraOndeIr) $('dicaPortao').hidden = false;
   $('abaEntrar').addEventListener('click', () => abrir('entrar'));
   $('abaCriar').addEventListener('click', () => abrir('criar'));
 
@@ -257,6 +279,7 @@
     try{
       await api('/api/entrar', { json: { email: $('email').value.trim(), senha: $('senha').value } });
       $('senha').value = '';
+      if(seguirDestino()) return;
       await conferirSessao();
       await abrirProjetos();
     }catch(err){
@@ -277,6 +300,7 @@
         convite: $('novoConvite').value.trim()
       }});
       $('novaSenha').value = '';
+      if(seguirDestino()) return;
       await conferirSessao();
       await abrirProjetos();
       avisar('Conta criada.');
@@ -436,7 +460,11 @@
 
   (async () => {
     try{
-      if(await conferirSessao()){ await abrirProjetos(); return; }
+      if(await conferirSessao()){
+        if(seguirDestino()) return;
+        await abrirProjetos();
+        return;
+      }
       const cfg = await api('/api/cadastro').catch(()=>({ aberto:true }));
       if(!cfg.aberto){
         $('abaCriar').textContent = 'Tenho um convite';

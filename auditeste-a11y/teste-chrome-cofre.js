@@ -182,10 +182,19 @@ const PIXEL_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
         q.onsuccess = e => ok(e.target.result);
         q.onerror = () => err(q.error);
       });
+      /* Espera a TRANSACAO fechar, nao so o pedido responder.
+       *
+       * onsuccess do add dispara antes do commit. Recarregar a pagina nesse
+       * instante, com a maquina ocupada, perdia o registro e o teste falhava
+       * dizendo que o botao nao existia, quando o que faltava era o dado. */
       const põe = (loja, valor) => new Promise((ok, err) => {
-        const t = bd.transaction(loja, 'readwrite').objectStore(loja).add(valor);
-        t.onsuccess = () => ok(t.result);
-        t.onerror = () => err(t.error);
+        const tx = bd.transaction(loja, 'readwrite');
+        const pedido = tx.objectStore(loja).add(valor);
+        let id = null;
+        pedido.onsuccess = () => { id = pedido.result; };
+        tx.oncomplete = () => ok(id);
+        tx.onerror = () => err(tx.error);
+        tx.onabort = () => err(tx.error);
       });
       const pid = await põe('projetos', { nome: 'Portal do Cliente', cliente: 'Teste', criadoEm: Date.now() });
       const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));

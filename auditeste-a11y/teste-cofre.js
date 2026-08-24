@@ -674,13 +674,75 @@ async function principal() {
     assert.strictEqual(depois.status, 401, 'a sessão continuou valendo depois de sair');
   });
 
+  console.log('\nportao do Print\n');
+
+  await caso('CRITERIO: sem sessao o HTML do Print nem e servido', async () => {
+    const r = await fetch(BASE + '/', { redirect: 'manual' });
+    await r.text();
+    assert.strictEqual(r.status, 302, 'a página do Print foi entregue a quem não entrou');
+    const destino = r.headers.get('location') || '';
+    assert.ok(destino.startsWith('/cofre.html?ir='), 'desviou para lugar estranho: ' + destino);
+  });
+
+  await caso('index.html pela porta dos fundos tambem barra', async () => {
+    const r = await fetch(BASE + '/index.html', { redirect: 'manual' });
+    await r.text();
+    assert.strictEqual(r.status, 302, 'deu para pular o portão pedindo o arquivo pelo nome');
+  });
+
+  await caso('com sessao o Print e servido normalmente', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'qa@google.com', senha: 'senha-do-google-1' } });
+    const r = await n.pedir('/');
+    assert.strictEqual(r.status, 200, 'quem entrou não conseguiu abrir o Print');
+    assert.ok(String(r.corpo).includes('Audi Print'), 'veio outra coisa no lugar do Print');
+  });
+
+  await caso('a propria tela de entrada nao pode ficar atras do portao', async () => {
+    const r = await fetch(BASE + '/cofre.html', { redirect: 'manual' });
+    await r.text();
+    assert.strictEqual(r.status, 200, 'quem não entrou não alcança nem a tela de entrar');
+  });
+
+  await caso('o healthcheck continua aberto, senao a Railway derruba o servico', async () => {
+    const r = await fetch(BASE + '/ping');
+    const d = await r.json();
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(d.portao, true, '/ping deveria contar que o portão está de pé');
+  });
+
+  await caso('o pacote da extensao continua aberto', async () => {
+    const r = await fetch(BASE + '/extensao.zip', { redirect: 'manual' });
+    await r.arrayBuffer();
+    assert.strictEqual(r.status, 200,
+      'sem isso, quem ainda não instalou o complemento não consegue instalar');
+  });
+
+  await caso('o desvio nao vira trampolim para site de fora', async () => {
+    /* O ?ir= volta para dentro. Se aceitasse endereço inteiro, a tela de
+     * entrada do Print viraria um link com domínio confiável que joga a
+     * pessoa em qualquer lugar depois de digitar a senha. */
+    const pagina = await (await fetch(BASE + '/cofre.html?ir=https://exemplo-malicioso.com')).text();
+    const m = /const paraOndeIr = \(\(\) => \{([\s\S]*?)\}\)\(\);/.exec(pagina);
+    assert.ok(m, 'não achei a leitura do destino na página');
+    const calcular = new Function('busca',
+      'const location = { search: busca };\n'
+      + 'const paraOndeIr = (() => {' + m[1] + '})();\n'
+      + 'return paraOndeIr;');
+    assert.strictEqual(calcular('?ir=https://exemplo-malicioso.com'), '', 'aceitou endereço externo');
+    assert.strictEqual(calcular('?ir=//exemplo-malicioso.com'), '', 'aceitou barra dupla');
+    assert.strictEqual(calcular('?ir=/'), '/', 'recusou o destino legítimo');
+    assert.strictEqual(calcular('?ir=/index.html'), '/index.html');
+  });
+
   console.log('\ncofre · desligado nao quebra o resto\n');
 
-  await caso('o Print continua servido com o cofre ligado', async () => {
-    const r = await fetch(BASE + '/');
+  await caso('o Print continua servido com o cofre ligado, para quem entrou', async () => {
+    const n = navegador();
+    await n.pedir('/api/entrar', { method: 'POST', json: { email: 'qa@google.com', senha: 'senha-do-google-1' } });
+    const r = await n.pedir('/');
     assert.strictEqual(r.status, 200);
-    const html = await r.text();
-    assert.ok(/Audi Print|evid[eê]ncia/i.test(html), 'a página do Print não veio');
+    assert.ok(/Audi Print|evid[eê]ncia/i.test(String(r.corpo)), 'a página do Print não veio');
   });
 
   await caso('/ping informa o estado do cofre', async () => {

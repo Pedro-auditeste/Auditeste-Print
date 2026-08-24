@@ -86,6 +86,33 @@ curl -s https://audiprint.up.railway.app/ping
 
 O campo `cofre` agora tem que ser `true`.
 
+### Atenção: aqui o Print passa a exigir login
+
+Ligar o cofre liga junto o portão. A partir deste momento, abrir
+`https://audiprint.up.railway.app` sem sessão devolve um desvio para a tela de
+entrada, e o HTML do Print nem chega em quem não entrou. Depois de entrar, a
+pessoa volta sozinha para onde queria ir.
+
+A regra é essa mesma, e é única de propósito: **cofre ligado, portão de pé**.
+Não existe chave separada para esquecer ligada ou desligada.
+
+O que **não** muda: os projetos que já estão gravados continuam no IndexedDB
+do seu navegador, na mesma origem. Entrar não apaga nem esconde nada. E o
+`/ping`, a tela de entrada e o pacote da extensão seguem abertos, senão a
+Railway derrubaria o serviço e ninguém conseguiria nem instalar o complemento.
+
+Se o login quebrar e você ficar trancado do lado de fora dos próprios
+projetos, existe saída sem deploy:
+
+```
+COFRE_PRINT_ABERTO=1
+```
+
+Isso derruba o portão e mantém o cofre funcionando. Use como emergência, não
+como configuração permanente.
+
+Para conferir que o portão está de pé, o `/ping` também responde `portao`.
+
 ---
 
 ## Passo 5 · Primeira conta
@@ -202,3 +229,4 @@ Opcionais, com padrão razoável:
 | `COFRE_LINK_MS` | 5 min | Validade do link assinado |
 | `COFRE_VARRER_MS` | 1 h | De quanto em quanto tempo a retenção roda |
 | `COFRE_SENHA` | sorteada | Senha ao criar conta pela linha de comando |
+| `COFRE_PRINT_ABERTO` | vazio | `1` derruba o portão do Print. Saída de emergência |

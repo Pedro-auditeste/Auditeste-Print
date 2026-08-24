@@ -1006,6 +1006,7 @@
 
     <div class="espaco" id="espaco"></div>
     <p class="espaco" id="linkCofre" hidden>Evidência de cliente também pode ser guardada no servidor, sob conta e cliente identificados: <a href="/cofre.html">abrir o cofre</a>.</p>
+    <p class="espaco" id="quemSou" hidden></p>
     <div class="aviso">
       <b>Onde as evidências ficam</b>
       O arquivo é local, guardado neste navegador e neste computador. Limpar dados de navegação apaga tudo.
@@ -1823,6 +1824,28 @@
 
   /* Link so aparece quando o cofre esta ligado neste servidor: oferecer uma
    * tela que responde 503 seria pior que nao oferecer nada. */
+  /* Quem esta usando, e a saida. Sem isto, num Print atras de login a pessoa
+   * nao tem como saber sob qual equipe esta gravando, e evidencia gravada na
+   * equipe errada e o tipo de erro que so aparece semanas depois. */
+  async function mostrarQuemSou(){
+    if(!/^https?:$/.test(location.protocol)) return;
+    try{
+      const r = await fetch('/api/eu', { signal: AbortSignal.timeout(5000) });
+      if(!r.ok) return;
+      const d = await r.json();
+      const el = document.getElementById('quemSou');
+      if(!el || !d.autenticado) return;
+      el.innerHTML = 'Você está como <b>' + esc(d.email) + '</b>, na equipe <b>'
+        + esc(d.tenantNome) + '</b>. <a href="#" id="sairDoPrint">Sair</a>';
+      el.hidden = false;
+      document.getElementById('sairDoPrint').addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try{ await fetch('/api/sair', { method: 'POST' }); }catch(e){}
+        location.reload();
+      });
+    }catch(e){}
+  }
+
   async function verSeTemCofre(){
     /* Aberto do disco nao tem cofre nenhum, e o fetch relativo viraria
      * file:///C:/ping, que o Chrome recusa e imprime como erro no console.
@@ -4703,7 +4726,7 @@
 
   abrirDB()
     .then(()=>{
-      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte(); verSeTemCofre();
+      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte(); verSeTemCofre(); mostrarQuemSou();
       try{ ativarModoCaptura(localStorage.getItem('captura_modo') || 'alteracao'); }catch(e){ ativarModoCaptura('alteracao'); }
       if(location.protocol === 'file:'){
         avisar('Este Print foi aberto pelo arquivo. Use http://127.0.0.1:8900 e recarregue com Ctrl+F5.');
