@@ -1,5 +1,9 @@
-# Railway: Node + Chrome do Puppeteer (sem Playwright — evita conflito de versao).
-FROM node:20-bookworm-slim
+# Railway: Node + Chrome do Puppeteer (sem Playwright - evita conflito de versao).
+#
+# Node 24 e nao 20 por causa do cofre: node:sqlite so existe do 22 em diante.
+# Se este bump quebrar o build, voltar para node:20 e seguro: o cofre desliga
+# sozinho (banco.js trata o require ausente) e o Print continua igual.
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
@@ -19,6 +23,7 @@ COPY auditeste-a11y/package.json auditeste-a11y/package-lock.json ./
 RUN npm ci --omit=dev && npx puppeteer browsers install chrome && npx playwright install ffmpeg
 
 COPY auditeste-a11y/a11y.js auditeste-a11y/agente-cenarios.js auditeste-a11y/cenarios.js auditeste-a11y/servidor.js auditeste-a11y/traducoes-pa11y.js auditeste-a11y/carregar-env.js auditeste-a11y/extensao.js ./
+COPY auditeste-a11y/cofre ./cofre
 COPY audi-print-scanner ./audi-print-scanner
 COPY auditeste-a11y/publico ./publico
 
