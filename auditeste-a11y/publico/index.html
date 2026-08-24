@@ -134,13 +134,6 @@
   .recente .dados b{color:var(--navy);font-size:.95rem;display:block;}
   .recente .dados span{color:var(--muted);font-size:.82rem;}
 
-  .sub-config{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;}
-  .sub-config > summary{
-    cursor:pointer;font-size:.78rem;color:var(--muted);font-weight:600;
-    text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;
-  }
-  .sub-config > summary:hover{color:var(--navy);}
-  .dica-ponte{font-size:.76rem;color:var(--muted);margin-top:6px;}
   .ferramentas-scan{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:14px;}
   .ferramenta-scan{
     background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
@@ -1098,14 +1091,6 @@
           <input type="url" id="urlScan" placeholder="Cole aqui o endereço da página (ex: https://sistema.cliente.com)" autocomplete="off" aria-label="Endereço da página a escanear">
         </div>
         <div class="ferramentas-scan" id="ferramentasScan"></div>
-        <details class="sub-config">
-          <summary>Endereço da ponte</summary>
-          <div class="linha-scan">
-            <input type="url" id="urlPonte" placeholder="http://localhost:8900" autocomplete="off" aria-label="Endereço da ponte">
-            <input type="password" id="tokenPonte" placeholder="token, se a ponte exigir" autocomplete="off" aria-label="Token da ponte">
-          </div>
-          <p class="dica-ponte">Em branco usa <b>http://localhost:8900</b>. Fica guardado neste navegador.</p>
-        </details>
         <ul class="legenda-scan" id="legendaScan" hidden></ul>
         <p class="estado-ponte" id="estadoPonte" role="status">Verificando a ponte...</p>
       </div>
@@ -3534,35 +3519,19 @@
     return ponteIACache;
   }
 
-  function ligarCamposPonte(){
-    const cu = document.getElementById('urlPonte');
-    const ct = document.getElementById('tokenPonte');
-    if(!cu || !ct) return;
-    cu.value = localStorage.getItem('ponte_url') || '';
-    ct.value = localStorage.getItem('ponte_token') || '';
-    cu.addEventListener('change', ()=>{ localStorage.setItem('ponte_url', cu.value.trim()); pingPonte(); });
-    ct.addEventListener('change', ()=>{ localStorage.setItem('ponte_token', ct.value.trim()); pingPonte(); });
-    const dica = document.querySelector('.dica-ponte');
-    if(dica && /^https?:$/.test(location.protocol)){
-      dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). '
-        + 'Fica guardado neste navegador.';
-      /* Com o cofre no ar, sua sessão já autoriza os scans e o campo de token
-       * deixa de fazer sentido no uso normal. Ele fica escondido em vez de
-       * removido: quem abre o Print do disco, ou aponta para outra ponte, não
-       * manda cookie e continua precisando dele. */
-      fetch('/ping', { signal: AbortSignal.timeout(4000) })
-        .then(r => r.json())
-        .then(d => {
-          const campo = document.getElementById('tokenPonte');
-          if(!d || !d.sessaoAutoriza || !campo) return;
-          if((campo.value || '').trim()) return;   // já preenchido: não mexe
-          campo.hidden = true;
-          dica.innerHTML = 'Em branco usa esta mesma origem (<b>' + location.origin + '</b>). '
-            + 'Sua sessão já autoriza os scans, não precisa de token.';
-        })
-        .catch(()=>{});
-    }
-  }
+  /* O endereco e o token da ponte sairam da tela.
+   *
+   * Com a sessao do cofre autorizando os scans, o campo de token nao tinha
+   * mais o que fazer, e o de endereco so servia para quem aponta o Print
+   * para outra ponte, que nao e o caso de ninguem que usa o sistema.
+   *
+   * A capacidade continua: ponteUrl() e ponteToken() seguem lendo o
+   * localStorage, entao quem precisar aponta pelo console e nada muda no
+   * codigo. Tirei a tela, nao a saida.
+   *
+   *   localStorage.setItem('ponte_url', 'http://outra-ponte:8900')
+   *   localStorage.setItem('ponte_token', '...')
+   */
 
   function textoMotores(info){
     const st = info && info.status;
@@ -4742,7 +4711,7 @@
 
   abrirDB()
     .then(()=>{
-      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); ligarCamposPonte(); pingPonte(); verSeTemCofre(); mostrarQuemSou();
+      mudarEstado('parado'); atualizar(); desenharProjetos(); rotular(document); montarLegenda(); pingPonte(); verSeTemCofre(); mostrarQuemSou();
       try{ ativarModoCaptura(localStorage.getItem('captura_modo') || 'alteracao'); }catch(e){ ativarModoCaptura('alteracao'); }
       if(location.protocol === 'file:'){
         avisar('Este Print foi aberto pelo arquivo. Use http://127.0.0.1:8900 e recarregue com Ctrl+F5.');
