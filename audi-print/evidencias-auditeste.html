@@ -4705,7 +4705,8 @@
   (function favicon(){
     const l = document.createElement('link');
     l.rel = 'icon';
-    l.href = document.querySelector('.marca .clara').src;
+    l.type = 'image/svg+xml';
+    l.href = '/favicon.svg';
     document.head.appendChild(l);
   })();
 

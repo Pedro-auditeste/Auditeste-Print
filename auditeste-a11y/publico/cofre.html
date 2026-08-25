@@ -1,6 +1,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cofre de evidências · Audi Print</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   /* Mesma paleta do Print, valor por valor. A versao anterior tinha um modo
    * escuro que ligava sozinho pelo tema do sistema, entao numa maquina em
@@ -207,11 +208,39 @@
   .esqueci a{font-size:.83rem;color:var(--green-dark);cursor:pointer;text-decoration:none;}
   .esqueci a:hover{text-decoration:underline;}
 
+  /* A entrada monta, em vez de aparecer seca. Roda no primeiro paint, quando
+   * o painel deixa de ser hidden, e uma vez so. Puro CSS: uma tela de login
+   * nao justifica uma biblioteca de animacao. Quem pediu menos movimento no
+   * sistema nao ve nada disto. */
+  @keyframes ent-sobe{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+  @keyframes ent-esq{from{opacity:0;transform:translateX(-26px);}to{opacity:1;transform:none;}}
+  @keyframes ent-desce{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:none;}}
+  @keyframes ent-pop{0%{opacity:0;transform:scale(.6);}60%{opacity:1;transform:scale(1.08);}100%{transform:scale(1);}}
+  /* A intro so vale com a classe .estreia, que o JS poe ao mostrar a tela.
+   * Sem JS, ou se algo travar, o estado base (visivel, no lugar) e o que
+   * fica: uma tela de login que depende de animacao para aparecer e uma
+   * tela de login que um dia nao aparece. */
+  .estreia .entrada-topo{animation:ent-desce .5s ease both;}
+  .estreia .entrada-lado{animation:ent-esq .6s ease both;}
+  .estreia .entrada-lado h2{animation:ent-sobe .55s ease .1s both;}
+  .estreia .entrada-lado .sub{animation:ent-sobe .55s ease .18s both;}
+  .estreia .entrada-recursos .rec{animation:ent-sobe .5s ease both;}
+  .estreia .entrada-recursos .rec:nth-child(1){animation-delay:.26s;}
+  .estreia .entrada-recursos .rec:nth-child(2){animation-delay:.38s;}
+  .estreia .entrada-recursos .rec:nth-child(3){animation-delay:.50s;}
+  .estreia .entrada-cartao{animation:ent-sobe .55s ease .12s both;}
+  .estreia .entrada-cartao .selo{animation:ent-pop .6s cubic-bezier(.34,1.56,.64,1) .3s both;}
+
   @media (max-width:820px){
     .entrada-lado{display:none;}
     .entrada-topo{background:var(--navy);}
     .entrada-topo .voltar{color:#cfe3ee;}
     .entrada-direita{padding-top:88px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .estreia .entrada-topo,.estreia .entrada-lado,.estreia .entrada-lado h2,
+    .estreia .entrada-lado .sub,.estreia .entrada-recursos .rec,
+    .estreia .entrada-cartao,.estreia .entrada-cartao .selo{animation:none!important;}
   }
 </style>
 
@@ -433,6 +462,10 @@
      * <header>/<main> comuns. Alternar os dois evita ver o cabecalho do
      * sistema por tras do painel de entrada. */
     const noLogin = qual === 'telaEntrar';
+    /* Liga a intro so quando de fato vamos mostrar a entrada, e so com JS
+     * vivo. O sair recarrega a pagina, entao cada visita a tela ganha a
+     * animacao uma vez, sem repetir a cada troca de aba. */
+    if(noLogin) $('telaEntrar').classList.add('estreia');
     $('telaEntrar').hidden = !noLogin;
     document.querySelector('header').hidden = noLogin;
     document.querySelector('main').hidden = noLogin;
