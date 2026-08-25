@@ -82,6 +82,9 @@ curl -s https://audiprint.up.railway.app/ping
 | Backup recusa arquivo alheio | `teste-backup.js` | Banco de outro sistema é recusado antes de encostar no original |
 | Varredura de dependências | `npm run seguranca` | Lista as vulnerabilidades conhecidas. Roda também no CI, semanalmente |
 | Integração contínua | `.github/workflows/seguranca.yml` | Quatro tarefas: dependências, segredos, testes e varredura dinâmica |
+| Ciclo de desenvolvimento seguro | `seguranca-sdlc.md` | Como uma mudança chega à produção sem furar um controle: todo controle tem teste que falha se ele sumir |
+| Resposta a incidentes | `seguranca-incidentes.md` | As sete etapas, cada uma com a ação que a ferramenta já permite (revogar sessão, isolar cliente, backup para análise) |
+| Tratamento de dado pessoal (LGPD) | `seguranca-lgpd.md` | Papéis, dados, finalidade, retenção, descarte e subprocessadores, base do RoPA |
 | Endereço da origem não é forjável | `dast.js` | Prefixo escrito pelo cliente em `X-Forwarded-For` não troca a identidade da origem, nem zera o teto, nem escolhe o que vai para a auditoria |
 
 ---
@@ -176,7 +179,9 @@ Ser honesto sobre isso é parte do controle. Se alguém perguntar por um destes,
 | Egress filtering na rede do contêiner | Não configurado. Fecha o residual da SSRF (redirect e sub-recurso para rede interna). É infraestrutura na Railway, não código |
 | Múltiplos fatores próprios | Não existem. Quem entra por SSO usa o fator que a empresa dele exige, e quem entra por senha não tem segundo fator |
 | Teste dinâmico contra falha de lógica nova | A varredura cobre o que ela conhece. Falha que ninguém previu não aparece nela, e é para isso que serve pentest |
-| Plano de resposta a incidente | Não existe |
+| Ensaio do plano de incidente | O plano existe (`seguranca-incidentes.md`), mas nunca foi exercitado. Plano que nunca rodou é hipótese |
+| Encarregado de dados (DPO) | Não designado formalmente |
+| Revisão de PR imposta por ferramenta | Praticada e documentada; branch protection no GitHub ainda não ligado |
 | Política de retenção contratual | O sistema aplica o que for configurado. O número que vale por contrato não está definido |
 | Backup fora do provedor | O comando existe e é testado. O procedimento de guardar cópia externa não está estabelecido |
 | Injeção escrita dentro da imagem | A detecção lê texto, não pixel. Coberta apenas pela fronteira declarada no prompt |

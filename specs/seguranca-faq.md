@@ -172,15 +172,15 @@ Formato de resposta direta, para os assessments que costumam chegar.
 | Busca de segredos no repositório | Sim, automatizada, sobre toda a história |
 | Análise estática | Sim, CodeQL com o conjunto `security-extended`, a cada envio e semanalmente |
 | Teste dinâmico | Sim, varredura própria de 40 sondas contra a aplicação em execução, a cada envio. Contra o ambiente de produção, semanalmente |
-| Revisão de código obrigatória | Não formalizada |
+| Revisão de código obrigatória | Praticada e documentada em `seguranca-sdlc.md`. A imposição por ferramenta (branch protection) ainda não está ligada |
 | Testes automatizados | Sim, cerca de 30 arquivos de teste, incluindo os que verificam controles de segurança |
 
 ## Incidentes
 
 | Pergunta | Resposta |
 |---|---|
-| Plano formal de resposta | Não |
-| Prazo de comunicação | Não definido |
+| Plano formal de resposta | Sim, documentado em `seguranca-incidentes.md`. Nunca exercitado, e sem DPO designado |
+| Prazo de comunicação | Contratual não definido. Até definir, vale o prazo razoável da LGPD |
 | Registro para investigação | Sim, auditoria por cliente |
 | Histórico de incidente | Nenhum incidente com dado de cliente. O produto ainda não operou com evidência real de cliente |
 
@@ -198,7 +198,8 @@ Os itens em aberto, reunidos:
 
 * Sem múltiplos fatores próprios. Quem entra por SSO usa o fator que a empresa dele exige
 * Sem certificação e sem pentest independente
-* Sem plano formal de incidente e sem prazo de comunicação
+* Plano de incidente documentado, mas nunca exercitado e sem DPO designado
+* Tratamento de dado pessoal registrado em `seguranca-lgpd.md`, sem prazo de retenção contratual definido
 * Sem política de retenção contratual definida
 * Dados fora do Brasil
 * 22 vulnerabilidades conhecidas em dependências, 6 altas
