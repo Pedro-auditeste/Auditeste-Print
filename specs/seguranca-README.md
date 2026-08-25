@@ -24,28 +24,28 @@ Atualizado em 25/08/2026.
 
 ### O que respondem os questionários
 
-- **[FAQ e questionário de fornecedor](seguranca-faq.md)** — as perguntas que sempre voltam (onde ficam os dados, são cifrados, quem acessa, tem SSO, como se exclui) com resposta oficial, mais um questionário de assessment já preenchido. Existe para que cada oportunidade não gere uma resposta diferente.
+- **[FAQ e questionário de fornecedor](seguranca-faq.md)**: as perguntas que sempre voltam (onde ficam os dados, são cifrados, quem acessa, tem SSO, como se exclui) com resposta oficial, mais um questionário de assessment já preenchido. Existe para que cada oportunidade não gere uma resposta diferente.
 
 ### Como o produto é por dentro
 
-- **[Arquitetura de segurança e fluxo do dado](seguranca-arquitetura.md)** — os componentes, as fronteiras de confiança e o caminho do dado, da captura até a exclusão. O "entenda o produto sem ler o código".
-- **[Segredos e chaves](segredos-e-chaves.md)** — cada segredo do sistema, para que serve e o que acontece se perder.
-- **[Subir o cofre](subir-o-cofre.md)** — o runbook: variáveis de ambiente, volume, como colocar no ar.
+- **[Arquitetura de segurança e fluxo do dado](seguranca-arquitetura.md)**: os componentes, as fronteiras de confiança e o caminho do dado, da captura até a exclusão. O "entenda o produto sem ler o código".
+- **[Segredos e chaves](segredos-e-chaves.md)**: cada segredo do sistema, para que serve e o que acontece se perder.
+- **[Subir o cofre](subir-o-cofre.md)**: o runbook: variáveis de ambiente, volume, como colocar no ar.
 
 ### A prova
 
-- **[Evidências dos controles](seguranca-evidencias.md)** — para cada controle afirmado, o teste ou comando que o demonstra. O princípio é "afirmação sem evidência é só declaração", então esta tabela é a diferença entre dizer e mostrar.
-- **[Pentest interno](seguranca-pentest.md)** — o ataque manual ao sistema em execução: os achados, as correções, e o que resistiu. Diz também o que só um pentest independente encontraria.
+- **[Evidências dos controles](seguranca-evidencias.md)**: para cada controle afirmado, o teste ou comando que o demonstra. O princípio é "afirmação sem evidência é só declaração", então esta tabela é a diferença entre dizer e mostrar.
+- **[Pentest interno](seguranca-pentest.md)**: o ataque manual ao sistema em execução: os achados, as correções, e o que resistiu. Diz também o que só um pentest independente encontraria.
 
 ### Processo e conformidade
 
-- **[Ciclo de desenvolvimento seguro](seguranca-sdlc.md)** — como uma mudança chega à produção sem furar um controle: o que roda no CI e o que falta impor.
-- **[Resposta a incidentes](seguranca-incidentes.md)** — o que a equipe faz quando algo dá errado com dado de cliente, em sete etapas, cada uma com a ação que a ferramenta já permite.
-- **[LGPD operacional](seguranca-lgpd.md)** — o registro do tratamento de dado pessoal (RoPA): papéis, dados, finalidade, retenção, descarte e subprocessadores.
+- **[Ciclo de desenvolvimento seguro](seguranca-sdlc.md)**: como uma mudança chega à produção sem furar um controle: o que roda no CI e o que falta impor.
+- **[Resposta a incidentes](seguranca-incidentes.md)**: o que a equipe faz quando algo dá errado com dado de cliente, em sete etapas, cada uma com a ação que a ferramenta já permite.
+- **[LGPD operacional](seguranca-lgpd.md)**: o registro do tratamento de dado pessoal (RoPA): papéis, dados, finalidade, retenção, descarte e subprocessadores.
 
 ### Histórico
 
-- **[Diagnóstico do Marco 1](seguranca-marco-1-diagnostico.md)** — onde o Print estava antes deste trabalho, e o que faltava. Contexto, não estado atual.
+- **[Diagnóstico do Marco 1](seguranca-marco-1-diagnostico.md)**: onde o Print estava antes deste trabalho, e o que faltava. Contexto, não estado atual.
 
 ---
 
