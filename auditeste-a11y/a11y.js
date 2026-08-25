@@ -12,6 +12,15 @@ const path = require('path');
 
 const LOCALE_AXE_PT = require('axe-core/locales/pt_BR.json');
 const { traduzirIssuePa11y } = require('./traducoes-pa11y.js');
+const { regraDeResolucao } = require('./rede-segura.js');
+
+/* O pino que prende o host de destino ao IP já validado, para o Chrome não
+ * resolver de novo e cair num rebind. Vem do servidor, que validou o alvo
+ * antes de chamar o motor. Sem pino (scan local), a lista fica vazia. */
+function flagsDeResolucao(pino) {
+  if (!pino || !pino.host || !pino.ip) return [];
+  return ['--host-resolver-rules=' + regraDeResolucao(pino.host, pino.ip)];
+}
 
 const SAIDA = path.join(__dirname, 'saida');
 
@@ -49,12 +58,12 @@ function exigirChrome(motor) {
   return chrome;
 }
 
-async function lancarChrome() {
+async function lancarChrome(flagsExtra) {
   const puppeteer = require('puppeteer');
   return puppeteer.launch({
     executablePath: exigirChrome('ponte'),
     headless: true,
-    args: FLAGS_DOCKER
+    args: FLAGS_DOCKER.concat(flagsExtra || [])
   });
 }
 
@@ -91,9 +100,9 @@ async function diagnosticarPuppeteer(pagina) {
 
 /* ---------- scanners (todos via Puppeteer/Chrome) ---------- */
 
-async function scanAxe(url) {
+async function scanAxe(url, pino) {
   const { AxePuppeteer } = require('@axe-core/puppeteer');
-  const navegador = await lancarChrome();
+  const navegador = await lancarChrome(flagsDeResolucao(pino));
   try {
     const pagina = await navegador.newPage();
     await pagina.setUserAgent(USER_AGENT);
@@ -121,7 +130,7 @@ async function scanAxe(url) {
   }
 }
 
-async function scanPa11y(url) {
+async function scanPa11y(url, pino) {
   const pa11y = require('pa11y');
   const chrome = exigirChrome('Pa11y');
 
@@ -131,7 +140,7 @@ async function scanPa11y(url) {
     chromeLaunchConfig: {
       executablePath: chrome,
       ignoreHTTPSErrors: true,
-      args: FLAGS_DOCKER
+      args: FLAGS_DOCKER.concat(flagsDeResolucao(pino))
     }
   });
 
@@ -144,14 +153,14 @@ async function scanPa11y(url) {
   };
 }
 
-async function scanLighthouse(url) {
+async function scanLighthouse(url, pino) {
   const chromeLauncher = await import('chrome-launcher');
   const { default: lighthouse } = await import('lighthouse');
   const chromePath = exigirChrome('Lighthouse');
 
   const chrome = await chromeLauncher.launch({
     chromePath,
-    chromeFlags: ['--headless=new', ...FLAGS_DOCKER],
+    chromeFlags: ['--headless=new', ...FLAGS_DOCKER, ...flagsDeResolucao(pino)],
     logLevel: 'error'
   });
   try {

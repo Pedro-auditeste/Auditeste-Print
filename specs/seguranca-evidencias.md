@@ -98,6 +98,8 @@ curl -s https://audiprint.up.railway.app/ping
 | **Entrada pelo provedor da empresa (SSO)** | `teste-sso.js` | 22 casos contra um provedor OIDC de mentira que o teste sobe: assinatura de outra chave, `alg: none`, outro emissor, outra audiência, token vencido, nonce trocado, e-mail não confirmado, e-mail de outro domínio, estado reusado |
 | **Análise estática (SAST)** | `.github/workflows/codeql.yml` | CodeQL com `security-extended`, a cada envio e semanalmente. Achou e derrubou um vazamento de erro interno |
 | **Teste dinâmico (DAST)** | `dast.js` | 40 sondas contra o servidor em execução: rota sem sessão, id de outro cliente, link assinado remendado, campo a mais no corpo, injeção de SQL, travessia de caminho, CRLF, corpo gigante e freio de varredura |
+| **Pentest interno** | `seguranca-pentest.md` | Ataque manual à fronteira inteira. Achou SSRF por rebind de DNS no scanner, corrigido |
+| Fronteira de saída (SSRF) | `teste-ssrf.js` | Nome que resolve para público e privado ao mesmo tempo é recusado; o host validado é preso ao IP no navegador, tirando a brecha entre a checagem e a navegação |
 | A varredura não envelhece calada | `dast.js` | Lê as rotas do próprio `api.js`: rota nova que ninguém classificou vira achado, e não silêncio |
 | Arquitetura documentada | `seguranca-arquitetura.md` | Componentes, fronteiras de confiança e diagramas |
 | Fluxo do dado | `seguranca-arquitetura.md` | Origem até descarte, com quem autoriza cada etapa |
@@ -170,7 +172,8 @@ Ser honesto sobre isso é parte do controle. Se alguém perguntar por um destes,
 |---|---|
 | Criptografia do volume pelo provedor | Não verificada. Depende de configuração de infraestrutura, não de código |
 | 22 vulnerabilidades de dependência | Conhecidas e registradas. Correção exige mudança de versão maior nos motores de scan |
-| Pentest independente | Não realizado. Análise estática e teste dinâmico existem e rodam no CI, mas ferramenta não substitui gente atacando o sistema |
+| Pentest independente | Não realizado. Houve pentest interno (`seguranca-pentest.md`), mas quem fez o código não substitui gente de fora atacando sem o mapa mental de quem construiu |
+| Egress filtering na rede do contêiner | Não configurado. Fecha o residual da SSRF (redirect e sub-recurso para rede interna). É infraestrutura na Railway, não código |
 | Múltiplos fatores próprios | Não existem. Quem entra por SSO usa o fator que a empresa dele exige, e quem entra por senha não tem segundo fator |
 | Teste dinâmico contra falha de lógica nova | A varredura cobre o que ela conhece. Falha que ninguém previu não aparece nela, e é para isso que serve pentest |
 | Plano de resposta a incidente | Não existe |

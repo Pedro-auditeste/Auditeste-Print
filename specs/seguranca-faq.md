@@ -116,7 +116,8 @@ Formato de resposta direta, para os assessments que costumam chegar.
 | Existe política de segurança formal? | Não formalizada. Os controles técnicos estão documentados e testados |
 | Existe responsável designado? | A Auditeste responde pelo produto. Encarregado de dados não designado formalmente |
 | Certificação (ISO 27001, SOC 2)? | Não |
-| Pentest independente? | Não realizado |
+| Pentest interno? | Sim, revisão adversária manual, documentada em `seguranca-pentest.md`. Achou e corrigiu uma SSRF por rebind de DNS no scanner |
+| Pentest independente? | Não realizado. É a camada que a revisão interna, por ser de quem fez o código, não substitui |
 
 ## Controle de acesso
 

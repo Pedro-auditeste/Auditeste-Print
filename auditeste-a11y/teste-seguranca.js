@@ -41,9 +41,8 @@ caso('esc aceita null e número sem explodir', () => {
   assert.strictEqual(esc(42), '42');
 });
 
-/* --- faixaPrivada do servidor --- */
-const fonteFaixa = servidor.slice(servidor.indexOf('function faixaPrivada'), servidor.indexOf('async function recusar'));
-const faixaPrivada = new Function('net', fonteFaixa + ';return faixaPrivada;')(net);
+/* --- faixaPrivada, agora em rede-segura.js --- */
+const { faixaPrivada } = require('./rede-segura.js');
 
 caso('bloqueia rede interna escrita como IPv6 mapeado', () => {
   assert.strictEqual(faixaPrivada('::ffff:127.0.0.1'), true);

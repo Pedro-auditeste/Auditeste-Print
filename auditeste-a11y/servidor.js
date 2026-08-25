@@ -34,6 +34,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
+const { validarAlvo: validarDestino, faixaPrivada } = require('./rede-segura.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
 const { zipExtensao } = require('./extensao.js');
 const bancoCofre = require('./cofre/banco.js');
@@ -128,46 +129,12 @@ function responder(res, status, corpo, origem) {
   res.end(JSON.stringify(corpo));
 }
 
-function faixaPrivada(ip) {
-  const s = String(ip).toLowerCase();
-  // ::ffff:127.0.0.1 e IPv4 escrito como IPv6: sem desembrulhar, passava direto.
-  const mapeado = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
-  const alvo = mapeado ? mapeado[1] : s;
-
-  if (net.isIPv4(alvo)) {
-    const [a, b] = alvo.split('.').map(Number);
-    return a === 0 || a === 10 || a === 127
-      || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 168)
-      || (a === 169 && b === 254)
-      || (a === 100 && b >= 64 && b <= 127)   // CGNAT: rede do provedor, nao e publica
-      || a >= 224;
-  }
-  return alvo === '::1' || alvo === '::'
-    || alvo.startsWith('fc') || alvo.startsWith('fd') || alvo.startsWith('fe80');
-}
-
-async function recusar(alvo) {
-  let u;
-  try { u = new URL(alvo); } catch (e) { return `url inválida: ${alvo}`; }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return `protocolo não permitido: ${u.protocol}`;
-
-  const host = u.hostname.toLowerCase();
-  if (DOMINIOS.length && !DOMINIOS.some(d => host === d || host.endsWith('.' + d))) {
-    return `domínio fora da allowlist: ${host}`;
-  }
-  if (PRIVADO_OK) return null;
-
-  let enderecos;
-  try {
-    enderecos = await dns.lookup(host, { all: true });
-  } catch (e) {
-    return `não resolveu o domínio: ${host}`;
-  }
-  if (enderecos.some(e => faixaPrivada(e.address))) {
-    return `endereço de rede interna bloqueado: ${host}`;
-  }
-  return null;
+/* Validação do destino de scan e o pino que prende o host ao IP validado.
+ * Toda a lógica (rebind de DNS incluído) mora em rede-segura.js, para ser
+ * testada sem subir o servidor e para não haver duas cópias da lista de
+ * faixas privadas divergindo com o tempo. */
+function validarAlvo(alvo) {
+  return validarDestino(alvo, { allowlist: DOMINIOS, privadoOk: PRIVADO_OK });
 }
 
 const PUBLICO = path.resolve(process.env.PONTE_PUBLICO || path.join(__dirname, 'publico'));
@@ -572,8 +539,11 @@ const servidor = http.createServer(async (req, res) => {
   }
   if (!alvo) return responder(res, 400, { erro: 'url ausente' }, origem);
 
-  const motivo = await recusar(alvo);
-  if (motivo) return responder(res, 400, { erro: motivo }, origem);
+  const validado = await validarAlvo(alvo);
+  if (validado.erro) return responder(res, 400, { erro: validado.erro }, origem);
+  /* pino = { host, ip } vai para o motor e prende o host ao IP validado no
+   * Chrome, tirando a brecha entre a checagem e a navegação. */
+  const pino = validado.ip ? validado : null;
 
   if (rodando >= MAX) {
     return responder(res, 429, { erro: `${MAX} scans já em andamento, tente em instantes` }, origem);
@@ -584,7 +554,7 @@ const servidor = http.createServer(async (req, res) => {
   const rotulo = ROTULOS[tipo] || tipo;
   process.stdout.write(`${rotulo.padEnd(12)} ${alvo} ... `);
   try {
-    const dados = await MOTORES[tipo](alvo);
+    const dados = await MOTORES[tipo](alvo, pino);
     console.log(`ok (${((Date.now() - inicio) / 1000).toFixed(1)}s)`);
     responder(res, 200, dados, origem);
   } catch (err) {
