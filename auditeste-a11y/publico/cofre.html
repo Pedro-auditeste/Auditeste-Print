@@ -147,7 +147,7 @@
 
     <form id="painelEntrar" role="tabpanel">
       <label><span>E-mail</span><input type="email" id="email" autocomplete="username" required></label>
-      <label><span>Senha</span><input type="password" id="senha" autocomplete="current-password" required></label>
+      <label id="campoSenha"><span>Senha</span><input type="password" id="senha" autocomplete="current-password" required></label>
       <button class="btn primario" type="submit" id="btnEntrar" style="width:100%">Entrar</button>
     </form>
 
@@ -354,11 +354,68 @@
         + 'Para entrar numa equipe que ja existe, cole o convite que alguem dela gerou.';
   });
 
+  /* Entrar com a conta da empresa.
+   *
+   * O e-mail decide o caminho: se o dominio tem provedor configurado, a
+   * pessoa vai para la e nem digita senha aqui. Se nao tem, segue pelo
+   * caminho de sempre.
+   *
+   * Perguntar ao servidor em vez de mostrar dois botoes: um botao "entrar com
+   * SSO" obriga a pessoa a saber se a empresa dela usa SSO, e ela nao sabe. */
+  async function tentarProvedor(email, silencioso){
+    if(!email || email.indexOf('@') < 0) return false;
+    try{
+      const r = await api('/api/sso/inicio', { json: { email, ir: paraOndeIr || '/' } });
+      if(r && r.provedor && r.url){
+        location.href = r.url;
+        return true;
+      }
+    }catch(err){
+      if(!silencioso) avisar(err.message, true);
+    }
+    return false;
+  }
+
+  /* Sai da caixa de e-mail: se houver provedor, esconde o campo de senha
+   * antes de a pessoa comecar a digitar uma senha que nao vai usar. */
+  $('email').addEventListener('blur', async () => {
+    const email = $('email').value.trim();
+    if(!email) return;
+    try{
+      const r = await api('/api/sso/inicio', { json: { email, ir: paraOndeIr || '/' } });
+      emailConferido = email;
+      if(r && r.provedor){
+        $('campoSenha').hidden = true;
+        $('btnEntrar').textContent = 'Continuar com a conta da empresa';
+        $('senha').removeAttribute('required');
+        entrarPeloProvedor = r.url;
+      }else{
+        $('campoSenha').hidden = false;
+        $('btnEntrar').textContent = 'Entrar';
+        $('senha').setAttribute('required', '');
+        entrarPeloProvedor = '';
+      }
+    }catch(e){}
+  });
+
+  let entrarPeloProvedor = '';
+  /* Qual e-mail ja passou pela consulta de provedor.
+   *
+   * Sem isto, todo clique em Entrar fazia uma ida a mais ao servidor antes do
+   * login, mesmo quando a resposta ja era conhecida. Alem de lento, mudou o
+   * tempo do fluxo o bastante para derrubar o teste de navegador. */
+  let emailConferido = '';
+
   $('painelEntrar').addEventListener('submit', async e => {
     e.preventDefault();
     $('btnEntrar').disabled = true;
     try{
-      await api('/api/entrar', { json: { email: $('email').value.trim(), senha: $('senha').value } });
+      const email = $('email').value.trim();
+      if(entrarPeloProvedor){ location.href = entrarPeloProvedor; return; }
+      // So consulta se este e-mail ainda nao foi conferido pelo blur.
+      if(email !== emailConferido && await tentarProvedor(email, true)) return;
+
+      await api('/api/entrar', { json: { email, senha: $('senha').value } });
       $('senha').value = '';
       if(seguirDestino()) return;
       await conferirSessao();
@@ -545,6 +602,11 @@
 
   (async () => {
     try{
+      /* O retorno do provedor traz o motivo na URL quando da errado. Sem
+       * isto a pessoa volta para a tela de entrada sem saber por que. */
+      const falhaSso = new URLSearchParams(location.search).get('sso');
+      if(falhaSso) avisar('Não foi possível entrar pelo provedor: ' + falhaSso, true);
+
       if(await conferirSessao()){
         if(seguirDestino()) return;
         await abrirProjetos();

@@ -11,6 +11,7 @@
 const crypto = require('crypto');
 const banco = require('./banco.js');
 const contas = require('./contas.js');
+const sso = require('./sso.js');
 
 const MAX_OBJETO = Number(process.env.COFRE_MAX_OBJETO_MB || 20) * 1024 * 1024;
 const LINK_VALE_MS = Number(process.env.COFRE_LINK_MS) || 5 * 60 * 1000;
@@ -285,6 +286,53 @@ async function tratar(req, res, u, lerCorpo) {
           usado_em: c.usado_em, usado_por_email: c.usado_por_email }));
       json(res, 200, { convites: lista });
       return true;
+    }
+
+    /* ---------- entrada por provedor de identidade ---------- */
+
+    /* O endereco de retorno e montado a partir do host da requisicao, e nao
+     * de algo que o cliente mande: aceitar redirect_uri do pedido e o furo
+     * classico de OIDC, porque o codigo de autorizacao vai parar onde quem
+     * pediu mandar. */
+    const urlDeRetorno = () => {
+      const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim()
+        || (req.socket.encrypted ? 'https' : 'http');
+      const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+        .split(',')[0].trim();
+      return proto + '://' + host + '/api/sso/retorno';
+    };
+
+    if (p === '/api/sso/inicio' && req.method === 'POST') {
+      const c = await lerCorpo(req);
+      const email = texto(c.email, 'E-mail', 200, true);
+      const destino = /^\/($|[^\/\\])/.test(String(c.ir || '')) ? String(c.ir) : '/';
+      const r = await sso.iniciar(email, urlDeRetorno(), destino);
+      /* Dominio sem provedor nao e erro: e a tela sabendo que aquele e-mail
+       * segue pelo caminho de senha. */
+      json(res, 200, r ? { provedor: true, url: r.url } : { provedor: false });
+      return true;
+    }
+
+    if (p === '/api/sso/retorno' && (req.method === 'GET' || req.method === 'POST')) {
+      const erroProvedor = u.searchParams.get('error');
+      if (erroProvedor) {
+        res.writeHead(302, { Location: '/cofre.html?sso=' + encodeURIComponent(erroProvedor) });
+        return void res.end();
+      }
+      try {
+        const dados = await sso.concluir(
+          u.searchParams.get('code'), u.searchParams.get('state'), urlDeRetorno());
+        const r = contas.entrarPorProvedor(req, dados);
+        res.writeHead(302, { Location: dados.destino || '/', 'Set-Cookie': r.cookie });
+        return void res.end();
+      } catch (err) {
+        banco.auditar(null, null, 'login.provedor_falhou', String(err.message).slice(0, 120),
+          contas.ipDe(req));
+        res.writeHead(302, {
+          Location: '/cofre.html?sso=' + encodeURIComponent(String(err.message).slice(0, 160))
+        });
+        return void res.end();
+      }
     }
 
     if (p === '/api/sair' && req.method === 'POST') {

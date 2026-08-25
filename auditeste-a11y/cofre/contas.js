@@ -273,6 +273,55 @@ function trocarEquipe(req, sessaoAtual, tenantId) {
   };
 }
 
+/* Entrada vinda do provedor de identidade.
+ *
+ * Cria a conta no primeiro acesso (JIT provisioning). E o comportamento
+ * esperado de SSO, e e o que faz ele valer a pena: quem o provedor da empresa
+ * afirma que existe, existe; quem ele para de afirmar, para de entrar. Exigir
+ * cadastro previo aqui devolveria o trabalho manual que o SSO veio tirar.
+ *
+ * A senha local nasce impossivel: quem entra por provedor nao tem senha, e
+ * uma senha em branco ou previsivel seria uma segunda porta sem tranca. */
+function entrarPorProvedor(req, dados) {
+  const email = String(dados.email || '').trim().toLowerCase();
+  if (!email) {
+    const e = new Error('O provedor não informou o e-mail.');
+    e.status = 401;
+    throw e;
+  }
+
+  let usuario = banco.usuarioPorEmail(email);
+  let novo = false;
+  if (!usuario) {
+    usuario = banco.criarUsuario(email, hashSenha(crypto.randomBytes(32).toString('hex')));
+    novo = true;
+  }
+
+  /* Vinculo tambem no primeiro acesso, com o papel que a configuracao define.
+   * Se a pessoa ja pertence a equipe, o papel dela e mantido: rebaixar quem
+   * foi promovido a mao, toda vez que entra, seria surpresa cara. */
+  if (!banco.vinculo(dados.tenantId, usuario.id)) {
+    banco.vincular(dados.tenantId, usuario.id, dados.papel || 'consultor');
+  }
+
+  banco.marcarAcesso(usuario.id);
+  const token = novoToken();
+  banco.criarSessao(hashToken(token), usuario.id, dados.tenantId, DURACAO_MS);
+  banco.auditar(dados.tenantId, usuario.id,
+    novo ? 'login.provedor_primeiro_acesso' : 'login.provedor', email, ipDe(req));
+
+  const t = banco.obterTenant(dados.tenantId);
+  return {
+    cookie: cookieSessao(req, token, DURACAO_MS),
+    sessao: {
+      email,
+      tenantId: dados.tenantId,
+      tenantNome: t ? t.nome : '',
+      papel: banco.vinculo(dados.tenantId, usuario.id).papel
+    }
+  };
+}
+
 function sair(req) {
   const token = lerCookie(req, COOKIE);
   if (token) {
@@ -333,7 +382,7 @@ function podeOuErro(sessao, papelMinimo) {
 const HASH_ISCA = hashSenha(crypto.randomBytes(32).toString('hex'));
 
 module.exports = {
-  hashSenha, conferirSenha, entrar, cadastrar, trocarEquipe, sair, sessaoDe, podeOuErro,
+  hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, trocarEquipe, sair, sessaoDe, podeOuErro,
   novoCodigo, SENHA_MINIMA, CADASTRO_ABERTO, MAX_EQUIPES_POR_IP,
   lerCookie, cookieLimpo, ipDe, hashToken, novoToken,
   COOKIE, DURACAO_MS, MAX_TENTATIVAS, PAPEIS

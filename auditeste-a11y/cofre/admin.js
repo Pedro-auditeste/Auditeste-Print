@@ -11,6 +11,8 @@
  *   node cofre/admin.js senha pedro@auditeste.com
  *   node cofre/admin.js vincular pedro@auditeste.com <tenantId> gestor
  *   node cofre/admin.js provedor <tenantId> [on|off]
+ *   node cofre/admin.js sso <tenantId> <issuer> <clientId> <dominio> [papel]
+ *   node cofre/admin.js ssos
  *   node cofre/admin.js varrer
  *   node cofre/admin.js backup [destino]
  *   node cofre/admin.js conferir <arquivo>
@@ -122,6 +124,54 @@ const comandos = {
       console.log('Quem for consultor ou acima nesta equipe passa a alcançar a equipe');
       console.log('de todos os clientes, levando o próprio papel. Cada entrada fica');
       console.log('registrada na auditoria do cliente.');
+    }
+  },
+
+  sso(tenantId, issuer, clientId, dominio, papel) {
+    if (!tenantId) {
+      console.error('uso: sso <tenantId> <issuer> <clientId> <dominio> [papel]');
+      console.error('     o segredo vem em COFRE_SSO_SEGREDO, nunca na linha de comando');
+      console.error('     sso <tenantId> --remover  tira a configuração');
+      process.exit(1);
+    }
+    if (!banco.obterTenant(tenantId)) { console.error('equipe não existe'); process.exit(1); }
+
+    if (issuer === '--remover') {
+      console.log(banco.removerSso(tenantId) ? 'entrada por provedor removida' : 'não havia configuração');
+      return;
+    }
+    if (!issuer || !clientId || !dominio) {
+      console.error('uso: sso <tenantId> <issuer> <clientId> <dominio> [papel]');
+      process.exit(1);
+    }
+    /* O segredo vai por ambiente pelo mesmo motivo da senha: linha de comando
+     * fica no historico do shell. */
+    const segredo = String(process.env.COFRE_SSO_SEGREDO || '').trim();
+    if (!segredo) {
+      console.error('defina COFRE_SSO_SEGREDO com o client secret do provedor');
+      process.exit(1);
+    }
+    const cfg = banco.configurarSso(tenantId, {
+      issuer, clientId, clientSecret: segredo, dominio, papelPadrao: papel
+    });
+    banco.auditar(tenantId, null, 'sso.configurado', cfg.dominio + ' via ' + cfg.issuer, 'cli');
+    console.log('entrada por provedor configurada');
+    console.log('  equipe    ' + tenantId);
+    console.log('  emissor   ' + cfg.issuer);
+    console.log('  dominio   ' + cfg.dominio);
+    console.log('  papel     ' + cfg.papel_padrao);
+    console.log('');
+    console.log('No provedor, cadastre o endereço de retorno:');
+    console.log('  https://SEU-DOMINIO/api/sso/retorno');
+    console.log('Quem tiver e-mail @' + cfg.dominio + ' entra sem senha, e a conta');
+    console.log('é criada no primeiro acesso.');
+  },
+
+  ssos() {
+    const lista = banco.listarSso();
+    if (!lista.length) return console.log('nenhuma equipe com entrada por provedor');
+    for (const s of lista) {
+      console.log(s.dominio.padEnd(24) + s.tenant_nome.padEnd(20) + s.papel_padrao + '  ' + s.issuer);
     }
   },
 

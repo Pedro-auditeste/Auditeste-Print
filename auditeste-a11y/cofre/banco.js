@@ -122,6 +122,25 @@ CREATE TABLE IF NOT EXISTS convites (
   usado_por TEXT
 );
 
+CREATE TABLE IF NOT EXISTS sso (
+  tenant_id TEXT PRIMARY KEY,
+  issuer TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret BLOB NOT NULL,
+  dominio TEXT NOT NULL UNIQUE,
+  papel_padrao TEXT NOT NULL DEFAULT 'consultor',
+  criado_em INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sso_estados (
+  state TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  nonce TEXT NOT NULL,
+  destino TEXT,
+  criado_em INTEGER NOT NULL,
+  expira_em INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS tentativas (
   chave TEXT PRIMARY KEY,
   contagem INTEGER NOT NULL,
@@ -739,6 +758,55 @@ function excluirDadosDoTenant(tenantId) {
   return conta;
 }
 
+/* ---------- entrada por provedor de identidade ---------- */
+
+/* O segredo do cliente OIDC vai cifrado, com a mesma chave dos prints.
+ *
+ * Ele e credencial: quem o tem, junto com o client_id, fala com o provedor
+ * como se fosse o Print. Guardar em texto seria manter uma senha de
+ * integracao em claro dentro do arquivo que a gente acabou de cifrar. */
+function configurarSso(tenantId, { issuer, clientId, clientSecret, dominio, papelPadrao }) {
+  exigirTenant(tenantId);
+  exigir();
+  const cfg = {
+    tenant_id: tenantId,
+    issuer: String(issuer).replace(/\/+$/, ''),
+    client_id: String(clientId),
+    dominio: String(dominio).trim().toLowerCase(),
+    papel_padrao: papelPadrao || 'consultor',
+    criado_em: agora()
+  };
+  db.prepare(`INSERT OR REPLACE INTO sso
+      (tenant_id, issuer, client_id, client_secret, dominio, papel_padrao, criado_em)
+      VALUES (?,?,?,?,?,?,?)`)
+    .run(cfg.tenant_id, cfg.issuer, cfg.client_id,
+      cifrar(Buffer.from(String(clientSecret), 'utf8')),
+      cfg.dominio, cfg.papel_padrao, cfg.criado_em);
+  return cfg;
+}
+
+function removerSso(tenantId) {
+  exigirTenant(tenantId);
+  exigir();
+  return db.prepare('DELETE FROM sso WHERE tenant_id = ?').run(tenantId).changes > 0;
+}
+
+/* Busca por dominio, sem tenant: quem digita o e-mail ainda nao pertence a
+ * equipe nenhuma, e o dominio E a credencial de roteamento. So devolve
+ * configuracao, nunca dado de cliente. */
+const ssoPorDominio = dom => (exigir(), db.prepare(
+  'SELECT * FROM sso WHERE dominio = ?').get(String(dom).toLowerCase()) || null);
+
+const ssoDoTenant = tid => (exigir(), db.prepare(
+  'SELECT * FROM sso WHERE tenant_id = ?').get(tid) || null);
+
+/** O segredo em texto, só na hora de falar com o provedor. */
+const ssoSegredo = cfg => decifrar(cfg.client_secret).toString('utf8');
+
+const listarSso = () => (exigir(), db.prepare(
+  `SELECT s.tenant_id, s.issuer, s.client_id, s.dominio, s.papel_padrao, t.nome AS tenant_nome
+     FROM sso s JOIN tenants t ON t.id = s.tenant_id ORDER BY s.dominio`).all());
+
 /* ---------- retenção ---------- */
 
 function varrerVencidas(limite) {
@@ -781,7 +849,8 @@ const TABELAS = ['tenants', 'usuarios', 'memberships', 'projetos',
  * o montam passam por aqui. Hoje o nome vem de lista fixa no proprio codigo,
  * mas "hoje vem de lista fixa" e exatamente o que se diz antes de alguem
  * passar a receber isso de fora. */
-const NOMES_OK = new Set(TABELAS.concat(['sessoes', 'convites', 'tentativas']));
+const NOMES_OK = new Set(TABELAS.concat(
+  ['sessoes', 'convites', 'tentativas', 'sso', 'sso_estados']));
 function tabela(nome) {
   if (!NOMES_OK.has(nome)) throw new Error('tabela desconhecida: ' + nome);
   return nome;
@@ -864,6 +933,7 @@ module.exports = {
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
   marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,
+  configurarSso, removerSso, ssoPorDominio, ssoDoTenant, ssoSegredo, listarSso,
   criarSessao, obterSessao, revogarSessao, revogarSessoesDoUsuario,
   criarConvite, convitePorHash, marcarConviteUsado, listarConvites, cadastrar,
   criarProjeto, listarProjetos, obterProjeto, excluirProjeto,
