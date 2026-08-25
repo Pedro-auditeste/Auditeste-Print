@@ -1,0 +1,67 @@
+# Análise estática do código (SAST).
+#
+# CodeQL, e não um pacote instalado no projeto: ele roda inteiro dentro do
+# runner, então não acrescenta dependência ao sistema, e dependência a mais
+# num projeto que já tem 22 vulnerabilidades herdadas seria trocar um
+# problema por dois.
+#
+# Gratuito porque este repositório é público. Se um dia ele virar privado,
+# CodeQL passa a exigir GitHub Advanced Security, e a alternativa sem custo é
+# trocar por Semgrep, que também roda só no runner.
+#
+# O que ele acha que os testes não acham: caminho de dado perigoso que
+# ninguém escreveu de propósito. Os testes provam o que a gente pensou em
+# provar; o SAST procura o que ninguém pensou.
+#
+# security-extended de propósito: a suíte padrão é conservadora, e num sistema
+# que guarda evidência de cliente vale receber alerta a mais e descartar na
+# revisão, em vez de descobrir na auditoria de alguém.
+
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Segunda de manhã. Regra nova do CodeQL acha código antigo, então rodar
+    # só quando alguém mexe no código deixaria passar o que surge sozinho.
+    - cron: '30 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analise:
+    name: JavaScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      security-events: write   # publicar os achados na aba Security
+      contents: read
+      actions: read
+
+    steps:
+      - name: baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: preparar o CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          # Sem build: JavaScript é analisado direto da fonte.
+          config: |
+            paths-ignore:
+              - node_modules
+              - auditeste-a11y/node_modules
+              - audi-print-scanner/axe.min.js
+            paths:
+              - auditeste-a11y
+              - audi-print-scanner
+              - audi-print
+
+      - name: analisar
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
