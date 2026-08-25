@@ -99,7 +99,9 @@ Existe teste que destrói o banco, restaura de um backup e confere que o print v
 
 ### Existe SSO?
 
-**Não.** A arquitetura de identidade não impede uma integração futura com OIDC ou SAML, mas nada foi construído. Se for requisito, precisa entrar em planejamento.
+**Sim, por OIDC.** Funciona com Entra ID, Google Workspace e Okta. A ligação é por domínio de e-mail: quem digita um endereço do domínio configurado vai para o provedor da própria empresa e não digita senha aqui. A conta é criada no primeiro acesso, e quando a empresa desliga a pessoa, o acesso ao Print cai no mesmo ato.
+
+O token de identidade é verificado por assinatura, algoritmo, emissor, audiência, validade, uso único do estado e confirmação do e-mail pelo provedor. **SAML não existe**, e se for requisito precisa entrar em planejamento.
 
 ---
 
@@ -124,7 +126,7 @@ Formato de resposta direta, para os assessments que costumam chegar.
 | Armazenamento de senha | scrypt com sal por usuário, N=16384, r=8, p=1 |
 | Tamanho mínimo de senha | 10 caracteres |
 | Múltiplos fatores | Não |
-| SSO | Não |
+| SSO | Sim, OIDC por domínio de e-mail, com criação de conta no primeiro acesso |
 | Perfis de acesso | Sim: leitor, consultor, gestor, admin |
 | Expiração de sessão | 12 horas |
 | Revogação | Ao sair, ao trocar senha, e ao perder o vínculo (imediata) |
@@ -167,8 +169,8 @@ Formato de resposta direta, para os assessments que costumam chegar.
 | Varredura de dependências | Sim, semanal e a cada envio |
 | Vulnerabilidades conhecidas | 22, sendo 6 altas, todas na cadeia do navegador headless usado nos scans. Registradas, correção exige mudança de versão maior |
 | Busca de segredos no repositório | Sim, automatizada, sobre toda a história |
-| Análise estática | Não |
-| Teste dinâmico | Não |
+| Análise estática | Sim, CodeQL com o conjunto `security-extended`, a cada envio e semanalmente |
+| Teste dinâmico | Sim, varredura própria de 40 sondas contra a aplicação em execução, a cada envio. Contra o ambiente de produção, semanalmente |
 | Revisão de código obrigatória | Não formalizada |
 | Testes automatizados | Sim, cerca de 30 arquivos de teste, incluindo os que verificam controles de segurança |
 
@@ -193,8 +195,8 @@ Formato de resposta direta, para os assessments que costumam chegar.
 
 Os itens em aberto, reunidos:
 
-* Sem SSO, sem múltiplos fatores
-* Sem certificação, sem pentest, sem análise estática, sem teste dinâmico
+* Sem múltiplos fatores próprios. Quem entra por SSO usa o fator que a empresa dele exige
+* Sem certificação e sem pentest independente
 * Sem plano formal de incidente e sem prazo de comunicação
 * Sem política de retenção contratual definida
 * Dados fora do Brasil

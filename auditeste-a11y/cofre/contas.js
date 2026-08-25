@@ -74,9 +74,28 @@ function cookieSessao(req, token, maxIdade) {
 
 const cookieLimpo = req => cookieSessao(req, '', 0);
 
+/* Quantos proxies confiáveis existem entre o cliente e este processo.
+ * Na Railway é um. Zero desliga a leitura do cabeçalho e usa só o socket. */
+const PROXIES = Number(process.env.PONTE_PROXIES ?? 1);
+
+/* De quem é este pedido, e a resposta não pode vir de quem está pedindo.
+ *
+ * X-Forwarded-For é uma LISTA que cada proxy acrescenta, e não substitui:
+ * quem chama escreve o primeiro item, o proxy da frente escreve o seguinte.
+ * Ler o primeiro era ler o que o cliente digitou, e era esse valor que
+ * contava no teto por origem, no limite de equipes por IP e na linha do
+ * log de auditoria. Dava para varrer à vontade trocando o cabeçalho, e para
+ * assinar cada ação com o endereço de outra pessoa.
+ *
+ * Com N proxies confiáveis na frente, o endereço real é o N-ésimo de trás
+ * para frente: tudo à esquerda dele foi escrito por quem chamou. */
 function ipDe(req) {
-  const enc = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return enc || req.socket.remoteAddress || '';
+  const soquete = req.socket.remoteAddress || '';
+  if (PROXIES < 1) return soquete;
+  const lista = String(req.headers['x-forwarded-for'] || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  if (!lista.length) return soquete;
+  return lista[Math.max(0, lista.length - PROXIES)] || soquete;
 }
 
 /* ---------- entrar e sair ---------- */

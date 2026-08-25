@@ -73,6 +73,32 @@ jobs:
           fi
           echo "nenhum segredo na história"
 
+  # Varredura dinâmica: ataca o sistema em execução, e não o código parado.
+  #
+  # Roda em duas frentes porque elas respondem a perguntas diferentes. A
+  # local sobe um alvo limpo e pode atacar à vontade, inclusive gravando. A
+  # de produção só faz o que não escreve nada, e existe porque metade das
+  # falhas desta categoria é de configuração do ambiente, não de código:
+  # cabeçalho que sumiu no deploy, HSTS que caiu, arquivo que passou a ser
+  # servido. Nenhuma dessas o alvo local enxerga.
+  dast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: instalar
+        working-directory: auditeste-a11y
+        run: npm ci --omit=dev --ignore-scripts
+      - name: varredura contra alvo local
+        working-directory: auditeste-a11y
+        run: node dast.js
+      - name: varredura contra o ambiente publicado
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        working-directory: auditeste-a11y
+        run: node dast.js https://audiprint.up.railway.app
+
   testes:
     runs-on: ubuntu-latest
     steps:

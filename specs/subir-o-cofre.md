@@ -269,4 +269,6 @@ Opcionais, com padrão razoável:
 | `COFRE_SENHA` | sorteada | Senha ao criar conta pela linha de comando |
 | `COFRE_CHAVE` | vazio | Cifra o conteúdo dos prints. Perder é perder os prints |
 | `COFRE_TETO_IP` | `600` | Chamadas por minuto por origem |
+| `PONTE_HOST` | o domínio que a Railway informa | O endereço público desta instalação. Sem ele, e fora da Railway, quem decide o destino do redirecionamento para https é o cabeçalho do pedido |
+| `PONTE_PROXIES` | `1` | Quantos proxies confiáveis existem na frente. É por ele que se descobre o endereço real de quem chamou dentro do `X-Forwarded-For`. Fora de proxy nenhum, use `0` |
 | `COFRE_PRINT_ABERTO` | vazio | `1` derruba o portão do Print. Saída de emergência |

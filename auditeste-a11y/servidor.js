@@ -205,14 +205,44 @@ function lerCorpo(req) {
       partes.push(d);
     });
     req.on('end', () => {
-      try { ok(JSON.parse(Buffer.concat(partes).toString('utf8'))); }
-      catch (e) { erro(new Error('JSON inválido: ' + e.message)); }
+      let v;
+      try { v = JSON.parse(Buffer.concat(partes).toString('utf8')); }
+      catch (e) {
+        /* Corpo torto e erro de quem mandou, e 400 e o que se responde a
+         * isso. Sem o status, virava 500: a rota parecia quebrada, o log
+         * enchia de falha nossa, e um POST com form-urlencoded bastava
+         * para produzir a aparencia de servidor instavel. */
+        const err = new Error('JSON inválido: ' + e.message);
+        err.status = 400;
+        return erro(err);
+      }
+      /* null, numero e texto passam pelo JSON.parse e morrem no primeiro
+       * c.campo la dentro. Aqui viram objeto vazio, que e o que cada rota
+       * ja sabe recusar com 400. */
+      ok(v && typeof v === 'object' ? v : {});
     });
     req.on('error', erro);
   });
 }
 
+/* Qual endereco e "este servidor", e a resposta nao pode vir do pedido.
+ *
+ * Host e X-Forwarded-Host sao escritos por quem chama. Devolver esse valor
+ * dentro de um Location e redirecionamento aberto de mao beijada, e usar em
+ * mesmaOrigem e deixar o atacante declarar qual e a origem. Na Railway o
+ * proprio ambiente diz o dominio, entao o padrao ja fica certo sozinho;
+ * PONTE_HOST cobre qualquer outra hospedagem. */
+const HOST_CANONICO = String(
+  process.env.PONTE_HOST || process.env.RAILWAY_PUBLIC_DOMAIN || ''
+).split(',')[0].split('/')[0].split(':')[0].trim().toLowerCase();
+
+if (!HOST_CANONICO && !ehLoopback) {
+  console.warn('PONTE_HOST não definido — o endereço do redirecionamento para https vem do');
+  console.warn('cabeçalho do pedido. Defina PONTE_HOST com o domínio público desta instalação.');
+}
+
 function hostPublico(req) {
+  if (HOST_CANONICO) return HOST_CANONICO;
   const bruto = req.headers['x-forwarded-host'] || req.headers.host || '';
   return bruto.split(',')[0].split(':')[0].trim().toLowerCase();
 }
@@ -395,6 +425,11 @@ const servidor = http.createServer(async (req, res) => {
 
   if (u.pathname === '/ping' || u.pathname === '/health') {
     const motores = statusMotores();
+    /* O caminho do Chrome ja estava fora do /ping de proposito, logo abaixo,
+     * e vinha entrando de novo por dentro de status. Caminho de arquivo diz
+     * a quem esta sondando qual e o sistema, onde ele instala coisa e com
+     * que usuario. Se o motor esta de pe, quem usa ja sabe pelo ok. */
+    if (!ehLoopback) motores.chrome = undefined;
     return responder(res, 200, {
       ok: true,
       motores: ['axe', 'pa11y', 'nota'],
@@ -410,7 +445,10 @@ const servidor = http.createServer(async (req, res) => {
     portao: PORTAO_DE_PE,
     semVolume: cofreLigado && bancoCofre.efemero(),
     cifra: cofreLigado ? bancoCofre.cifraLigada() : undefined,
-    bancoEm: cofreLigado ? bancoCofre.onde() : undefined,
+    /* Onde o banco fica e diagnostico, e diagnostico e para quem esta na
+     * maquina. De fora, semVolume ja responde a unica pergunta operacional
+     * que esse caminho respondia: o volume esta montado ou nao. */
+    bancoEm: cofreLigado && ehLoopback ? bancoCofre.onde() : undefined,
       chrome: !!caminhoChrome(),
       /* Detalhe de dentro so para quem esta dentro.
        *

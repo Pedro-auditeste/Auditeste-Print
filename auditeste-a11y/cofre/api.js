@@ -76,13 +76,18 @@ const JANELA_IP_MS = 60000;
 const TETO_IP = Number(process.env.COFRE_TETO_IP) || 600;
 const usosIp = new Map();
 
-const ehLocal = ip => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+/* Instalacao local, e nao "pedido que se diz local".
+ *
+ * A isencao existe para quem roda o Print na propria maquina. Media pelo
+ * endereco do pedido, ela era uma isencao que o atacante se dava sozinho:
+ * X-Forwarded-For: 127.0.0.1 e o freio inteiro sumia. O que o servidor sabe
+ * sem perguntar a ninguem e em que endereco ele proprio esta escutando, e e
+ * o mesmo criterio que ja decide o portao e o token. */
+const HOSPEDA_LOCAL = ['127.0.0.1', 'localhost', '::1'].includes(process.env.HOST || '127.0.0.1');
 
 function freioDeOrigem(req) {
   const ip = contas.ipDe(req) || 'desconhecido';
-  /* Mesma razao do portao e do token: quem chega por loopback ja esta na
-   * maquina. Frear ali so atrapalha quem roda o Print local. */
-  if (ehLocal(ip)) return;
+  if (HOSPEDA_LOCAL) return;
   const agora = Date.now();
   const atual = usosIp.get(ip);
   if (!atual || agora > atual.ate) {
