@@ -172,7 +172,7 @@ Formato de resposta direta, para os assessments que costumam chegar.
 | Busca de segredos no repositório | Sim, automatizada, sobre toda a história |
 | Análise estática | Sim, CodeQL com o conjunto `security-extended`, a cada envio e semanalmente |
 | Teste dinâmico | Sim, varredura própria de 40 sondas contra a aplicação em execução, a cada envio. Contra o ambiente de produção, semanalmente |
-| Revisão de código obrigatória | Praticada e documentada em `seguranca-sdlc.md`. A imposição por ferramenta (branch protection) ainda não está ligada |
+| Revisão de código obrigatória | Sim, imposta por branch protection: PR com aprovação e CI verde para fundir. Admin pode bypass enquanto houver um só mantenedor |
 | Testes automatizados | Sim, cerca de 30 arquivos de teste, incluindo os que verificam controles de segurança |
 
 ## Incidentes

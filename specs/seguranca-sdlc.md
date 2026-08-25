@@ -43,7 +43,9 @@ Por que semanal, além de a cada mudança: dependência vulnerável e a maioria 
 
 **Regra:** mudança vai para `main` por pull request, e o PR só funde depois de revisão de outra pessoa e do CI verde.
 
-**Situação:** a prática existe, mas a **obrigatoriedade não está imposta pela ferramenta**. Ligar o *branch protection* do GitHub em `main` (exigir PR, exigir revisão aprovada, exigir os checks de `seguranca.yml` e `codeql.yml` passando) é um ajuste de configuração do repositório, não de código, e é ação do dono do repositório. Enquanto não estiver ligado, a revisão depende de disciplina, e disciplina não é controle.
+**Situação:** ligado. O *branch protection* do GitHub em `main` exige pull request com 1 aprovação, com aprovação velha descartada a cada novo push, e exige os cinco checks verdes (`dependencias`, `segredos`, `dast`, `testes` e o CodeQL) com o ramo atualizado. Force push e exclusão do ramo estão bloqueados, e conversas de revisão precisam ser resolvidas antes de fundir.
+
+Uma ressalva honesta: `enforce_admins` está desligado de propósito, porque hoje há um único mantenedor e no GitHub ninguém aprova o próprio PR. Isso permite ao administrador fundir por bypass, do contrário o mantenedor solo se trancaria fora. A regra vale plena para qualquer pessoa que entrar sem ser admin, e passa a valer para todos quando houver um segundo revisor. Até lá, a revisão de outra pessoa é a lacuna que resta, não a imposição do fluxo.
 
 ### Dependency scanning
 
@@ -79,8 +81,8 @@ Rotação de segredo é manual hoje: girar `COFRE_SEGREDO`, `PONTE_TOKEN` ou a c
 
 | Item | Situação | De quem |
 |---|---|---|
-| Revisão de PR obrigatória | Praticada, não imposta | Ligar branch protection no GitHub: dono do repositório |
+| Revisão por outra pessoa | Fluxo imposto (PR + CI + 1 aprovação); admin pode bypass enquanto for mantenedor solo | Entrar um segundo revisor para a regra valer para todos |
 | 22 dependências vulneráveis | Conhecidas, registradas | Subir versão maior dos motores de scan, com teste: trabalho de engenharia planejado |
 | Rotação automática de segredos | Manual | Decisão de operação |
 
-Os controles automatizados do ciclo (scan de dependência, de segredo, SAST, DAST, testes) rodam. O que falta é imposição de processo (branch protection) e remediação de dívida conhecida (as dependências), e nenhum dos dois se resolve escrevendo mais código de aplicação.
+Os controles automatizados do ciclo (scan de dependência, de segredo, SAST, DAST, testes) rodam, e o fluxo de PR agora é imposto pela ferramenta. O que falta é um segundo revisor, para a aprovação valer também para o administrador, e a remediação da dívida conhecida (as dependências), e nenhum dos dois se resolve escrevendo mais código de aplicação.
