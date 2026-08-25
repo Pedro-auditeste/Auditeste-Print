@@ -238,7 +238,7 @@ O teto por origem é alto e isso é intencional: um endereço não é uma pessoa
 Honestidade é parte do controle, então o que está em aberto:
 
 * **Criptografia do volume pelo provedor** não foi verificada. A cifra que existe é a da aplicação, sobre o conteúdo dos prints.
-* **22 vulnerabilidades conhecidas** nas bibliotecas do navegador headless usado pelos scans, sendo 6 de severidade alta. Exigem mudança de versão maior e estão registradas, não corrigidas.
+* **Dependências sem vulnerabilidade conhecida.** As 22 que existiam (6 altas), todas na cadeia do navegador headless, foram corrigidas subindo puppeteer e lighthouse, com o scan dos três motores testado depois.
 * **Sem SSO**, sem análise estática, sem teste dinâmico, sem pentest independente.
 * **Sem plano formal de resposta a incidente** e sem política de retenção contratual definida.
 * **Backup existe e a restauração é testada**, mas guardar cópia fora do servidor é procedimento operacional ainda não estabelecido.

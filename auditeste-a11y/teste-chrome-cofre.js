@@ -77,7 +77,7 @@ const PIXEL_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
   proc.stderr.on('data', d => process.stdout.write('    [err] ' + d));
   await esperarServidor();
 
-  const chrome = (() => { try { return puppeteer.executablePath(); } catch (e) { return undefined; } })();
+  const chrome = await Promise.resolve(puppeteer.executablePath()).catch(() => undefined);
   navegador = await puppeteer.launch({
     headless: !VISIVEL,
     executablePath: chrome,

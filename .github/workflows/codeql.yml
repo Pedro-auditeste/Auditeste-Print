@@ -1,9 +1,9 @@
 # Análise estática do código (SAST).
 #
 # CodeQL, e não um pacote instalado no projeto: ele roda inteiro dentro do
-# runner, então não acrescenta dependência ao sistema, e dependência a mais
-# num projeto que já tem 22 vulnerabilidades herdadas seria trocar um
-# problema por dois.
+# runner, então não acrescenta dependência ao sistema, e acrescentar
+# dependência para achar problema de dependência seria trocar um problema
+# por dois.
 #
 # Gratuito porque este repositório é público. Se um dia ele virar privado,
 # CodeQL passa a exigir GitHub Advanced Security, e a alternativa sem custo é

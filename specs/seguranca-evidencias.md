@@ -80,7 +80,7 @@ curl -s https://audiprint.up.railway.app/ping
 | CORS | `curl -I -H "Origin: https://x.com" .../ping` | Origem estranha recebe `null` |
 | Backup e restauração | `teste-backup.js` | Grava, faz backup, **destrói o banco**, restaura, e confere que o print voltou byte a byte e que a senha continua valendo |
 | Backup recusa arquivo alheio | `teste-backup.js` | Banco de outro sistema é recusado antes de encostar no original |
-| Varredura de dependências | `npm run seguranca` | Lista as vulnerabilidades conhecidas. Roda também no CI, semanalmente |
+| Varredura de dependências | `npm audit` | Hoje: zero vulnerabilidade. Roda também no CI, a cada envio e semanalmente |
 | Integração contínua | `.github/workflows/seguranca.yml` | Quatro tarefas: dependências, segredos, testes e varredura dinâmica |
 | Ciclo de desenvolvimento seguro | `seguranca-sdlc.md` | Como uma mudança chega à produção sem furar um controle: todo controle tem teste que falha se ele sumir |
 | Branch protection no `main` | `gh api repos/Pedro-auditeste/Auditeste-Print/branches/main/protection` | PR com 1 aprovação, 5 checks obrigatórios, sem force push nem exclusão |
@@ -175,7 +175,6 @@ Ser honesto sobre isso é parte do controle. Se alguém perguntar por um destes,
 | Item | Situação |
 |---|---|
 | Criptografia do volume pelo provedor | Não verificada. Depende de configuração de infraestrutura, não de código |
-| 22 vulnerabilidades de dependência | Conhecidas e registradas. Correção exige mudança de versão maior nos motores de scan |
 | Pentest independente | Não realizado. Houve pentest interno (`seguranca-pentest.md`), mas quem fez o código não substitui gente de fora atacando sem o mapa mental de quem construiu |
 | Egress filtering na rede do contêiner | Não configurado. Fecha o residual da SSRF (redirect e sub-recurso para rede interna). É infraestrutura na Railway, não código |
 | Múltiplos fatores próprios | Não existem. Quem entra por SSO usa o fator que a empresa dele exige, e quem entra por senha não tem segundo fator |

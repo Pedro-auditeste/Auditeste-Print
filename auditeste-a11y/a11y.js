@@ -34,20 +34,37 @@ const FLAGS_DOCKER = [
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Auditeste-A11y/1.0';
 
-function caminhoChrome() {
+/* O puppeteer 25 tornou executablePath() assincrono (devolve Promise). Como
+ * o /ping precisa de uma resposta sincrona e os motores ja sao async,
+ * resolvemos o caminho uma vez e guardamos: caminhoChrome() le o cache,
+ * garantirChrome() resolve na hora se ainda nao tiver. O await tolera as duas
+ * eras (na 24 executablePath devolvia string, e await de string e a string). */
+let chromeCache = null;
+
+async function resolverChrome() {
   if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
-    return process.env.CHROME_PATH;
+    return (chromeCache = process.env.CHROME_PATH);
   }
   try {
     const puppeteer = require('puppeteer');
-    const p = puppeteer.executablePath();
-    if (p && fs.existsSync(p)) return p;
+    const p = await puppeteer.executablePath();
+    if (p && fs.existsSync(p)) return (chromeCache = p);
   } catch (e) { /* ok */ }
   return null;
 }
 
-function exigirChrome(motor) {
-  const chrome = caminhoChrome();
+/* Resolve cedo, sem travar o modulo, para o /ping ja ter a resposta certa. */
+resolverChrome().catch(() => {});
+
+function caminhoChrome() {
+  if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+  return chromeCache;
+}
+
+async function garantirChrome(motor) {
+  const chrome = caminhoChrome() || await resolverChrome();
   if (!chrome) {
     const err = new Error(
       motor + ': Chrome nao encontrado. Rode: npx puppeteer browsers install chrome'
@@ -61,7 +78,7 @@ function exigirChrome(motor) {
 async function lancarChrome(flagsExtra) {
   const puppeteer = require('puppeteer');
   return puppeteer.launch({
-    executablePath: exigirChrome('ponte'),
+    executablePath: await garantirChrome('ponte'),
     headless: true,
     args: FLAGS_DOCKER.concat(flagsExtra || [])
   });
@@ -132,7 +149,7 @@ async function scanAxe(url, pino) {
 
 async function scanPa11y(url, pino) {
   const pa11y = require('pa11y');
-  const chrome = exigirChrome('Pa11y');
+  const chrome = await garantirChrome('Pa11y');
 
   const resultado = await pa11y(url, {
     timeout: 90000,
@@ -156,7 +173,7 @@ async function scanPa11y(url, pino) {
 async function scanLighthouse(url, pino) {
   const chromeLauncher = await import('chrome-launcher');
   const { default: lighthouse } = await import('lighthouse');
-  const chromePath = exigirChrome('Lighthouse');
+  const chromePath = await garantirChrome('Lighthouse');
 
   const chrome = await chromeLauncher.launch({
     chromePath,
@@ -242,5 +259,5 @@ if (require.main === module) {
 module.exports = {
   gravar, nomeArquivo, SAIDA,
   scanAxe, scanPa11y, scanLighthouse,
-  statusMotores, caminhoChrome, lancarChrome
+  statusMotores, caminhoChrome, resolverChrome, lancarChrome
 };

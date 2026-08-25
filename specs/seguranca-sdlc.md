@@ -61,7 +61,11 @@ Feito. CodeQL `security-extended`. Já encontrou e derrubou um vazamento de erro
 
 ### Atualização de bibliotecas
 
-**Parcial.** O scanning aponta 22 vulnerabilidades conhecidas, 6 altas, **todas na cadeia do navegador headless** usado nos scans de acessibilidade (puppeteer, lighthouse, pa11y). A correção exige mudança de versão maior, que muda o comportamento do scan e precisa de teste próprio. Registradas e não escondidas; a correção é trabalho planejado, não pendência esquecida. O build falha só em vulnerabilidade crítica, de propósito: falhar todo dia por algo conhecido e sem correção pronta ensina o time a ignorar o alarme, que é o pior resultado.
+**Feito.** As 22 vulnerabilidades conhecidas (6 altas), **todas na cadeia do navegador headless** usado nos scans de acessibilidade, foram corrigidas. Eram duas advisories só, infladas pela árvore: o `extract-zip` (symlink traversal) vindo do puppeteer, e o OpenTelemetry (memória em W3C Baggage) vindo do lighthouse. A correção subiu puppeteer 24 para 25 e lighthouse 12 para 13, e como o pa11y ainda fixa puppeteer 24, um `override` no `package.json` força o pa11y a usar o mesmo puppeteer 25, tirando o `extract-zip` de vez.
+
+Mudança de versão maior muda o comportamento do scan, então não foi um `npm update` cego: depois do bump, os três motores (axe, pa11y, lighthouse) foram exercitados com scan real e o fluxo de navegador voltou verde. O puppeteer 25 tornou a descoberta do Chrome assíncrona, o que exigiu ajuste no código que resolve o caminho do Chrome, coberto pelo teste de navegador.
+
+O build ainda falha só em vulnerabilidade crítica, de propósito: falhar todo dia por algo conhecido e sem correção pronta ensina o time a ignorar o alarme, que é o pior resultado.
 
 ### Checklist de segurança
 
@@ -82,7 +86,6 @@ Rotação de segredo é manual hoje: girar `COFRE_SEGREDO`, `PONTE_TOKEN` ou a c
 | Item | Situação | De quem |
 |---|---|---|
 | Revisão por outra pessoa | Fluxo imposto (PR + CI + 1 aprovação); admin pode bypass enquanto for mantenedor solo | Entrar um segundo revisor para a regra valer para todos |
-| 22 dependências vulneráveis | Conhecidas, registradas | Subir versão maior dos motores de scan, com teste: trabalho de engenharia planejado |
 | Rotação automática de segredos | Manual | Decisão de operação |
 
-Os controles automatizados do ciclo (scan de dependência, de segredo, SAST, DAST, testes) rodam, e o fluxo de PR agora é imposto pela ferramenta. O que falta é um segundo revisor, para a aprovação valer também para o administrador, e a remediação da dívida conhecida (as dependências), e nenhum dos dois se resolve escrevendo mais código de aplicação.
+Os controles automatizados do ciclo (scan de dependência, de segredo, SAST, DAST, testes) rodam, o fluxo de PR agora é imposto pela ferramenta, e a dívida de dependência está zerada. O que falta é um segundo revisor, para a aprovação valer também para o administrador, e isso não se resolve escrevendo código.

@@ -43,11 +43,15 @@
     "@axe-core/playwright": "^4.10.2",
     "@axe-core/puppeteer": "^4.13.0",
     "axe-core": "^4.13.0",
-    "chrome-launcher": "^1.2.0",
-    "lighthouse": "^12.8.2",
+    "chrome-launcher": "^1.2.1",
+    "lighthouse": "^13.4.1",
     "openai": "^7.4.0",
-    "pa11y": "^9.0.1",
+    "pa11y": "^9.1.1",
     "playwright": "1.62.1",
-    "puppeteer": "^24.43.1"
+    "puppeteer": "^25.9.0"
+  },
+  "comment_overrides": "pa11y 9.1.1 ainda fixa puppeteer 24, que arrasta o extract-zip vulneravel (symlink traversal, GHSA-jmr9-qjv8-65gv). Nao ha extract-zip corrigido: o conserto foi o puppeteer 25 largar ele. Forcamos pa11y a usar o mesmo puppeteer 25 do resto. Testado com scan real de pa11y.",
+  "overrides": {
+    "puppeteer": "$puppeteer"
   }
 }

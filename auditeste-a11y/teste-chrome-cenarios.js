@@ -29,9 +29,7 @@ const ok = (caso, cond, obtido) => {
   console.log('Abrindo Chrome' + (VISIVEL ? ' (visível)' : ' (headless)') + '...');
   console.log('Página:', ALVO);
 
-  const chrome = (() => {
-    try { return puppeteer.executablePath(); } catch (e) { return undefined; }
-  })();
+  const chrome = await Promise.resolve(puppeteer.executablePath()).catch(() => undefined);
 
   const navegador = await puppeteer.launch({
     headless: VISIVEL ? false : true,

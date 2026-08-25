@@ -33,7 +33,7 @@ const net = require('net');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome } = require('./a11y.js');
+const { scanAxe, scanPa11y, scanLighthouse, statusMotores, caminhoChrome, resolverChrome } = require('./a11y.js');
 const { validarAlvo: validarDestino, faixaPrivada } = require('./rede-segura.js');
 const { gerarCenarios, descreverTela, MODELO, BASE_URL } = require('./agente-cenarios.js');
 const { zipExtensao } = require('./extensao.js');
@@ -570,7 +570,11 @@ servidor.requestTimeout = 0;
 servidor.headersTimeout = 240000;
 servidor.timeout = 300000;
 
-servidor.listen(PORTA, HOST, () => {
+servidor.listen(PORTA, HOST, async () => {
+  /* Resolve o Chrome antes de anunciar os motores. O puppeteer 25 tornou a
+   * descoberta assincrona, entao sem esperar aqui o banner (e o primeiro
+   * /ping) diria FALHA por um instante mesmo com o Chrome no lugar. */
+  await resolverChrome();
   const st = statusMotores();
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
   if (envs.length) console.log('env: ' + envs.join(', '));

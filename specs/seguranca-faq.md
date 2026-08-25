@@ -168,7 +168,7 @@ Formato de resposta direta, para os assessments que costumam chegar.
 |---|---|
 | Integração contínua | Sim |
 | Varredura de dependências | Sim, semanal e a cada envio |
-| Vulnerabilidades conhecidas | 22, sendo 6 altas, todas na cadeia do navegador headless usado nos scans. Registradas, correção exige mudança de versão maior |
+| Vulnerabilidades conhecidas | Nenhuma. As 22 que existiam (6 altas), todas na cadeia do navegador headless, foram corrigidas subindo puppeteer e lighthouse, com o scan dos três motores testado depois |
 | Busca de segredos no repositório | Sim, automatizada, sobre toda a história |
 | Análise estática | Sim, CodeQL com o conjunto `security-extended`, a cada envio e semanalmente |
 | Teste dinâmico | Sim, varredura própria de 40 sondas contra a aplicação em execução, a cada envio. Contra o ambiente de produção, semanalmente |
@@ -202,6 +202,5 @@ Os itens em aberto, reunidos:
 * Tratamento de dado pessoal registrado em `seguranca-lgpd.md`, sem prazo de retenção contratual definido
 * Sem política de retenção contratual definida
 * Dados fora do Brasil
-* 22 vulnerabilidades conhecidas em dependências, 6 altas
 * Criptografia do volume pelo provedor não verificada
 * Backup fora do provedor não estabelecido
