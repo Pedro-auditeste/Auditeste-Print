@@ -31,11 +31,14 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Origin: https://audiprint.up.railwa
 
 Antes respondia **200**. Agora tem que responder **401**.
 
-### O passo que todo mundo esquece
+### Não precisa colar o token em lugar nenhum
 
-Com o token exigido, o Print precisa mandá-lo. Abra `https://audiprint.up.railway.app`, vá em configuração da ponte e cole o **mesmo** valor de `PONTE_TOKEN` no campo Token.
+Isto mudou depois que o cofre entrou. Sua **sessão** autoriza os scans: o
+cookie viaja sozinho e o campo de token saiu da tela.
 
-Isso é por navegador. Se os scans e a descrição pararem de funcionar em outra máquina, é isto.
+O `PONTE_TOKEN` continua valendo para o que ele é bom de verdade: chamada de
+fora do navegador, script, integração. E para quem abre o Print direto do
+disco, onde o cookie não viaja.
 
 ---
 
@@ -112,6 +115,35 @@ Isso derruba o portão e mantém o cofre funcionando. Use como emergência, não
 como configuração permanente.
 
 Para conferir que o portão está de pé, o `/ping` também responde `portao`.
+
+---
+
+## Passo 4b · Cifra dos prints
+
+```
+COFRE_CHAVE=<segredo de 64 hex>
+```
+
+Gere com:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Com ela, o conteúdo dos prints deixa de ser legível dentro do arquivo do
+banco. O `/ping` passa a responder `cifra: true`.
+
+**Leia antes de definir:**
+
+* **Perder a chave é perder os prints.** Não há recuperação, e é isso que faz
+  cifra ser cifra. Guarde fora da Railway, e não no mesmo lugar do backup.
+* **Variável nova só vale depois de reiniciar o serviço.** O processo que já
+  está no ar continua com o ambiente antigo. Se o `/ping` insistir em
+  `cifra: false`, é isso: Deployments, três pontos, Restart.
+* **Trocar o valor depois torna ilegível tudo que foi gravado antes.** Girar
+  a chave de verdade exige decifrar e recifrar, e esse comando não existe.
+
+Detalhes em `specs/segredos-e-chaves.md`.
 
 ---
 
@@ -197,7 +229,13 @@ O que continua fora, e é honesto dizer:
 
 * **Criptografia em repouso** depende de como a Railway cifra o volume. Nenhum código prova isso. Enquanto ninguém confirmar, esse item do Marco 1 fica em aberto.
 * **Backup automático e fora do servidor.** O comando existe e é testado; agendar e guardar em outro lugar é decisão sua.
-* **Prompt injection.** Texto na tela do sistema testado pode conter instrução que o modelo trate como comando. Segue sem tratamento, e é Marco 3.
+* **Prompt injection.** Tratado: o conteúdo do sistema testado vai dentro de
+  uma fronteira declarada, tentativa de dar ordem é marcada na evidência, e a
+  saída é conferida. O limite conhecido: texto escrito **dentro da imagem** não
+  é lido pela detecção. Ver `auditeste-a11y/cofre/injecao.js`.
+* **Vulnerabilidades de dependência.** 22, sendo 6 altas, todas na cadeia do
+  navegador headless. Exigem mudança de versão maior e mexem nos motores de
+  scan. `npm run seguranca` mostra a lista.
 
 ---
 
@@ -229,4 +267,6 @@ Opcionais, com padrão razoável:
 | `COFRE_LINK_MS` | 5 min | Validade do link assinado |
 | `COFRE_VARRER_MS` | 1 h | De quanto em quanto tempo a retenção roda |
 | `COFRE_SENHA` | sorteada | Senha ao criar conta pela linha de comando |
+| `COFRE_CHAVE` | vazio | Cifra o conteúdo dos prints. Perder é perder os prints |
+| `COFRE_TETO_IP` | `600` | Chamadas por minuto por origem |
 | `COFRE_PRINT_ABERTO` | vazio | `1` derruba o portão do Print. Saída de emergência |
