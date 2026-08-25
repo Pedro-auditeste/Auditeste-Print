@@ -207,10 +207,16 @@ async function sondasAbertas() {
     }
   });
 
+  /* Um Server com o nome da borda é da hospedagem, e não nosso: não dá para
+   * tirar e não diz nada de útil a quem ataca. O que interessa é versão,
+   * que casa com CVE de linha, e X-Powered-By, que nomeia a pilha. */
   await sonda('servidor não se anuncia', async () => {
     const r = await anon.pedir('/ping');
-    for (const h of ['x-powered-by', 'server', 'x-aspnet-version']) {
+    for (const h of ['x-powered-by', 'x-aspnet-version']) {
       if (cab(r, h)) achado('baixa', 'cabeçalho ' + h + ' entrega a pilha', cab(r, h));
+    }
+    if (/\d+\.\d+/.test(cab(r, 'server'))) {
+      achado('baixa', 'cabeçalho server entrega a versão', cab(r, 'server'));
     }
   });
 
@@ -281,12 +287,27 @@ async function sondasAbertas() {
   });
 
   await sonda('http é empurrado para https', async () => {
-    const r = await anon.pedir('/cofre.html', { headers: { 'X-Forwarded-Proto': 'http' } });
-    if (r.status !== 301 && r.status !== 308) {
-      achado('alta', 'http não redireciona', 'respondeu ' + r.status + ', o cookie viaja em claro');
+    /* Contra alvo publicado, forjar X-Forwarded-Proto não mede nada: a borda
+     * reescreve o cabeçalho com o protocolo real da conexão, e a resposta
+     * seria sempre "não redirecionou". A pergunta se faz chegando por http
+     * de verdade. No alvo local não existe borda, e o cabeçalho é o único
+     * jeito de dizer "cheguei em claro". */
+    let status, destino;
+    if (HTTPS) {
+      const r = await fetch(BASE.replace(/^https:/, 'http:') + '/cofre.html', { redirect: 'manual' });
+      await r.text();
+      status = r.status;
+      destino = r.headers.get('location') || '';
+    } else {
+      const r = await anon.pedir('/cofre.html', { headers: { 'X-Forwarded-Proto': 'http' } });
+      status = r.status;
+      destino = cab(r, 'location');
+    }
+    if (status !== 301 && status !== 302 && status !== 307 && status !== 308) {
+      achado('alta', 'http não redireciona', 'respondeu ' + status + ', o cookie viaja em claro');
       return;
     }
-    if (!/^https:/.test(cab(r, 'location'))) achado('alta', 'redireciona para fora de https', cab(r, 'location'));
+    if (!/^https:/.test(destino)) achado('alta', 'redireciona para fora de https', destino || '(sem Location)');
   });
 
   await sonda('/ping não entrega detalhe de dentro', async () => {
