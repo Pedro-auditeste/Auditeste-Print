@@ -241,6 +241,13 @@
     return /^\/($|[^\/\\])/.test(bruto) ? bruto : '';
   })();
 
+  /* O CodeQL marca esta linha como XSS de cliente, e aqui ele erra: ele nao
+   * enxerga que paraOndeIr ja passou pela validacao acima, que so aceita
+   * caminho comecando com uma barra e recusa "//" e "/\". Sem isso,
+   * "javascript:" e endereco externo entrariam.
+   *
+   * Nao remova a validacao para calar o alerta: o alerta esta apontando para
+   * o lugar certo, e a guarda e o que o torna falso positivo. */
   function seguirDestino(){
     if(!paraOndeIr) return false;
     location.href = paraOndeIr;

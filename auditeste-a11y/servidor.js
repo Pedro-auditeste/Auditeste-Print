@@ -112,6 +112,17 @@ function cabecalhoSeguro(req) {
   return cab;
 }
 
+/* Mensagem de erro que pode sair daqui.
+ *
+ * 4xx e 503 sao conversa com quem chamou: a pessoa precisa saber o que
+ * corrigir. 5xx e falha nossa, e o texto dela carrega caminho de arquivo,
+ * nome de biblioteca e as vezes trecho de comando. Isso ajuda quem esta
+ * mapeando o servidor e nao ajuda quem so queria usar o sistema. */
+function mensagemSegura(err, status) {
+  if (status < 500 || status === 503) return err.message;
+  return 'Falha interna ao processar. Tente de novo, e se persistir avise o suporte.';
+}
+
 function responder(res, status, corpo, origem) {
   res.writeHead(status, cabecalho(origem));
   res.end(JSON.stringify(corpo));
@@ -450,8 +461,9 @@ const servidor = http.createServer(async (req, res) => {
       const dados = await descreverTela(corpo);
       return responder(res, 200, dados, origem);
     } catch (err) {
-      console.log('descrever FALHOU: ' + err.message);
-      return responder(res, err.semChave ? 503 : err.pedidoInvalido ? 400 : 500, { erro: err.message }, origem);
+      const status = err.semChave ? 503 : err.pedidoInvalido ? 400 : 500;
+      console.log('descrever FALHOU: ' + (err && err.stack || err.message));
+      return responder(res, status, { erro: mensagemSegura(err, status) }, origem);
     } finally {
       rodando--;
     }
@@ -538,8 +550,8 @@ const servidor = http.createServer(async (req, res) => {
     console.log(`ok (${((Date.now() - inicio) / 1000).toFixed(1)}s)`);
     responder(res, 200, dados, origem);
   } catch (err) {
-    console.log('FALHOU: ' + err.message);
-    responder(res, 500, { erro: err.message, motor: rotulo }, origem);
+    console.log('FALHOU: ' + (err && err.stack || err.message));
+    responder(res, 500, { erro: mensagemSegura(err, 500), motor: rotulo }, origem);
   } finally {
     rodando--;
   }

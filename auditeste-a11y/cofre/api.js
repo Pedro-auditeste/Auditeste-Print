@@ -511,8 +511,21 @@ async function tratar(req, res, u, lerCorpo) {
     return true;
   } catch (err) {
     const status = err.status || 500;
-    if (status >= 500) console.log('cofre FALHOU ' + p + ': ' + err.message);
-    json(res, status, { erro: err.message });
+    if (status < 500) {
+      /* 4xx e conversa com quem chamou: a mensagem existe para a pessoa
+       * corrigir o que fez, entao vai inteira. */
+      json(res, status, { erro: err.message });
+      return true;
+    }
+    /* 5xx e falha nossa, e a mensagem dela carrega caminho de arquivo, nome
+     * de tabela e texto de SQL. Isso ajuda quem esta mapeando o servidor e
+     * nao ajuda em nada quem so queria usar o sistema.
+     *
+     * O detalhe fica no log, com um numero curto que a pessoa pode informar
+     * ao suporte: assim da para achar a ocorrencia exata sem publicar nada. */
+    const marca = crypto.randomBytes(4).toString('hex');
+    console.log('cofre FALHOU [' + marca + '] ' + p + ': ' + (err && err.stack || err));
+    json(res, status, { erro: 'Falha interna. Informe o código ' + marca + ' ao suporte.' });
     return true;
   }
 }
