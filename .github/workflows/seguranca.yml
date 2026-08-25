@@ -4,11 +4,11 @@
 # vulnerável aparece quando alguém publica o aviso, não quando a gente mexe
 # no código. Rodar semanalmente pega o que surge sozinho.
 #
-# Não falha o build pelas vulnerabilidades de hoje: as 6 altas atuais estão
-# todas na cadeia do navegador headless (puppeteer, lighthouse, pa11y) e só
-# se resolvem com mudança de versão maior, que precisa de teste próprio.
-# Falhar aqui todo dia por algo conhecido ensina o time a ignorar o alerta,
-# que é o pior resultado possível.
+# Hoje a árvore está limpa (zero vulnerabilidade). O build falha só em
+# vulnerabilidade crítica, de propósito: quando uma nova alta aparecer num
+# aviso publicado, sem correção pronta, falhar aqui todo dia por algo que a
+# gente ainda não pode consertar ensina o time a ignorar o alerta, que é o
+# pior resultado possível. O resumo abaixo mostra a contagem por severidade.
 
 name: seguranca
 

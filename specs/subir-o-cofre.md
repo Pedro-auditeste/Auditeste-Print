@@ -233,9 +233,9 @@ O que continua fora, e é honesto dizer:
   uma fronteira declarada, tentativa de dar ordem é marcada na evidência, e a
   saída é conferida. O limite conhecido: texto escrito **dentro da imagem** não
   é lido pela detecção. Ver `auditeste-a11y/cofre/injecao.js`.
-* **Vulnerabilidades de dependência.** 22, sendo 6 altas, todas na cadeia do
-  navegador headless. Exigem mudança de versão maior e mexem nos motores de
-  scan. `npm run seguranca` mostra a lista.
+* **Vulnerabilidades de dependência.** Zero hoje. As 22 que existiam, na cadeia
+  do navegador headless, foram corrigidas subindo puppeteer e lighthouse.
+  `npm audit` confirma.
 
 ---
 

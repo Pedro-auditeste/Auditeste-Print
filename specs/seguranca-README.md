@@ -78,7 +78,6 @@ Ser honesto sobre isto é parte do controle. Detalhe em cada documento; aqui, o 
 | Item | Onde é tratado | De quem depende |
 |---|---|---|
 | Pentest independente | [pentest](seguranca-pentest.md) | Contratar terceiro |
-| 22 dependências vulneráveis (6 altas), na cadeia do navegador headless | [SDLC](seguranca-sdlc.md) | Engenharia, com teste |
 | Segundo revisor (para a aprovação valer também ao admin) | [SDLC](seguranca-sdlc.md) | Entrar mais gente na equipe |
 | Egress filtering (fecha o residual da SSRF) | [pentest](seguranca-pentest.md) | Infra na Railway |
 | DPO, DPA por cliente, prazo de retenção contratual | [LGPD](seguranca-lgpd.md) | Negócio e Jurídico |
