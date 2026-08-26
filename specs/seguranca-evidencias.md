@@ -86,6 +86,7 @@ curl -s https://audiprint.up.railway.app/ping
 | Branch protection no `main` | `gh api repos/Pedro-auditeste/Auditeste-Print/branches/main/protection` | PR com 1 aprovação, 5 checks obrigatórios, sem force push nem exclusão |
 | Resposta a incidentes | `seguranca-incidentes.md` | As sete etapas, cada uma com a ação que a ferramenta já permite (revogar sessão, isolar cliente, backup para análise) |
 | Tratamento de dado pessoal (LGPD) | `seguranca-lgpd.md` | Papéis, dados, finalidade, retenção, descarte e subprocessadores, base do RoPA |
+| Registro de subprocessadores | `seguranca-subprocessadores.md` | Quem recebe dado (Railway, NVIDIA), com localização e salvaguarda, e quem não recebe |
 | Endereço da origem não é forjável | `dast.js` | Prefixo escrito pelo cliente em `X-Forwarded-For` não troca a identidade da origem, nem zera o teto, nem escolhe o que vai para a auditoria |
 
 ---
