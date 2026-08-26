@@ -75,7 +75,7 @@ Quem encontrar uma falha no Print precisa de um jeito de avisar sem virar inimig
 - **Compromisso:** relato de boa-fé não gera retaliação. Quem avisa está ajudando.
 - **Resposta:** o recebimento é confirmado em até 3 dias úteis, e a pessoa é informada do desfecho.
 - **Divulgação coordenada:** a falha é corrigida antes de ser tornada pública, num prazo combinado com quem reportou.
-- **Aberto, e é honesto dizer:** não há um endereço de segurança divulgado (um `security.txt` ou um `SECURITY.md` com contato). Enquanto não existe, o canal é o contato comercial da Auditeste. Formalizar isso é o próximo passo desta política.
+- **Canal:** o `SECURITY.md` na raiz do repositório traz o contato e estas regras, e o GitHub o mostra como "Security policy". Falta ainda um `security.txt` servido pela aplicação, que é o próximo passo menor.
 
 ---
 
