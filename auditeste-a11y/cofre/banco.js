@@ -352,6 +352,17 @@ function criarTenant(nome, retencaoDias) {
 const obterTenant = tid => (exigir(), db.prepare('SELECT * FROM tenants WHERE id = ?').get(tid) || null);
 const listarTenants = () => (exigir(), db.prepare('SELECT * FROM tenants ORDER BY nome').all());
 
+/* So o nome muda: id, vinculos, projetos e evidencias seguem presos ao mesmo
+ * tenant_id, entao renomear nao mexe em dado de cliente nenhum. */
+function renomearTenant(tenantId, novoNome) {
+  exigir();
+  const nome = String(novoNome || '').trim();
+  if (!nome) { const e = new Error('nome vazio'); e.status = 400; throw e; }
+  if (!obterTenant(tenantId)) return null;
+  db.prepare('UPDATE tenants SET nome = ? WHERE id = ?').run(nome, tenantId);
+  return obterTenant(tenantId);
+}
+
 function criarUsuario(email, senhaHash) {
   exigir();
   const u = { id: id(), email: String(email).trim().toLowerCase(), senha_hash: senhaHash, criado_em: agora() };
@@ -929,7 +940,7 @@ function limparTentativas(chave) {
 module.exports = {
   abrir, fechar, ligado, porque, efemero, onde, exigirTenant,
   cifraLigada, cifrar, decifrar,
-  criarTenant, obterTenant, listarTenants,
+  criarTenant, obterTenant, listarTenants, renomearTenant,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
   marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,

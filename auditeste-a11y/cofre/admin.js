@@ -7,6 +7,7 @@
  *
  *   node cofre/admin.js clientes
  *   node cofre/admin.js criar-cliente "Ailos" 90
+ *   node cofre/admin.js renomear <tenantId> "Auditeste Governança"
  *   node cofre/admin.js criar-usuario pedro@auditeste.com <tenantId> admin
  *   node cofre/admin.js senha pedro@auditeste.com
  *   node cofre/admin.js vincular pedro@auditeste.com <tenantId> gestor
@@ -53,6 +54,23 @@ const comandos = {
       console.log(t.id + '  ' + t.nome + '  retenção ' + t.retencao_dias + ' dias'
         + (t.provedor ? '  [PROVEDORA]' : ''));
     }
+  },
+
+  /* Renomear uma equipe. As partes do nome sao juntadas, entao funciona com
+   * ou sem aspas: renomear <id> Auditeste Governança == renomear <id> "..." */
+  renomear(tenantId, ...partes) {
+    const nome = partes.join(' ').trim();
+    if (!tenantId || !nome) {
+      console.error('uso: renomear <tenantId> "<novo nome>"');
+      console.error('     o id sai em: node cofre/admin.js clientes');
+      process.exit(1);
+    }
+    const antes = banco.obterTenant(tenantId);
+    if (!antes) { console.error('equipe não existe'); process.exit(1); }
+    const t = banco.renomearTenant(tenantId, nome);
+    banco.auditar(tenantId, null, 'tenant.renomeado', antes.nome + ' -> ' + t.nome, 'cli');
+    console.log('renomeado: "' + antes.nome + '"  ->  "' + t.nome + '"');
+    console.log('So o nome mudou. Membros, papeis, projetos e evidencias seguem iguais.');
   },
 
   'criar-cliente'(nome, dias) {
