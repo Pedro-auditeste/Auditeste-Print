@@ -110,6 +110,7 @@ curl -s https://audiprint.up.railway.app/ping
 | Perguntas frequentes | `seguranca-faq.md` | As dez que sempre vêm, com resposta oficial |
 | Questionário de fornecedor | `seguranca-faq.md` | Formato de resposta direta, por categoria |
 | Política de vulnerabilidades | `seguranca-vulnerabilidades.md` | Triagem, prazo de correção por gravidade, e a prova de que fechou |
+| Revisões periódicas | `seguranca-revisoes.md` | Cadência de reavaliação, a parte automática já semanal no CI, e o comando da revisão trimestral |
 
 ---
 
