@@ -36,6 +36,7 @@ Atualizado em 25/08/2026.
 
 - **[Evidências dos controles](seguranca-evidencias.md)**: para cada controle afirmado, o teste ou comando que o demonstra. O princípio é "afirmação sem evidência é só declaração", então esta tabela é a diferença entre dizer e mostrar.
 - **[Pentest interno](seguranca-pentest.md)**: o ataque manual ao sistema em execução: os achados, as correções, e o que resistiu. Diz também o que só um pentest independente encontraria.
+- **[Escopo para pentest independente](seguranca-pentest-escopo.md)**: o que pedir a uma firma de fora, com que regras e quais entregáveis, para contratar o teste que fecha o item.
 
 ### Processo e conformidade
 
