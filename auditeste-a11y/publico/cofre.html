@@ -501,10 +501,14 @@
       : '<b>' + esc(r.tenantNome) + '</b>';
 
     $('quem').innerHTML = esc(r.email) + ' · ' + troca + ' · ' + esc(r.papel)
+      + ' <button class="btn" id="btnHome" style="padding:4px 10px">Projetos</button>'
       + ' <button class="btn" id="btnSair" style="padding:4px 10px">Sair</button>'
       + ' <a href="/" style="color:#cfe0f3">Print</a>';
 
     document.body.classList.toggle('visitante', r.via === 'provedor');
+    /* Volta para a tela inicial de projetos de qualquer lugar (detalhe de um
+     * projeto, auditoria). Fica no cabecalho, que aparece em toda tela logada. */
+    $('btnHome').addEventListener('click', () => abrirProjetos());
     $('btnSair').addEventListener('click', async () => {
       await api('/api/sair', { method:'POST' });
       location.reload();
