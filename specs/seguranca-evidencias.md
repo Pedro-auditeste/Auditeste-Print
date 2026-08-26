@@ -109,6 +109,7 @@ curl -s https://audiprint.up.railway.app/ping
 | Fluxo do dado | `seguranca-arquitetura.md` | Origem até descarte, com quem autoriza cada etapa |
 | Perguntas frequentes | `seguranca-faq.md` | As dez que sempre vêm, com resposta oficial |
 | Questionário de fornecedor | `seguranca-faq.md` | Formato de resposta direta, por categoria |
+| Política de vulnerabilidades | `seguranca-vulnerabilidades.md` | Triagem, prazo de correção por gravidade, e a prova de que fechou |
 
 ---
 

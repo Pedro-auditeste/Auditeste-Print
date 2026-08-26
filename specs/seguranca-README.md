@@ -42,6 +42,7 @@ Atualizado em 25/08/2026.
 - **[Ciclo de desenvolvimento seguro](seguranca-sdlc.md)**: como uma mudança chega à produção sem furar um controle: o que roda no CI e o que falta impor.
 - **[Resposta a incidentes](seguranca-incidentes.md)**: o que a equipe faz quando algo dá errado com dado de cliente, em sete etapas, cada uma com a ação que a ferramenta já permite.
 - **[LGPD operacional](seguranca-lgpd.md)**: o registro do tratamento de dado pessoal (RoPA): papéis, dados, finalidade, retenção, descarte e subprocessadores.
+- **[Política de vulnerabilidades](seguranca-vulnerabilidades.md)**: como uma falha é tratada da descoberta ao fechamento, com prazo por gravidade e a prova de que fechou.
 
 ### Histórico
 
