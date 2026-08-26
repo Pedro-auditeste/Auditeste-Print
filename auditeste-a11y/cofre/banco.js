@@ -466,8 +466,19 @@ function cadastrar({ email, senhaHash, equipe, convite, retencaoDias }) {
       tenantId = convite.tenant_id;
       papel = convite.papel;
       tenantNome = convite.tenant_nome;
-      db.prepare('UPDATE convites SET usado_em = ?, usado_por = ? WHERE id = ?')
+      /* Guarda atomica: so consome se ainda estava sem uso. Se outra
+       * transacao consumiu antes, changes = 0 e a excecao desfaz o cadastro
+       * inteiro no ROLLBACK, inclusive o usuario recem-inserido. Uso unico
+       * deixa de depender de o cadastro rodar sincrono e passa a ser
+       * garantido pelo proprio banco. */
+      const r = db.prepare(
+        'UPDATE convites SET usado_em = ?, usado_por = ? WHERE id = ? AND usado_em IS NULL')
         .run(agora(), u.id, convite.id);
+      if (r.changes !== 1) {
+        const e = new Error('Convite já usado.');
+        e.status = 409;
+        throw e;
+      }
     } else {
       tenantId = id();
       papel = 'admin';

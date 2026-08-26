@@ -121,3 +121,4 @@ jobs:
           node teste-injecao.js
           node teste-sso.js
           node teste-ssrf.js
+          node teste-convite.js

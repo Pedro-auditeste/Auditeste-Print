@@ -67,7 +67,7 @@ A parte técnica da revisão trimestral é um comando. Da raiz do projeto:
 ```bash
 cd auditeste-a11y && npm audit \
   && node teste-cofre.js && node teste-cifra.js && node teste-injecao.js \
-  && node teste-ssrf.js && node teste-sso.js && node teste-backup.js \
+  && node teste-ssrf.js && node teste-sso.js && node teste-convite.js && node teste-backup.js \
   && node teste-privacidade.js && node teste-seguranca.js && node teste-docker.js \
   && node dast.js
 ```
