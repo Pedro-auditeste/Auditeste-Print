@@ -1840,10 +1840,11 @@
     }catch(e){}
   }
 
-  /* Envio ao cofre (Railway) DESLIGADO: a evidencia fica so na maquina, com o
-   * backup em arquivo dando a durabilidade. Nenhum print vai para a internet.
-   * Para religar o envio online um dia, troque para true. */
-  const ENVIO_AO_COFRE = false;
+  /* Envio ao cofre (Railway) LIGADO: o botao "Enviar ao cofre" aparece em cada
+   * evidencia e o print vai cifrado para o servidor quando alguem clica. O
+   * backup em arquivo continua como caminho 100% local, em paralelo. Para
+   * deixar so local de novo, troque para false. */
+  const ENVIO_AO_COFRE = true;
 
   async function verSeTemCofre(){
     if(!ENVIO_AO_COFRE) return;
