@@ -978,7 +978,10 @@
         <h1>Projetos</h1>
         <p>Cada projeto reúne as evidências de um produto ou cliente. Clique para abrir.</p>
       </div>
-      <button class="btn primario" data-acao="novoProjeto">Novo projeto</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn escuro" data-acao="restaurarBackup" title="Recria um projeto a partir de um arquivo de backup">Restaurar backup</button>
+        <button class="btn primario" data-acao="novoProjeto">Novo projeto</button>
+      </div>
     </div>
 
 
@@ -1240,6 +1243,7 @@
 <input type="file" id="arqImagem" accept="image/*" multiple hidden>
 <input type="file" id="arqLogoModal" accept="image/*" hidden>
 <input type="file" id="arqLogoProjeto" accept="image/*" hidden>
+<input type="file" id="arqBackup" accept="application/json,.json" hidden>
 
 <script>
 (function(){
@@ -1629,6 +1633,11 @@
     if(e.key === 'Escape') fecharFormulario();
     if(e.key === 'Enter' && e.target.tagName === 'INPUT') confirmarFormulario();
   });
+  document.getElementById('arqBackup').addEventListener('change', e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if(f) restaurarBackupArquivo(f);
+  });
   document.getElementById('escolheLogo').addEventListener('click', ()=> document.getElementById('arqLogoModal').click());
   document.getElementById('arqLogoModal').addEventListener('change', e => {
     const f = e.target.files[0]; e.target.value = '';
@@ -1868,6 +1877,7 @@
         <button class="btn escuro pequeno" data-acao="logoProjeto">${projetoAtual.logo ? 'Trocar logo' : 'Adicionar logo'}</button>
         <button class="btn escuro pequeno" data-acao="renomear">Renomear</button>
         <button class="btn escuro pequeno" data-acao="verEnvios" title="O que já saiu desta máquina neste projeto">Envios</button>
+        <button class="btn escuro pequeno" data-acao="backupProjeto" title="Baixa um arquivo com tudo deste projeto, para guardar fora da nuvem">Backup</button>
         ${botaoExcluir('data-acao="excluirProjeto"', 'Excluir')}
       </div>`;
 
@@ -1940,6 +1950,7 @@
       projetoAtual = null;
       return desenharProjetos();
     }
+    if(b.dataset.acao === 'backupProjeto') return baixarBackupProjeto();
     if(b.dataset.acao === 'novaGravacao') return abrirGravador();
   });
 
@@ -3976,6 +3987,86 @@
     l.readAsDataURL(blob);
   });
 
+  /* ============ BACKUP LOCAL DO PROJETO ============
+   *
+   * A resposta a "nao pode ficar online, mas nao pode sumir": tudo do projeto
+   * (fichas, prints e video) vira base64 dentro de um JSON que fica com voce.
+   * O arquivo nunca sai da sua maquina, e some so se voce apagar ele. Restaurar
+   * recria o projeto a partir do arquivo, num projeto novo, sem tocar os que ja
+   * existem. Diferente de "Enviar ao cofre", aqui nada vai para a internet. */
+  const textoParaBlob = async s => (typeof s === 'string' && s) ? (await fetch(s)).blob() : null;
+
+  async function baixarBackupProjeto(){
+    if(!projetoAtual) return;
+    const regs = await listarRegistros(projetoAtual.id);
+    avisar('Preparando backup de ' + regs.length + ' evidência(s)…');
+    const projeto = Object.assign({}, projetoAtual);
+    delete projeto.id;
+    if(projeto.logo instanceof Blob) projeto.logo = await blobParaTexto(projeto.logo);
+
+    const registros = [];
+    for(const r of regs){
+      const passos = [];
+      for(const p of (r.passos || [])){
+        const imagens = [];
+        for(const im of (p.imagens || [])){
+          imagens.push({ legenda: im.legenda,
+            blob: im.blob instanceof Blob ? await blobParaTexto(im.blob) : im.blob });
+        }
+        passos.push(Object.assign({}, p, { imagens }));
+      }
+      registros.push({ ficha: r.ficha, criadoEm: r.criadoEm, projetoNome: r.projetoNome,
+        video: r.video instanceof Blob ? await blobParaTexto(r.video) : null, passos });
+    }
+
+    const pacote = { formato: 'audi-print-backup', versao: 1, geradoEm: Date.now(), projeto, registros };
+    const blob = new Blob([JSON.stringify(pacote)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'backup-' + (projetoAtual.nome || 'projeto').replace(/[^\w.-]/g, '_')
+      + '-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    avisar('Backup baixado. Guarde o arquivo num lugar seu; ele não fica online.');
+  }
+
+  async function restaurarBackupArquivo(arquivo){
+    if(!arquivo) return;
+    let pacote;
+    try{ pacote = JSON.parse(await arquivo.text()); }
+    catch(e){ return informar('Não consegui ler o arquivo: ' + e.message, 'Falha ao restaurar'); }
+    if(!pacote || pacote.formato !== 'audi-print-backup' || !Array.isArray(pacote.registros)){
+      return informar('Este arquivo não é um backup de projeto do Print.', 'Falha ao restaurar');
+    }
+
+    const p = Object.assign({}, pacote.projeto);
+    delete p.id;
+    if(typeof p.logo === 'string') p.logo = await textoParaBlob(p.logo);
+    p.nome = p.nome || 'Projeto restaurado';
+    p.criadoEm = p.criadoEm || Date.now();
+    const novoId = await criarProjetoDB(p);
+
+    let n = 0;
+    for(const r of pacote.registros){
+      const passos = [];
+      for(const passo of (r.passos || [])){
+        const imagens = [];
+        for(const im of (passo.imagens || [])){
+          imagens.push({ legenda: im.legenda,
+            blob: typeof im.blob === 'string' ? await textoParaBlob(im.blob) : im.blob });
+        }
+        passos.push(Object.assign({}, passo, { imagens }));
+      }
+      await salvarRegistro({ projetoId: novoId, projetoNome: p.nome,
+        ficha: r.ficha, passos,
+        video: typeof r.video === 'string' ? await textoParaBlob(r.video) : null,
+        criadoEm: r.criadoEm || Date.now() });
+      n++;
+    }
+    avisar('Restaurado: ' + n + ' evidência(s) em "' + esc(p.nome) + '".');
+    desenharProjetos();
+  }
+
   async function exportarHtml(r){
     if(!r) return;
 
@@ -4613,6 +4704,7 @@
     if(!a) return;
     const acao = a.dataset.acao;
     if(acao === 'novoProjeto') novoProjeto();
+    if(acao === 'restaurarBackup') document.getElementById('arqBackup').click();
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
     if(acao === 'gerarDescricao') gerarDescricaoPasso(a.closest('.passo'));
     if(acao === 'copiarGherkin') copiarTextoQa(analiseDoPasso(a.closest('.passo')).gherkin, 'Gherkin copiado.');
