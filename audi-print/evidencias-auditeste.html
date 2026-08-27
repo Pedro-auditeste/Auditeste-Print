@@ -1840,7 +1840,13 @@
     }catch(e){}
   }
 
+  /* Envio ao cofre (Railway) DESLIGADO: a evidencia fica so na maquina, com o
+   * backup em arquivo dando a durabilidade. Nenhum print vai para a internet.
+   * Para religar o envio online um dia, troque para true. */
+  const ENVIO_AO_COFRE = false;
+
   async function verSeTemCofre(){
+    if(!ENVIO_AO_COFRE) return;
     /* Aberto do disco nao tem cofre nenhum, e o fetch relativo viraria
      * file:///C:/ping, que o Chrome recusa e imprime como erro no console.
      * O try/catch engolia a excecao, mas nao o erro impresso. */
@@ -4619,7 +4625,7 @@
           <button class="btn primario pequeno" data-acao="exportarHtml">Exportar HTML</button>
           <button class="btn escuro pequeno" data-acao="salvarPdf">Salvar em PDF</button>
           <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Gera Gherkin e mapeamento a partir dos passos">Gerar cenários</button>
-          <button class="btn escuro pequeno" data-acao="publicarCofre" title="Guarda esta evidência no servidor, sob o cliente da sua conta">Enviar ao cofre</button>
+          ${ENVIO_AO_COFRE ? '<button class="btn escuro pequeno" data-acao="publicarCofre" title="Guarda esta evidência no servidor, sob o cliente da sua conta">Enviar ao cofre</button>' : ''}
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
       </div>
