@@ -134,6 +134,13 @@
   .vazio{color:var(--muted);padding:22px;text-align:center;}
   a{color:var(--green-dark);}
 
+  /* Tela de seguranca: cartoes de estado da equipe. */
+  .seg-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;}
+  .seg-item{border:1px solid var(--line);border-left:4px solid var(--green);border-radius:10px;padding:11px 14px;background:#fff;}
+  .seg-item.nao{border-left-color:#e0a33a;}
+  .seg-item b{display:block;color:var(--navy);font-size:.95rem;}
+  .seg-item span{color:var(--muted);font-size:.83rem;}
+
   /* ---------- tela de entrada: dois paineis ----------
    *
    * Mesma paleta do resto (navy + verde). O painel escuro a esquerda e so
@@ -349,6 +356,7 @@
           <h2>Projetos</h2>
           <div class="meta" id="metaTenant"></div>
         </div>
+        <button class="btn" id="btnSeguranca">Segurança</button>
         <button class="btn" id="btnConvidar" hidden>Convidar</button>
         <button class="btn" id="btnAuditoria" hidden>Auditoria</button>
       </div>
@@ -388,6 +396,20 @@
         <table><thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Recurso</th><th>Origem</th></tr></thead>
         <tbody id="corpoAuditoria"></tbody></table>
       </div>
+    </div>
+  </section>
+
+  <section id="telaSeguranca" hidden>
+    <div class="cartao">
+      <div class="linha">
+        <div style="flex:1">
+          <h2>Segurança desta equipe</h2>
+          <div class="meta">O estado real da proteção de <b id="segEquipe"></b>, agora.</div>
+        </div>
+        <button class="btn" id="btnVoltarSeguranca">Voltar</button>
+      </div>
+      <div id="segEstado" class="seg-grade" style="margin-top:16px"></div>
+      <div id="segControles" style="margin-top:8px"></div>
     </div>
   </section>
 </main>
@@ -469,7 +491,7 @@
     $('telaEntrar').hidden = !noLogin;
     document.querySelector('header').hidden = noLogin;
     document.querySelector('main').hidden = noLogin;
-    for(const t of ['telaProjetos','telaProjeto','telaAuditoria']) $(t).hidden = t !== qual;
+    for(const t of ['telaProjetos','telaProjeto','telaAuditoria','telaSeguranca']) $(t).hidden = t !== qual;
   }
 
   const PODE = { leitor:1, consultor:2, gestor:3, admin:4 };
@@ -798,6 +820,52 @@
   });
 
   $('btnVoltarAuditoria').addEventListener('click', abrirProjetos);
+
+  /* Como cada controle funciona, em uma linha. Estatico: e a explicacao, o
+   * estado vivo vem da API acima. */
+  const CONTROLES = [
+    ['Login e senha', 'Entra só com conta; a senha é guardada com scrypt, nunca em texto, e a conta trava após 8 tentativas.'],
+    ['Sessão', 'Cookie HttpOnly + SameSite + Secure, guardado só como hash; revogado ao sair e ao perder o vínculo.'],
+    ['Papéis', 'leitor, consultor, gestor e admin; cada rota confere o papel antes de agir.'],
+    ['Entrada e injeção', 'Todo campo é validado; consultas parametrizadas; o scanner não alcança a rede interna.'],
+    ['Verificação contínua', 'Análise estática (CodeQL), varredura dinâmica (40 sondas) e pentest interno rodam a cada envio.'],
+    ['Backup', 'Cópia consistente do banco, testada restaurando byte a byte.']
+  ];
+
+  async function abrirSeguranca(){
+    try{
+      const d = await api('/api/seguranca');
+      $('segEquipe').textContent = d.equipe || '';
+      const cartao = (ok, titulo, texto) =>
+        '<div class="seg-item ' + (ok ? 'ok' : 'nao') + '"><b>' + (ok ? '✓ ' : '! ') + esc(titulo)
+        + '</b><span>' + esc(texto) + '</span></div>';
+      $('segEstado').innerHTML =
+        cartao(d.cifra, 'Cifra em repouso', d.cifra
+          ? 'Os prints são gravados cifrados (AES-256-GCM).'
+          : 'Cifra desligada neste servidor.')
+        + cartao(true, 'Isolamento entre clientes',
+          'Esta equipe só enxerga o próprio trabalho; id de outro cliente não é acessível.')
+        + cartao(d.https, 'Conexão cifrada', d.https
+          ? 'O acesso está por HTTPS.'
+          : 'Sem HTTPS nesta conexão (normal em ambiente local).')
+        + cartao(d.volumePermanente, 'Armazenamento permanente', d.volumePermanente
+          ? 'O que for guardado sobrevive a novos deploys.'
+          : 'Volume não montado: o próximo deploy apagaria o guardado.')
+        + cartao(true, 'Retenção',
+          'Evidências desta equipe são apagadas automaticamente após ' + d.retencaoDias + ' dias.')
+        + cartao(true, 'Auditoria',
+          'Cada ação nesta equipe fica registrada, com quem e quando.');
+      $('segControles').innerHTML =
+        '<h2 style="margin:22px 0 6px">Como a segurança funciona</h2>'
+        + '<div class="rolar"><table><tbody>'
+        + CONTROLES.map(c => '<tr><td style="font-weight:600;color:var(--navy);width:32%">'
+          + esc(c[0]) + '</td><td>' + esc(c[1]) + '</td></tr>').join('')
+        + '</tbody></table></div>';
+      mostrar('telaSeguranca');
+    }catch(err){ avisar(err.message, true); }
+  }
+  $('btnSeguranca').addEventListener('click', abrirSeguranca);
+  $('btnVoltarSeguranca').addEventListener('click', abrirProjetos);
 
   $('btnConvidar').addEventListener('click', async () => {
     const papel = prompt('Convidar para a equipe ' + eu.tenantNome + ' com qual papel?'

@@ -542,6 +542,26 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
+    /* Estado real da seguranca DESTA equipe, para a pessoa logada ver que os
+     * controles estao de pe, sem abrir o repositorio. Retencao e contagem sao
+     * da equipe da sessao; cifra, volume e https sao do servidor. Qualquer
+     * membro pode ver: e sobre a protecao da propria equipe, nao dado sensivel. */
+    if (p === '/api/seguranca' && req.method === 'GET') {
+      const s = exigirSessao(req);
+      const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+      const https = proto === 'https' || !!(req.socket && req.socket.encrypted);
+      json(res, 200, {
+        equipe: s.tenantNome,
+        papel: s.papel,
+        retencaoDias: s.retencaoDias,
+        cifra: banco.cifraLigada(),
+        volumePermanente: !banco.efemero(),
+        https,
+        projetos: banco.listarProjetos(s.tenantId).length
+      });
+      return true;
+    }
+
     /* ---------- exclusão total do cliente ---------- */
 
     if (p === '/api/tenant/excluir-tudo' && req.method === 'POST') {
