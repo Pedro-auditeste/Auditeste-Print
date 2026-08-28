@@ -561,6 +561,12 @@ function criarProjeto(tenantId, usuarioId, nome, cliente) {
 const listarProjetos = tenantId => (exigirTenant(tenantId), exigir(), db.prepare(
   'SELECT * FROM projetos WHERE tenant_id = ? ORDER BY criado_em DESC').all(tenantId));
 
+/* So para a PROVA de isolamento ao vivo: um id de projeto que pertence a OUTRO
+ * cliente, apenas para demonstrar que a consulta escopada nao o alcanca. So
+ * leitura, e devolve so o id (nunca o conteudo). null se nao houver outro. */
+const projetoDeOutroTenant = tenantId => (exigirTenant(tenantId), exigir(), db.prepare(
+  'SELECT id, tenant_id FROM projetos WHERE tenant_id != ? ORDER BY criado_em DESC LIMIT 1').get(tenantId) || null);
+
 /* O tenant entra no WHERE, nunca numa checagem depois do SELECT: buscar
  * pelo id e conferir o dono em seguida ja e ter lido o dado do outro. */
 const obterProjeto = (tenantId, pid) => (exigirTenant(tenantId), exigir(), db.prepare(
@@ -1003,7 +1009,7 @@ module.exports = {
   configurarSso, removerSso, ssoPorDominio, ssoDoTenant, ssoSegredo, listarSso,
   criarSessao, obterSessao, revogarSessao, revogarSessoesDoUsuario,
   criarConvite, convitePorHash, marcarConviteUsado, listarConvites, cadastrar,
-  criarProjeto, listarProjetos, obterProjeto, excluirProjeto,
+  criarProjeto, listarProjetos, projetoDeOutroTenant, obterProjeto, excluirProjeto,
   criarExecucao, listarExecucoes, obterExecucao,
   criarEvidencia, anexar, listarEvidencias, obterEvidencia, excluirEvidencia,
   objetosDe, obterObjeto,

@@ -140,6 +140,22 @@
   .seg-item.nao{border-left-color:#e0a33a;}
   .seg-item b{display:block;color:var(--navy);font-size:.95rem;}
   .seg-item span{color:var(--muted);font-size:.83rem;}
+  .selo{background:#eef7e6;border:1px solid #cbe6b4;color:#3d6b22;border-radius:10px;padding:9px 13px;font-size:.82rem;}
+  .carimbo{margin-top:14px;font-size:.78rem;color:var(--muted);}
+  .prova{border:1px solid var(--line);border-left:4px solid #c9d2d8;border-radius:10px;padding:11px 14px;margin-bottom:9px;background:#fff;}
+  .prova.ok{border-left-color:var(--green);}
+  .prova.falhou{border-left-color:#c0392b;}
+  .prova-cab{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;}
+  .prova-cab b{display:block;color:var(--navy);font-size:.95rem;}
+  .prova-cab small{color:var(--muted);font-size:.82rem;}
+  .prova-btn{white-space:nowrap;}
+  .prova-res{margin-top:10px;border-top:1px dashed var(--line);padding-top:9px;font-size:.84rem;}
+  .veredito{font-weight:700;margin-bottom:6px;}
+  .veredito.ok{color:#3d6b22;}
+  .veredito.nao{color:#c0392b;}
+  .pr-linha{display:flex;gap:8px;margin:2px 0;}
+  .pr-linha i{font-style:normal;color:var(--navy);font-weight:600;min-width:82px;}
+  .pr-linha span{color:var(--muted);}
 
   /* ---------- tela de entrada: dois paineis ----------
    *
@@ -411,6 +427,7 @@
       </div>
       <div id="segEstado" class="seg-grade" style="margin-top:16px"></div>
       <div id="segControles" style="margin-top:8px"></div>
+      <div id="segProvas" style="margin-top:8px"></div>
     </div>
   </section>
 </main>
@@ -862,8 +879,67 @@
         + CONTROLES.map(c => '<tr><td style="font-weight:600;color:var(--navy);width:32%">'
           + esc(c[0]) + '</td><td>' + esc(c[1]) + '</td></tr>').join('')
         + '</tbody></table></div>';
+      await montarProvas();
       mostrar('telaSeguranca');
     }catch(err){ avisar(err.message, true); }
+  }
+
+  /* Prova ao vivo: a lista vem do servidor (uma fonte so), e cada botao dispara
+   * o ataque de verdade contra a producao. Verde = a defesa recusou na hora. */
+  let PROVAS_CACHE = null;
+  async function montarProvas(){
+    if(!PROVAS_CACHE){
+      try{ PROVAS_CACHE = (await api('/api/provas')).provas || []; }
+      catch(e){ PROVAS_CACHE = []; }
+    }
+    if(!PROVAS_CACHE.length){ $('segProvas').innerHTML = ''; return; }
+    const linhas = PROVAS_CACHE.map(p =>
+      '<div class="prova" data-qual="' + esc(p[0]) + '">'
+      + '<div class="prova-cab"><div><b>' + esc(p[1]) + '</b><small>' + esc(p[2]) + '</small></div>'
+      + '<button class="btn prova-btn" data-qual="' + esc(p[0]) + '">Testar agora</button></div>'
+      + '<div class="prova-res" hidden></div></div>').join('');
+    $('segProvas').innerHTML =
+      '<h2 style="margin:22px 0 4px">Prova ao vivo</h2>'
+      + '<p class="meta" style="margin:0 0 10px">Aperte “Testar agora”: o sistema executa o ataque de verdade '
+      + 'neste servidor, agora. Verde quer dizer que a defesa recusou na hora.</p>'
+      + '<div class="selo">✓ Estas provas também rodam sozinhas a cada mudança no código (integração contínua), '
+      + 'e uma varredura automática ataca o ambiente publicado toda semana.</div>'
+      + '<div style="margin:12px 0"><button class="btn" id="btnProvarTudo"><b>Testar todas</b></button></div>'
+      + linhas
+      + '<div class="carimbo">Ambiente: <b>' + esc(location.host) + '</b> · '
+      + esc(new Date().toLocaleString('pt-BR')) + '</div>';
+    document.querySelectorAll('.prova-btn').forEach(b =>
+      b.addEventListener('click', () => rodarProva(b.dataset.qual)));
+    $('btnProvarTudo').addEventListener('click', async () => {
+      const btn = $('btnProvarTudo'); btn.disabled = true;
+      for(const p of PROVAS_CACHE) await rodarProva(p[0]);
+      btn.disabled = false;
+    });
+  }
+
+  async function rodarProva(qual){
+    const bloco = document.querySelector('.prova[data-qual="' + qual + '"]');
+    if(!bloco) return;
+    const res = bloco.querySelector('.prova-res');
+    const btn = bloco.querySelector('.prova-btn');
+    const linha = (k,v) => '<div class="pr-linha"><i>' + esc(k) + '</i><span>' + esc(v||'') + '</span></div>';
+    btn.disabled = true; btn.textContent = 'Testando…';
+    res.hidden = false; res.innerHTML = '<span style="color:var(--muted)">rodando…</span>';
+    try{
+      const r = await api('/api/prova', { json: { qual } });
+      bloco.classList.toggle('ok', !!r.ok);
+      bloco.classList.toggle('falhou', !r.ok);
+      res.innerHTML =
+        '<div class="veredito ' + (r.ok?'ok':'nao') + '">'
+        + (r.ok?'✓ DEFESA FUNCIONOU':'! FALHOU') + '</div>'
+        + linha('Ataque', r.ataque) + linha('Esperado', r.esperado)
+        + linha('Obtido', r.obtido) + linha('Evidência', r.evidencia);
+    }catch(err){
+      bloco.classList.remove('ok'); bloco.classList.add('falhou');
+      res.innerHTML = '<div class="veredito nao">! erro ao rodar</div>' + linha('Motivo', err.message);
+    }finally{
+      btn.disabled = false; btn.textContent = 'Testar de novo';
+    }
   }
   /* Cria uma SUB-EQUIPE da equipe atual: uma variante isolada, com o nome
    * prefixado pelo da equipe de origem (o servidor faz o prefixo). Quem cria

@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const banco = require('./banco.js');
 const contas = require('./contas.js');
 const sso = require('./sso.js');
+const provas = require('./provas.js');
 
 const MAX_OBJETO = Number(process.env.COFRE_MAX_OBJETO_MB || 20) * 1024 * 1024;
 const LINK_VALE_MS = Number(process.env.COFRE_LINK_MS) || 5 * 60 * 1000;
@@ -567,6 +568,25 @@ async function tratar(req, res, u, lerCorpo) {
         https,
         projetos: banco.listarProjetos(s.tenantId).length
       });
+      return true;
+    }
+
+    /* Prova de seguranca ao vivo: roda o ataque de verdade contra o codigo real
+     * e devolve o veredito. Cada prova e segura em producao (so leitura, ou
+     * recusa antes de gravar, ou chave descartavel). Ver provas.js. */
+    if (p === '/api/provas' && req.method === 'GET') {
+      exigirSessao(req);
+      json(res, 200, { provas: provas.LISTA });
+      return true;
+    }
+    if (p === '/api/prova' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      const c = await lerCorpo(req);
+      const r = provas.rodar(String(c.qual || ''), {
+        banco, contas, sessao: s, assinar, assinaturaValida, LINK_VALE_MS
+      });
+      banco.auditar(s.tenantId, s.usuarioId, 'prova.seguranca', r.id + ':' + (r.ok ? 'ok' : 'falhou'), s.ip);
+      json(res, 200, r);
       return true;
     }
 
