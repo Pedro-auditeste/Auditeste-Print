@@ -7,26 +7,24 @@ FROM node:24-bookworm-slim
 
 WORKDIR /app
 
+# Chrome e ffmpeg vem do apt (chromium), nao do download do puppeteer.
+#
+# O download do Chrome do puppeteer no build passou a travar o deploy na
+# Railway depois do salto para o Chrome 152 (o binario baixado no build
+# estourava o passo). O chromium do apt e confiavel, ja traz as libs que
+# precisa, e nao depende de baixar nada no meio do build. a11y.js usa
+# CHROME_PATH quando ele existe, entao o servidor aponta para este chromium.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 \
-    libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 \
-    libfontconfig1 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 \
-    libpango-1.0-0 libpangocairo-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
-    libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
-    libxrandr2 libxrender1 libxss1 libxtst6 wget xdg-utils \
+    ca-certificates fonts-liberation chromium ffmpeg wget xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_OPTIONS=--max-old-space-size=1536
 ENV HOST=0.0.0.0
+ENV CHROME_PATH=/usr/bin/chromium
+ENV PUPPETEER_SKIP_DOWNLOAD=1
 
 COPY auditeste-a11y/package.json auditeste-a11y/package-lock.json ./
-# PUPPETEER_SKIP_DOWNLOAD so no npm ci: sem ele, o puppeteer baixa o Chrome no
-# postinstall E de novo no "browsers install chrome", dois Chrome no disco do
-# build. Depois do salto para o Chrome 152 isso passou a estourar o espaco do
-# build na Railway, e o deploy travava. Agora baixa uma vez so.
-RUN PUPPETEER_SKIP_DOWNLOAD=1 npm ci --omit=dev \
-    && npx puppeteer browsers install chrome \
-    && npx playwright install ffmpeg
+RUN npm ci --omit=dev
 
 COPY auditeste-a11y/a11y.js auditeste-a11y/agente-cenarios.js auditeste-a11y/cenarios.js auditeste-a11y/servidor.js auditeste-a11y/rede-segura.js auditeste-a11y/traducoes-pa11y.js auditeste-a11y/carregar-env.js auditeste-a11y/extensao.js ./
 COPY auditeste-a11y/cofre ./cofre
