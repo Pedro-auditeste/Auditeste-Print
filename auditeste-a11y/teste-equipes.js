@@ -9,9 +9,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const banco = require('./cofre/banco.js');
+const contas = require('./cofre/contas.js');
 
 const arq = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'eq-')), 'c.db');
 banco.abrir(arq);
+
+const reqFalso = { socket: { remoteAddress: '127.0.0.1' }, headers: {} };
 
 let n = 0;
 const caso = (nome, fn) => { fn(); n++; console.log('  ok   ' + nome); };
@@ -78,6 +81,33 @@ caso('apagar uma equipe nao derruba usuario que esta em OUTRA equipe', () => {
   banco.apagarTenant(a.id);
   assert.ok(banco.usuarioPorEmail('em-duas@x.com'), 'o usuario ainda pertence a EquipeB, nao pode sumir');
   assert.ok(banco.obterTenant(b.id), 'EquipeB continua');
+});
+
+caso('sub-equipe nasce com o nome prefixado pela equipe atual, dona sua e isolada', () => {
+  const mae = banco.criarTenant('Minha equipe', 90);
+  const u = banco.criarUsuario('dona@x.com', 'hash');
+  banco.vincular(mae.id, u.id, 'admin');
+  const sessao = { usuarioId: u.id, email: 'dona@x.com', tenantNome: mae.nome, tokenHash: 'nao-existe' };
+
+  const r = contas.criarEquipe(reqFalso, sessao, 'Confirmado');
+  assert.strictEqual(r.sessao.tenantNome, 'Minha equipe · Confirmado', 'nome deveria vir prefixado');
+  assert.strictEqual(r.sessao.papel, 'admin', 'quem cria vira admin');
+
+  const filha = banco.tenantPorNome('Minha equipe · Confirmado');
+  assert.ok(filha && filha.id !== mae.id, 'a sub-equipe e um tenant proprio, isolado');
+  // so o dono e membro: ninguem entra sem convite
+  const membros = banco.vinculo(filha.id, u.id);
+  assert.ok(membros && membros.papel === 'admin');
+  const estranho = banco.criarUsuario('estranho@x.com', 'hash');
+  assert.strictEqual(banco.vinculo(filha.id, estranho.id), null, 'estranho nao entra sozinho');
+});
+
+caso('criar sub-equipe a partir de uma sub-equipe nao empilha o prefixo', () => {
+  const u = banco.usuarioPorEmail('dona@x.com');
+  const filha = banco.tenantPorNome('Minha equipe · Confirmado');
+  const sessao = { usuarioId: u.id, email: u.email, tenantNome: filha.nome, tokenHash: 'nao-existe' };
+  const r = contas.criarEquipe(reqFalso, sessao, 'Rascunho');
+  assert.strictEqual(r.sessao.tenantNome, 'Minha equipe · Rascunho', 'reancora na raiz, sem A · B · C');
 });
 
 banco.fechar();

@@ -865,10 +865,13 @@
       mostrar('telaSeguranca');
     }catch(err){ avisar(err.message, true); }
   }
-  /* Criar uma equipe nova, isolada, virando admin dela. O nome e unico: se
-   * ja existir, o servidor recusa e o aviso aparece. */
+  /* Cria uma SUB-EQUIPE da equipe atual: uma variante isolada, com o nome
+   * prefixado pelo da equipe de origem (o servidor faz o prefixo). Quem cria
+   * vira admin. O nome cheio e unico: se ja existir, o servidor recusa. */
   $('btnNovaEquipe').addEventListener('click', async () => {
-    const nome = (prompt('Nome da nova equipe:') || '').trim();
+    const base = (eu && eu.tenantNome ? String(eu.tenantNome).split(' · ')[0] : '');
+    const nome = (prompt('Nome da nova sub-equipe (uma variação de '
+      + (base || 'sua equipe') + '):') || '').trim();
     if(!nome) return;
     try{
       await api('/api/equipes', { json: { nome } });

@@ -264,21 +264,29 @@ function cadastrar(req, dados) {
   };
 }
 
-/* Trocar de equipe sem sair e entrar de novo. So faz sentido depois dos
- * convites: antes disso ninguem pertencia a duas. */
-/* Um usuario logado cria uma equipe nova, isolada, da qual vira admin, e a
- * sessao ja passa para ela. So os membros dela a enxergam, como qualquer
- * equipe. O nome unico e garantido pelo banco (criarTenant lanca 409). */
+/* Uma SUB-EQUIPE da equipe atual: uma variante dela, com nome proprio.
+ *
+ * Nao e uma equipe solta nascida do zero: o nome nasce prefixado com o da
+ * equipe de origem ("Minha equipe · Confirmado"), para deixar visivel que e
+ * uma variacao da mesma equipe, e nao outra coisa sem relacao. No mais, e uma
+ * equipe como qualquer outra: fica isolada (so quem for convidado entra), quem
+ * cria vira admin, e a sessao ja passa para ela. O nome cheio e unico
+ * (criarTenant lanca 409 se repetir). */
 function criarEquipe(req, sessaoAtual, nome) {
   const n = String(nome || '').trim();
   if (n.length < 2) {
-    const e = new Error('O nome da equipe precisa de pelo menos 2 caracteres.');
+    const e = new Error('O nome da sub-equipe precisa de pelo menos 2 caracteres.');
     e.status = 400;
     throw e;
   }
-  const t = banco.criarTenant(n, 90);
+  /* Reancora na raiz: criar a partir de uma sub-equipe nao empilha
+   * "A · B · C", vira sempre "A · nome". */
+  const base = String(sessaoAtual.tenantNome || '').split(' · ')[0].trim();
+  const nomeCheio = base ? base + ' · ' + n : n;
+
+  const t = banco.criarTenant(nomeCheio, 90);
   banco.vincular(t.id, sessaoAtual.usuarioId, 'admin');
-  banco.auditar(t.id, sessaoAtual.usuarioId, 'equipe.criada', n, ipDe(req));
+  banco.auditar(t.id, sessaoAtual.usuarioId, 'subequipe.criada', nomeCheio, ipDe(req));
 
   banco.revogarSessao(sessaoAtual.tokenHash);
   const token = novoToken();
