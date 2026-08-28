@@ -343,6 +343,7 @@ function acessoA(tenantId, usuarioId) {
 
 function criarTenant(nome, retencaoDias) {
   exigir();
+  exigirNomeLivre(nome);
   const t = { id: id(), nome: String(nome), retencao_dias: Number(retencaoDias) || 90, criado_em: agora() };
   db.prepare('INSERT INTO tenants (id, nome, retencao_dias, criado_em) VALUES (?,?,?,?)')
     .run(t.id, t.nome, t.retencao_dias, t.criado_em);
@@ -352,6 +353,22 @@ function criarTenant(nome, retencaoDias) {
 const obterTenant = tid => (exigir(), db.prepare('SELECT * FROM tenants WHERE id = ?').get(tid) || null);
 const listarTenants = () => (exigir(), db.prepare('SELECT * FROM tenants ORDER BY nome').all());
 
+/* Nome de equipe e unico. lower() para "Amazon" e "amazon" nao coexistirem.
+ * A checagem e no codigo, e nao um UNIQUE no schema, porque um UNIQUE quebraria
+ * a migracao se ja houvesse duplicata; aqui a regra passa a valer daqui pra
+ * frente sem derrubar o banco existente. */
+const tenantPorNome = nome => (exigir(), db.prepare(
+  'SELECT * FROM tenants WHERE lower(nome) = lower(?) LIMIT 1').get(String(nome || '').trim()) || null);
+
+function exigirNomeLivre(nome, excetoId) {
+  const t = tenantPorNome(nome);
+  if (t && t.id !== excetoId) {
+    const e = new Error('Já existe uma equipe com esse nome.');
+    e.status = 409;
+    throw e;
+  }
+}
+
 /* So o nome muda: id, vinculos, projetos e evidencias seguem presos ao mesmo
  * tenant_id, entao renomear nao mexe em dado de cliente nenhum. */
 function renomearTenant(tenantId, novoNome) {
@@ -359,6 +376,7 @@ function renomearTenant(tenantId, novoNome) {
   const nome = String(novoNome || '').trim();
   if (!nome) { const e = new Error('nome vazio'); e.status = 400; throw e; }
   if (!obterTenant(tenantId)) return null;
+  exigirNomeLivre(nome, tenantId);
   db.prepare('UPDATE tenants SET nome = ? WHERE id = ?').run(nome, tenantId);
   return obterTenant(tenantId);
 }
@@ -480,6 +498,7 @@ function cadastrar({ email, senhaHash, equipe, convite, retencaoDias }) {
         throw e;
       }
     } else {
+      exigirNomeLivre(equipe);
       tenantId = id();
       papel = 'admin';
       tenantNome = String(equipe);
@@ -780,6 +799,32 @@ function excluirDadosDoTenant(tenantId) {
   return conta;
 }
 
+/* Apaga a equipe inteira: dados, vinculos, sessoes, convites, sso, auditoria e
+ * a propria linha da equipe. Usuarios que ficarem sem equipe nenhuma saem
+ * junto (nao logam mais e so ocupariam o e-mail). Irreversivel: e o comando de
+ * limpeza, roda so pelo admin.js. */
+function apagarTenant(tenantId) {
+  exigirTenant(tenantId);
+  exigir();
+  const t = obterTenant(tenantId);
+  if (!t) return null;
+  const conta = excluirDadosDoTenant(tenantId);
+  db.exec('BEGIN');
+  try {
+    for (const tb of ['memberships', 'sessoes', 'convites', 'sso', 'auditoria']) {
+      db.prepare('DELETE FROM ' + tb + ' WHERE tenant_id = ?').run(tenantId);
+    }
+    db.prepare('DELETE FROM tenants WHERE id = ?').run(tenantId);
+    const orfaos = db.prepare(
+      'DELETE FROM usuarios WHERE id NOT IN (SELECT usuario_id FROM memberships)').run();
+    db.exec('COMMIT');
+    return { nome: t.nome, dados: conta, usuariosRemovidos: orfaos.changes || 0 };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 /* ---------- entrada por provedor de identidade ---------- */
 
 /* O segredo do cliente OIDC vai cifrado, com a mesma chave dos prints.
@@ -951,7 +996,7 @@ function limparTentativas(chave) {
 module.exports = {
   abrir, fechar, ligado, porque, efemero, onde, exigirTenant,
   cifraLigada, cifrar, decifrar,
-  criarTenant, obterTenant, listarTenants, renomearTenant,
+  criarTenant, obterTenant, listarTenants, renomearTenant, tenantPorNome, apagarTenant,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
   marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,

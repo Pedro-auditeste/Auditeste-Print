@@ -266,6 +266,29 @@ function cadastrar(req, dados) {
 
 /* Trocar de equipe sem sair e entrar de novo. So faz sentido depois dos
  * convites: antes disso ninguem pertencia a duas. */
+/* Um usuario logado cria uma equipe nova, isolada, da qual vira admin, e a
+ * sessao ja passa para ela. So os membros dela a enxergam, como qualquer
+ * equipe. O nome unico e garantido pelo banco (criarTenant lanca 409). */
+function criarEquipe(req, sessaoAtual, nome) {
+  const n = String(nome || '').trim();
+  if (n.length < 2) {
+    const e = new Error('O nome da equipe precisa de pelo menos 2 caracteres.');
+    e.status = 400;
+    throw e;
+  }
+  const t = banco.criarTenant(n, 90);
+  banco.vincular(t.id, sessaoAtual.usuarioId, 'admin');
+  banco.auditar(t.id, sessaoAtual.usuarioId, 'equipe.criada', n, ipDe(req));
+
+  banco.revogarSessao(sessaoAtual.tokenHash);
+  const token = novoToken();
+  banco.criarSessao(hashToken(token), sessaoAtual.usuarioId, t.id, DURACAO_MS);
+  return {
+    cookie: cookieSessao(req, token, DURACAO_MS),
+    sessao: { email: sessaoAtual.email, tenantId: t.id, tenantNome: t.nome, papel: 'admin' }
+  };
+}
+
 function trocarEquipe(req, sessaoAtual, tenantId) {
   const acesso = banco.acessoA(tenantId, sessaoAtual.usuarioId);
   if (!acesso) {
@@ -401,7 +424,7 @@ function podeOuErro(sessao, papelMinimo) {
 const HASH_ISCA = hashSenha(crypto.randomBytes(32).toString('hex'));
 
 module.exports = {
-  hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, trocarEquipe, sair, sessaoDe, podeOuErro,
+  hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, criarEquipe, trocarEquipe, sair, sessaoDe, podeOuErro,
   novoCodigo, SENHA_MINIMA, CADASTRO_ABERTO, MAX_EQUIPES_POR_IP,
   lerCookie, cookieLimpo, ipDe, hashToken, novoToken,
   COOKIE, DURACAO_MS, MAX_TENTATIVAS, PAPEIS

@@ -470,12 +470,24 @@ async function principal() {
   });
 
   await caso('CRITERIO: digitar o nome da outra equipe nao entra nela', async () => {
+    /* Nome de equipe e unico: digitar "Google" (que ja existe) e recusado. O
+     * ponto de seguranca continua de pe, e ate mais forte: nao so nao entra na
+     * equipe alheia, como nem cria. */
+    const intruso = navegador();
+    const r = await intruso.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'chute@amazon.com', senha: 'senha-da-amazon-1', equipe: 'Google'
+    }});
+    assert.strictEqual(r.status, 409, 'nome de equipe repetido deveria ser recusado');
+    const eu = await intruso.pedir('/api/eu');
+    assert.strictEqual(eu.corpo.autenticado, false, 'o intruso nao pode ter entrado em lugar nenhum');
+  });
+
+  await caso('a Amazon cria a propria equipe, com nome proprio', async () => {
     const r = await amazon.pedir('/api/cadastrar', { method: 'POST', json: {
-      email: 'qa@amazon.com', senha: 'senha-da-amazon-1', equipe: 'Google'
+      email: 'qa@amazon.com', senha: 'senha-da-amazon-1', equipe: 'Amazon'
     }});
     assert.strictEqual(r.status, 201, JSON.stringify(r.corpo));
-    assert.notStrictEqual(r.corpo.sessao.tenantId, googleTenant,
-      'cadastrar com o nome "Google" caiu dentro da equipe Google');
+    assert.notStrictEqual(r.corpo.sessao.tenantId, googleTenant);
     assert.strictEqual(r.corpo.sessao.papel, 'admin');
   });
 

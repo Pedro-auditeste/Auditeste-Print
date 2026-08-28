@@ -254,6 +254,14 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
+    if (p === '/api/equipes' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      const c = await lerCorpo(req);
+      const r = contas.criarEquipe(req, s, texto(c.nome, 'Nome da equipe', 120, true));
+      json(res, 201, { ok: true, sessao: r.sessao }, { 'Set-Cookie': r.cookie });
+      return true;
+    }
+
     if (p === '/api/trocar-equipe' && req.method === 'POST') {
       const s = exigirSessao(req);
       const c = await lerCorpo(req);

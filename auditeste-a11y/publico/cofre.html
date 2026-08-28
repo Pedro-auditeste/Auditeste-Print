@@ -356,6 +356,7 @@
           <h2>Projetos</h2>
           <div class="meta" id="metaTenant"></div>
         </div>
+        <button class="btn" id="btnNovaEquipe">Nova equipe</button>
         <button class="btn" id="btnSeguranca">Segurança</button>
         <button class="btn" id="btnConvidar" hidden>Convidar</button>
         <button class="btn" id="btnAuditoria" hidden>Auditoria</button>
@@ -864,6 +865,17 @@
       mostrar('telaSeguranca');
     }catch(err){ avisar(err.message, true); }
   }
+  /* Criar uma equipe nova, isolada, virando admin dela. O nome e unico: se
+   * ja existir, o servidor recusa e o aviso aparece. */
+  $('btnNovaEquipe').addEventListener('click', async () => {
+    const nome = (prompt('Nome da nova equipe:') || '').trim();
+    if(!nome) return;
+    try{
+      await api('/api/equipes', { json: { nome } });
+      location.reload();
+    }catch(err){ avisar(err.message, true); }
+  });
+
   $('btnSeguranca').addEventListener('click', abrirSeguranca);
   $('btnVoltarSeguranca').addEventListener('click', abrirProjetos);
 

@@ -8,6 +8,7 @@
  *   node cofre/admin.js clientes
  *   node cofre/admin.js criar-cliente "Ailos" 90
  *   node cofre/admin.js renomear <tenantId> "Auditeste Governança"
+ *   node cofre/admin.js apagar-cliente <tenantId>
  *   node cofre/admin.js criar-usuario pedro@auditeste.com <tenantId> admin
  *   node cofre/admin.js senha pedro@auditeste.com
  *   node cofre/admin.js vincular pedro@auditeste.com <tenantId> gestor
@@ -71,6 +72,22 @@ const comandos = {
     banco.auditar(tenantId, null, 'tenant.renomeado', antes.nome + ' -> ' + t.nome, 'cli');
     console.log('renomeado: "' + antes.nome + '"  ->  "' + t.nome + '"');
     console.log('So o nome mudou. Membros, papeis, projetos e evidencias seguem iguais.');
+  },
+
+  /* Apaga uma equipe INTEIRA e o que ela tem. Irreversivel. Use 'clientes'
+   * para ver os ids e apagar so as equipes de teste, uma por vez. */
+  'apagar-cliente'(tenantId) {
+    if (!tenantId) {
+      console.error('uso: apagar-cliente <tenantId>');
+      console.error('     veja os ids em: node cofre/admin.js clientes');
+      process.exit(1);
+    }
+    const t = banco.obterTenant(tenantId);
+    if (!t) { console.error('equipe não existe'); process.exit(1); }
+    const r = banco.apagarTenant(tenantId);
+    console.log('apagado: "' + t.nome + '"');
+    console.log('  ' + r.dados.projetos + ' projeto(s), ' + r.dados.evidencias
+      + ' evidência(s), ' + r.usuariosRemovidos + ' usuário(s) órfão(s) removido(s).');
   },
 
   'criar-cliente'(nome, dias) {

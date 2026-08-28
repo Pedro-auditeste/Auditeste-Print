@@ -122,3 +122,4 @@ jobs:
           node teste-sso.js
           node teste-ssrf.js
           node teste-convite.js
+          node teste-equipes.js
