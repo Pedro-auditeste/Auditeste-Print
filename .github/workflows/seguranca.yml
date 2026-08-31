@@ -99,6 +99,29 @@ jobs:
         working-directory: auditeste-a11y
         run: node dast.js https://audiprint.up.railway.app
 
+  # Varredura por ferramenta INDEPENDENTE (OWASP ZAP), e nao pela nossa (dast.js).
+  #
+  # Existe pela mesma razao de um pentest de fora: teste que a gente escreve
+  # convence um engenheiro, nao um cetico. O ZAP e ferramenta de mercado, aberta,
+  # que o cliente conhece e pode rodar sozinho. O laudo fica guardado como
+  # artefato do job, pronto para anexar num relatorio.
+  #
+  # Roda contra a producao (precisa do site no ar), entao so no agendamento
+  # semanal e quando disparado a mao. Nao trava o build: e evidencia, e o freio
+  # de release ja e o dast.js + os testes.
+  zap_independente:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: OWASP ZAP baseline contra a producao
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'https://audiprint.up.railway.app'
+          fail_action: false
+          allow_issue_writing: false
+          cmd_options: '-a'
+
   testes:
     runs-on: ubuntu-latest
     steps:
