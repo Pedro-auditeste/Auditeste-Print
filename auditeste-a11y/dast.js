@@ -179,6 +179,10 @@ const PROTEGIDAS = [
   ['GET', '/api/convites'],
   ['POST', '/api/convites'],
   ['POST', '/api/trocar-equipe'],
+  ['POST', '/api/equipes'],
+  ['GET', '/api/seguranca'],
+  ['GET', '/api/provas'],
+  ['POST', '/api/prova'],
   ['POST', '/api/tenant/excluir-tudo']
 ];
 
