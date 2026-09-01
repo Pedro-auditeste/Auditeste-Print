@@ -134,6 +134,23 @@
   .vazio{color:var(--muted);padding:22px;text-align:center;}
   a{color:var(--green-dark);}
 
+  /* Painel de segmentos ao lado dos projetos (a coluna da esquerda). */
+  .colunas{display:flex;gap:16px;align-items:flex-start;margin-top:16px;}
+  .colunas .lista{flex:1;min-width:0;}
+  #painelSegmentos{width:250px;flex:none;}
+  #painelSegmentos h3{margin:0 0 2px;color:var(--navy);font-size:1rem;}
+  .seg-abas{display:flex;flex-direction:column;gap:6px;margin:12px 0;}
+  .seg-abas button{
+    text-align:left;background:#fff;border:1px solid var(--line);border-left:4px solid transparent;
+    border-radius:10px;padding:9px 12px;font:inherit;font-size:.9rem;color:var(--navy);cursor:pointer;
+  }
+  .seg-abas button:hover{border-color:var(--green);}
+  .seg-abas button[aria-current=true]{border-left-color:var(--green);background:#f2f8f3;font-weight:700;cursor:default;}
+  .seg-abas small{display:block;color:var(--muted);font-weight:400;font-size:.72rem;margin-top:2px;}
+  .seg-criar{display:flex;gap:6px;margin-top:6px;}
+  .seg-criar input{flex:1;min-width:0;}
+  @media(max-width:720px){ .colunas{flex-direction:column;} #painelSegmentos{width:auto;align-self:stretch;} }
+
   /* Tela de seguranca: cartoes de estado da equipe. */
   .seg-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;}
   .seg-item{border:1px solid var(--line);border-left:4px solid var(--green);border-radius:10px;padding:11px 14px;background:#fff;}
@@ -395,7 +412,10 @@
         <button class="btn primario" type="submit">Criar</button>
       </form>
     </div>
-    <div class="lista" id="listaProjetos"></div>
+    <div class="colunas">
+      <aside class="cartao" id="painelSegmentos"></aside>
+      <div class="lista" id="listaProjetos"></div>
+    </div>
   </section>
 
   <section id="telaProjeto" hidden>
@@ -747,6 +767,61 @@
 
   /* ---------- projetos ---------- */
 
+  /* ---------- painel de segmentos (a coluna ao lado dos projetos) ----------
+   * Lista a equipe base e os segmentos dela como abas para trocar. Um
+   * segmento e uma sub-equipe isolada nomeada "Base · X". Quem esta num
+   * segmento nao ve o criar: segmento nao cria segmento. */
+  const SEP = ' · ';
+  const baseNome = n => String(n || '').split(SEP)[0].trim();
+  const souSegmento = () => String((eu && eu.tenantNome) || '').includes(SEP);
+
+  function renderPainelSegmentos(){
+    const base = baseNome(eu.tenantNome);
+    const equipes = (eu.equipes || []).filter(t => t.via !== 'provedor');
+    const baseTime = equipes.find(t => t.nome === base) || (!souSegmento() ? { id: eu.tenantId, nome: base } : null);
+    const segs = equipes.filter(t => t.nome.startsWith(base + SEP));
+
+    const aba = (t, rotulo, sufixo) => {
+      const atual = t && t.id === eu.tenantId;
+      return '<button data-troca="' + esc(t.id) + '"' + (atual ? ' aria-current="true"' : '') + '>'
+        + esc(rotulo) + (sufixo ? '<small>' + esc(sufixo) + '</small>' : '') + '</button>';
+    };
+
+    let html = '<h3>Segmentos</h3>'
+      + '<div class="meta">Sub-equipes isoladas de <b>' + esc(base) + '</b>. Cada uma só vê o próprio trabalho.</div>'
+      + '<div class="seg-abas">';
+    if(baseTime) html += aba(baseTime, base, 'equipe base');
+    html += segs.length
+      ? segs.map(t => aba(t, t.nome.slice((base + SEP).length), 'segmento')).join('')
+      : '<div class="meta" style="padding:6px 2px">Nenhum segmento ainda.</div>';
+    html += '</div>';
+
+    if(souSegmento()){
+      html += '<div class="meta">Você está no segmento <b>' + esc(eu.tenantNome.slice((base + SEP).length))
+        + '</b>. Um segmento não cria outro; volte para <b>' + esc(base) + '</b> para criar ou gerenciar.</div>';
+    } else {
+      html += '<form class="seg-criar" id="formPainelSegmento">'
+        + '<input type="text" id="painelNomeSegmento" placeholder="Novo segmento" maxlength="120" aria-label="Nome do novo segmento">'
+        + '<button class="btn primario" type="submit">Criar</button></form>';
+    }
+    $('painelSegmentos').innerHTML = html;
+  }
+
+  $('painelSegmentos').addEventListener('click', async e => {
+    const b = e.target.closest('[data-troca]');
+    if(!b || b.getAttribute('aria-current') === 'true') return;
+    try{ await api('/api/trocar-equipe', { json: { tenantId: b.dataset.troca } }); location.reload(); }
+    catch(err){ avisar(err.message, true); }
+  });
+  $('painelSegmentos').addEventListener('submit', async e => {
+    if(e.target.id !== 'formPainelSegmento') return;
+    e.preventDefault();
+    const nome = $('painelNomeSegmento').value.trim();
+    if(!nome) return;
+    try{ await api('/api/segmentos', { json: { nome } }); avisar('Segmento criado.'); renderPainelSegmentos(); }
+    catch(err){ avisar(err.message, true); }
+  });
+
   async function abrirProjetos(){
     mostrar('telaProjetos');
     $('metaTenant').innerHTML = 'Evidências deste cliente são apagadas automaticamente após '
@@ -757,6 +832,9 @@
           : '');
     $('btnAuditoria').hidden = !pode('gestor');
     $('btnConvidar').hidden = !pode('gestor');
+    /* Um segmento nao gerencia segmentos: some o atalho do cabecalho. */
+    $('btnNovaEquipe').hidden = souSegmento();
+    renderPainelSegmentos();
 
     const { projetos } = await api('/api/projetos');
     const alvo = $('listaProjetos');

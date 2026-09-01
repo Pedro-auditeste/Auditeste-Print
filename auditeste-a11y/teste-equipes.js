@@ -124,6 +124,16 @@ caso('criar segmento nasce "Base · X", isolado, sem trocar de equipe', () => {
   assert.ok(seg && banco.vinculo(seg.id, dono.id).papel === 'admin');
 });
 
+caso('CRITERIO: um segmento nao cria outro segmento (400)', () => {
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  const seg = banco.tenantPorNome('OrgSeg · Alpha');
+  // sessao DENTRO do segmento tentando criar sub-segmento
+  assert.ok(recusa(() => contas.criarSegmento(reqFalso, sess(dono, seg), 'Neto'), 400),
+    'de dentro de um segmento, criar segmento tem de ser recusado');
+  assert.strictEqual(banco.tenantPorNome('OrgSeg · Alpha · Neto'), null, 'nao empilhou');
+  assert.strictEqual(banco.tenantPorNome('OrgSeg · Neto'), null, 'nem reancorou na base as escondidas');
+});
+
 caso('listar segmentos traz so os da base atual', () => {
   const org = banco.tenantPorNome('OrgSeg');
   const dono = banco.usuarioPorEmail('dono-seg@x.com');

@@ -322,6 +322,13 @@ function listarSegmentos(sessao) {
 }
 
 function criarSegmento(req, sessao, nome) {
+  /* Um segmento nao cria outro segmento. Sem isto, o esconde-botao da tela
+   * seria a unica barreira, e um POST direto empilharia sub-equipes. O
+   * segmento e uma folha: quem quer criar volta para a equipe base. */
+  if (String(sessao.tenantNome || '').includes(' · ')) {
+    const e = new Error('Um segmento não pode criar outro segmento. Volte para a equipe base.');
+    e.status = 400; throw e;
+  }
   const n = String(nome || '').trim();
   if (n.length < 2) {
     const e = new Error('O nome do segmento precisa de pelo menos 2 caracteres.');
