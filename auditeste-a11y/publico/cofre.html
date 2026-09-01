@@ -944,14 +944,18 @@
     btn.disabled = true; btn.textContent = 'Testando…';
     res.hidden = false; res.innerHTML = '<span style="color:var(--muted)">rodando…</span>';
     try{
+      const t0 = performance.now();
       const r = await api('/api/prova', { json: { qual } });
+      const ms = Math.max(1, Math.round(performance.now() - t0));
       bloco.classList.toggle('ok', !!r.ok);
       bloco.classList.toggle('falhou', !r.ok);
       res.innerHTML =
         '<div class="veredito ' + (r.ok?'ok':'nao') + '">'
         + (r.ok?'✓ DEFESA FUNCIONOU':'! FALHOU') + '</div>'
         + linha('Ataque', r.ataque) + linha('Esperado', r.esperado)
-        + linha('Obtido', r.obtido) + linha('Evidência', r.evidencia)
+        + linha('Obtido', r.obtido)
+        + linha('Tempo', ms + ' ms · rodado agora, ' + new Date().toLocaleTimeString('pt-BR'))
+        + linha('Evidência', r.evidencia)
         + (r.bruto ? '<details class="cru"><summary>ver detalhe técnico</summary>'
             + '<pre>' + esc(r.bruto) + '</pre></details>' : '');
     }catch(err){
