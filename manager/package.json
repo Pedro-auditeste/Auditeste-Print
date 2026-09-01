@@ -1,0 +1,15 @@
+{
+  "name": "manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servico Manager da Auditeste. Esqueleto com o nucleo de seguranca portado do Print.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node servidor.js",
+    "teste": "node teste-manager.js",
+    "admin": "node admin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

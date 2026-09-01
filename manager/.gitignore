@@ -1,0 +1,7 @@
+dados/
+*.db
+*.db-wal
+*.db-shm
+*.backup-*
+.env
+node_modules/
