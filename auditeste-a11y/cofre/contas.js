@@ -297,6 +297,92 @@ function criarEquipe(req, sessaoAtual, nome) {
   };
 }
 
+/* ---------- segmentos da equipe ----------
+ *
+ * Um "segmento" e uma sub-equipe isolada, nomeada "Base · X". Nasce, se
+ * renomeia e se apaga por aqui, sem a pessoa sair da equipe base.
+ *
+ * Apagar exige digitar EXCLUIR, e so vale para segmento que a pessoa
+ * ADMINISTRA. A equipe base e a de um cliente ficam de fora de proposito: a
+ * base nao tem " · " no nome, e um cliente a pessoa alcanca por ser da
+ * provedora, nao por vinculo direto, entao vinculo() volta null e trava. */
+const baseDe = nome => String(nome || '').split(' · ')[0].trim();
+
+function listarSegmentos(sessao) {
+  const base = baseDe(sessao.tenantNome);
+  return banco.vinculosDoUsuario(sessao.usuarioId)
+    .filter(v => v.tenant_nome.includes(' · ') && baseDe(v.tenant_nome) === base)
+    .map(v => ({
+      id: v.tenant_id,
+      nome: v.tenant_nome,
+      sufixo: v.tenant_nome.split(' · ').slice(1).join(' · '),
+      papel: v.papel,
+      atual: v.tenant_id === sessao.tenantId
+    }));
+}
+
+function criarSegmento(req, sessao, nome) {
+  const n = String(nome || '').trim();
+  if (n.length < 2) {
+    const e = new Error('O nome do segmento precisa de pelo menos 2 caracteres.');
+    e.status = 400; throw e;
+  }
+  const base = baseDe(sessao.tenantNome);
+  const nomeCheio = base ? base + ' · ' + n : n;
+  const t = banco.criarTenant(nomeCheio, 90);
+  banco.vincular(t.id, sessao.usuarioId, 'admin');
+  banco.auditar(t.id, sessao.usuarioId, 'segmento.criado', nomeCheio, ipDe(req));
+  return { segmento: { id: t.id, nome: t.nome, sufixo: n } };
+}
+
+function segmentoDoUsuario(sessao, tenantId) {
+  const t = banco.obterTenant(tenantId);
+  if (!t || !t.nome.includes(' · ')) {
+    const e = new Error('Isto não é um segmento.'); e.status = 404; throw e;
+  }
+  const v = banco.vinculo(tenantId, sessao.usuarioId);
+  if (!v || v.papel !== 'admin') {
+    const e = new Error('Só quem administra o segmento pode alterá-lo.'); e.status = 403; throw e;
+  }
+  return t;
+}
+
+function renomearSegmento(req, sessao, tenantId, sufixo) {
+  const suf = String(sufixo || '').trim();
+  if (suf.length < 2) {
+    const e = new Error('O nome precisa de pelo menos 2 caracteres.'); e.status = 400; throw e;
+  }
+  const t = segmentoDoUsuario(sessao, tenantId);
+  const novo = baseDe(t.nome) + ' · ' + suf;
+  banco.renomearTenant(tenantId, novo);
+  banco.auditar(tenantId, sessao.usuarioId, 'segmento.renomeado', t.nome + ' -> ' + novo, ipDe(req));
+  return { segmento: { id: tenantId, nome: novo, sufixo: suf } };
+}
+
+function excluirSegmento(req, sessao, tenantId, confirmar) {
+  if (String(confirmar) !== 'EXCLUIR') {
+    const e = new Error('Para excluir, escreva EXCLUIR.'); e.status = 400; throw e;
+  }
+  const t = segmentoDoUsuario(sessao, tenantId);
+  const base = baseDe(t.nome);
+  const r = banco.apagarTenant(tenantId);
+
+  const baseTenant = banco.tenantPorNome(base);
+  banco.auditar(baseTenant ? baseTenant.id : null, sessao.usuarioId, 'segmento.excluido', t.nome, ipDe(req));
+
+  /* Se apagou o segmento em que a sessao estava, volta para a equipe base para
+   * a pessoa nao ficar numa sessao orfã. */
+  let cookie = null, sessaoNova = null;
+  if (sessao.tenantId === tenantId && baseTenant && banco.vinculo(baseTenant.id, sessao.usuarioId)) {
+    banco.revogarSessao(sessao.tokenHash);
+    const token = novoToken();
+    banco.criarSessao(hashToken(token), sessao.usuarioId, baseTenant.id, DURACAO_MS);
+    cookie = cookieSessao(req, token, DURACAO_MS);
+    sessaoNova = { tenantId: baseTenant.id, tenantNome: baseTenant.nome };
+  }
+  return { removido: { nome: t.nome, dados: r.dados }, cookie, sessao: sessaoNova };
+}
+
 function trocarEquipe(req, sessaoAtual, tenantId) {
   const acesso = banco.acessoA(tenantId, sessaoAtual.usuarioId);
   if (!acesso) {
@@ -433,6 +519,7 @@ const HASH_ISCA = hashSenha(crypto.randomBytes(32).toString('hex'));
 
 module.exports = {
   hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, criarEquipe, trocarEquipe, sair, sessaoDe, podeOuErro,
+  baseDe, listarSegmentos, criarSegmento, renomearSegmento, excluirSegmento,
   novoCodigo, SENHA_MINIMA, CADASTRO_ABERTO, MAX_EQUIPES_POR_IP,
   lerCookie, cookieLimpo, ipDe, hashToken, novoToken,
   COOKIE, DURACAO_MS, MAX_TENTATIVAS, PAPEIS

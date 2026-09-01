@@ -263,6 +263,35 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
+    /* ---------- segmentos da equipe ---------- */
+    if (p === '/api/segmentos' && req.method === 'GET') {
+      const s = exigirSessao(req);
+      json(res, 200, { base: contas.baseDe(s.tenantNome), segmentos: contas.listarSegmentos(s) });
+      return true;
+    }
+    if (p === '/api/segmentos' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      const c = await lerCorpo(req);
+      const r = contas.criarSegmento(req, s, texto(c.nome, 'Nome do segmento', 120, true));
+      json(res, 201, r);
+      return true;
+    }
+    if (p === '/api/segmentos/renomear' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      const c = await lerCorpo(req);
+      const r = contas.renomearSegmento(req, s, String(c.id || ''), texto(c.sufixo, 'Nome', 120, true));
+      json(res, 200, r);
+      return true;
+    }
+    if (p === '/api/segmentos/excluir' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      const c = await lerCorpo(req);
+      const r = contas.excluirSegmento(req, s, String(c.id || ''), String(c.confirmar || ''));
+      json(res, 200, { ok: true, removido: r.removido, sessao: r.sessao },
+        r.cookie ? { 'Set-Cookie': r.cookie } : undefined);
+      return true;
+    }
+
     if (p === '/api/trocar-equipe' && req.method === 'POST') {
       const s = exigirSessao(req);
       const c = await lerCorpo(req);

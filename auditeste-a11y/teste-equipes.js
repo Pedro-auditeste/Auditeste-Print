@@ -110,5 +110,70 @@ caso('criar sub-equipe a partir de uma sub-equipe nao empilha o prefixo', () => 
   assert.strictEqual(r.sessao.tenantNome, 'Minha equipe · Rascunho', 'reancora na raiz, sem A · B · C');
 });
 
+console.log('\nsegmentos da equipe\n');
+
+const sess = (u, t) => ({ usuarioId: u.id, email: u.email, tenantId: t.id, tenantNome: t.nome, tokenHash: 'sess-' + t.id, ip: '127.0.0.1' });
+
+caso('criar segmento nasce "Base · X", isolado, sem trocar de equipe', () => {
+  const org = banco.criarTenant('OrgSeg', 90);
+  const dono = banco.criarUsuario('dono-seg@x.com', 'h');
+  banco.vincular(org.id, dono.id, 'admin');
+  const r = contas.criarSegmento(reqFalso, sess(dono, org), 'Alpha');
+  assert.strictEqual(r.segmento.nome, 'OrgSeg · Alpha');
+  const seg = banco.tenantPorNome('OrgSeg · Alpha');
+  assert.ok(seg && banco.vinculo(seg.id, dono.id).papel === 'admin');
+});
+
+caso('listar segmentos traz so os da base atual', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  const lista = contas.listarSegmentos(sess(dono, org));
+  assert.strictEqual(lista.length, 1);
+  assert.strictEqual(lista[0].sufixo, 'Alpha');
+});
+
+caso('renomear segmento troca o sufixo e mantem a base', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  const seg = banco.tenantPorNome('OrgSeg · Alpha');
+  const r = contas.renomearSegmento(reqFalso, sess(dono, org), seg.id, 'Beta');
+  assert.strictEqual(r.segmento.nome, 'OrgSeg · Beta');
+  assert.strictEqual(banco.tenantPorNome('OrgSeg · Alpha'), null);
+});
+
+caso('excluir SEM escrever EXCLUIR e recusado (400)', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  const seg = banco.tenantPorNome('OrgSeg · Beta');
+  assert.ok(recusa(() => contas.excluirSegmento(reqFalso, sess(dono, org), seg.id, 'sim'), 400));
+  assert.ok(banco.obterTenant(seg.id), 'o segmento continua de pe');
+});
+
+caso('excluir a equipe BASE por aqui e recusado (404: nao e segmento)', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  assert.ok(recusa(() => contas.excluirSegmento(reqFalso, sess(dono, org), org.id, 'EXCLUIR'), 404));
+  assert.ok(banco.obterTenant(org.id), 'a base continua');
+});
+
+caso('quem NAO e admin do segmento nao exclui (403)', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const seg = banco.tenantPorNome('OrgSeg · Beta');
+  const outro = banco.criarUsuario('consultor-seg@x.com', 'h');
+  banco.vincular(seg.id, outro.id, 'consultor');
+  assert.ok(recusa(() => contas.excluirSegmento(reqFalso, sess(outro, org), seg.id, 'EXCLUIR'), 403));
+  assert.ok(banco.obterTenant(seg.id), 'o segmento continua');
+});
+
+caso('excluir com EXCLUIR apaga; e se estava nele, volta para a base', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  const seg = banco.tenantPorNome('OrgSeg · Beta');
+  // sessao DENTRO do segmento
+  const r = contas.excluirSegmento(reqFalso, sess(dono, seg), seg.id, 'EXCLUIR');
+  assert.strictEqual(banco.obterTenant(seg.id), null, 'o segmento sumiu');
+  assert.ok(r.sessao && r.sessao.tenantId === org.id, 'a sessao voltou para a base');
+});
+
 banco.fechar();
 console.log('\n' + n + ' casos, tudo certo\n');

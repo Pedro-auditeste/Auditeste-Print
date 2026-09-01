@@ -384,7 +384,7 @@
           <h2>Projetos</h2>
           <div class="meta" id="metaTenant"></div>
         </div>
-        <button class="btn" id="btnNovaEquipe">Nova equipe</button>
+        <button class="btn" id="btnNovaEquipe">Novo segmento</button>
         <button class="btn" id="btnSeguranca">Segurança</button>
         <button class="btn" id="btnConvidar" hidden>Convidar</button>
         <button class="btn" id="btnAuditoria" hidden>Auditoria</button>
@@ -440,6 +440,23 @@
       <div id="segEstado" class="seg-grade" style="margin-top:16px"></div>
       <div id="segControles" style="margin-top:8px"></div>
       <div id="segProvas" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section id="telaSegmentos" hidden>
+    <div class="cartao">
+      <div class="linha">
+        <div style="flex:1">
+          <h2>Segmentos de <b id="segmentoBase"></b></h2>
+          <div class="meta">Sub-equipes isoladas desta equipe. Cada uma só enxerga o próprio trabalho.</div>
+        </div>
+        <button class="btn" id="btnVoltarSegmentos">Voltar</button>
+      </div>
+      <form id="formSegmento" class="linha" style="margin-top:14px">
+        <input type="text" id="nomeSegmento" placeholder="Nome do novo segmento" style="flex:1;min-width:200px" maxlength="120">
+        <button class="btn primario" type="submit">Criar segmento</button>
+      </form>
+      <div class="lista" id="listaSegmentos"></div>
     </div>
   </section>
 </main>
@@ -521,7 +538,7 @@
     $('telaEntrar').hidden = !noLogin;
     document.querySelector('header').hidden = noLogin;
     document.querySelector('main').hidden = noLogin;
-    for(const t of ['telaProjetos','telaProjeto','telaAuditoria','telaSeguranca']) $(t).hidden = t !== qual;
+    for(const t of ['telaProjetos','telaProjeto','telaAuditoria','telaSeguranca','telaSegmentos']) $(t).hidden = t !== qual;
   }
 
   const PODE = { leitor:1, consultor:2, gestor:3, admin:4 };
@@ -965,17 +982,65 @@
       btn.disabled = false; btn.textContent = 'Testar de novo';
     }
   }
-  /* Cria uma SUB-EQUIPE da equipe atual: uma variante isolada, com o nome
-   * prefixado pelo da equipe de origem (o servidor faz o prefixo). Quem cria
-   * vira admin. O nome cheio e unico: se ja existir, o servidor recusa. */
-  $('btnNovaEquipe').addEventListener('click', async () => {
-    const base = (eu && eu.tenantNome ? String(eu.tenantNome).split(' · ')[0] : '');
-    const nome = (prompt('Nome da nova sub-equipe (uma variação de '
-      + (base || 'sua equipe') + '):') || '').trim();
+  /* Segmentos: a tela onde as sub-equipes desta equipe sao criadas, renomeadas
+   * e excluidas. Um segmento e uma equipe isolada nomeada "Base · X". */
+  $('btnNovaEquipe').addEventListener('click', abrirSegmentos);
+  $('btnVoltarSegmentos').addEventListener('click', abrirProjetos);
+
+  async function abrirSegmentos(){
+    try{
+      const d = await api('/api/segmentos');
+      $('segmentoBase').textContent = d.base || '';
+      const lista = $('listaSegmentos');
+      if(!d.segmentos.length){
+        lista.innerHTML = '<div class="vazio">Nenhum segmento ainda. Crie o primeiro acima.</div>';
+      } else {
+        lista.innerHTML = d.segmentos.map(s =>
+          '<div class="item" data-id="' + esc(s.id) + '">'
+          + '<div style="flex:1"><b>' + esc(s.sufixo) + '</b>'
+          + (s.atual ? ' <small style="color:var(--green)">· você está aqui</small>' : '')
+          + '<small>' + esc(s.nome) + '</small></div>'
+          + '<div class="linha">'
+          + '<button class="btn seg-abrir" data-id="' + esc(s.id) + '">Abrir</button>'
+          + '<button class="btn seg-renomear" data-id="' + esc(s.id) + '" data-sufixo="' + esc(s.sufixo) + '">Renomear</button>'
+          + '<button class="btn perigo seg-excluir" data-id="' + esc(s.id) + '" data-nome="' + esc(s.sufixo) + '">Excluir</button>'
+          + '</div></div>').join('');
+        lista.querySelectorAll('.seg-abrir').forEach(b => b.addEventListener('click', async () => {
+          try{ await api('/api/trocar-equipe', { json: { tenantId: b.dataset.id } }); location.reload(); }
+          catch(err){ avisar(err.message, true); }
+        }));
+        lista.querySelectorAll('.seg-renomear').forEach(b => b.addEventListener('click', async () => {
+          const sufixo = (prompt('Novo nome do segmento:', b.dataset.sufixo) || '').trim();
+          if(!sufixo || sufixo === b.dataset.sufixo) return;
+          try{ await api('/api/segmentos/renomear', { json: { id: b.dataset.id, sufixo } }); abrirSegmentos(); }
+          catch(err){ avisar(err.message, true); }
+        }));
+        lista.querySelectorAll('.seg-excluir').forEach(b => b.addEventListener('click', async () => {
+          const confirmar = prompt('Excluir o segmento "' + b.dataset.nome + '" e tudo dentro dele? '
+            + 'Isto não tem volta.' + String.fromCharCode(10) + String.fromCharCode(10)
+            + 'Para confirmar, escreva EXCLUIR:');
+          if(confirmar === null) return;
+          try{
+            const r = await api('/api/segmentos/excluir', { json: { id: b.dataset.id, confirmar: confirmar.trim() } });
+            /* Se apagou o segmento em que a pessoa estava, o servidor ja trocou
+             * a sessao para a equipe base: recarrega para refletir. */
+            if(r.sessao){ location.reload(); return; }
+            abrirSegmentos();
+          }catch(err){ avisar(err.message, true); }
+        }));
+      }
+      mostrar('telaSegmentos');
+    }catch(err){ avisar(err.message, true); }
+  }
+
+  $('formSegmento').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = $('nomeSegmento').value.trim();
     if(!nome) return;
     try{
-      await api('/api/equipes', { json: { nome } });
-      location.reload();
+      await api('/api/segmentos', { json: { nome } });
+      $('nomeSegmento').value = '';
+      abrirSegmentos();
     }catch(err){ avisar(err.message, true); }
   });
 
