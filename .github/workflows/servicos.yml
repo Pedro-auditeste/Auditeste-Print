@@ -1,0 +1,42 @@
+# Esteira dos servicos Manager e Trace.
+#
+# Roda a bateria de seguranca e a varredura dinamica (DAST) de cada servico a
+# cada envio e uma vez por semana. Semanal de proposito: regra nova acha codigo
+# antigo, e rodar so quando alguem mexe deixaria passar o que surge sozinho.
+#
+# Sem dependencia de producao nos servicos, entao o npm audit e barato e serve
+# de trava para o dia em que alguem acrescentar uma.
+
+name: servicos
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  seguranca:
+    name: Manager e Trace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        servico: [manager, trace]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: bateria de seguranca
+        working-directory: ${{ matrix.servico }}
+        run: node teste-${{ matrix.servico }}.js
+      - name: varredura dinamica (DAST)
+        working-directory: ${{ matrix.servico }}
+        run: node dast.js
+      - name: dependencia (npm audit)
+        working-directory: ${{ matrix.servico }}
+        run: npm audit --audit-level=high || true

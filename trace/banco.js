@@ -1,4 +1,4 @@
-/* Manager: o banco.
+/* Trace: o banco.
  *
  * Nucleo de seguranca portado do Print (cofre de evidencias) e completo:
  * isolamento por cliente, identidade, papeis, auditoria, cifra em repouso,
@@ -6,9 +6,9 @@
  * e backup conferido. O dominio do produto entra em cima desta base, no lugar
  * do recurso de exemplo.
  *
- *   MANAGER_BANCO    caminho do arquivo. Em producao, apontar para um volume.
- *   MANAGER_CHAVE    hex de 64 para a cifra em repouso. Ausente = grava em claro.
- *   MANAGER_SEGREDO  hex para assinar link temporario. Ausente = link desligado.
+ *   TRACE_BANCO    caminho do arquivo. Em producao, apontar para um volume.
+ *   TRACE_CHAVE    hex de 64 para a cifra em repouso. Ausente = grava em claro.
+ *   TRACE_SEGREDO  hex para assinar link temporario. Ausente = link desligado.
  *
  * Regra que vale mais que o esquema: NENHUMA funcao aceita ser chamada sem
  * tenant. O isolamento e argumento obrigatorio, nao checagem que se esquece.
@@ -120,11 +120,11 @@ const VOLUMES = ['/dados', '/data'];
 function caminhoPadrao() {
   for (const v of VOLUMES) {
     try {
-      if (fs.existsSync(v) && fs.statSync(v).isDirectory()) { semVolume = false; ondeEstou = path.join(v, 'manager.db'); return ondeEstou; }
+      if (fs.existsSync(v) && fs.statSync(v).isDirectory()) { semVolume = false; ondeEstou = path.join(v, 'trace.db'); return ondeEstou; }
     } catch (e) { /* tenta o proximo */ }
   }
   semVolume = true;
-  ondeEstou = path.join(__dirname, 'dados', 'manager.db');
+  ondeEstou = path.join(__dirname, 'dados', 'trace.db');
   return ondeEstou;
 }
 
@@ -136,8 +136,8 @@ const agora = () => Date.now();
 function abrir(caminho) {
   if (db) return db;
   if (!DatabaseSync) { motivoDesligado = 'este Node nao tem node:sqlite (precisa de 22 ou mais novo)'; return null; }
-  const arquivo = caminho || process.env.MANAGER_BANCO || caminhoPadrao();
-  if (caminho || process.env.MANAGER_BANCO) {
+  const arquivo = caminho || process.env.TRACE_BANCO || caminhoPadrao();
+  if (caminho || process.env.TRACE_BANCO) {
     ondeEstou = arquivo;
     semVolume = !VOLUMES.some(v => path.resolve(arquivo).replace(/\\/g, '/').startsWith(v + '/'));
   }
@@ -156,7 +156,7 @@ const ligado = () => !!db;
 const porque = () => motivoDesligado;
 function fechar() { if (db) { db.close(); db = null; } }
 
-function exigir() { if (!db) { const e = new Error('Manager desligado: ' + (motivoDesligado || 'sem banco')); e.status = 503; throw e; } return db; }
+function exigir() { if (!db) { const e = new Error('Trace desligado: ' + (motivoDesligado || 'sem banco')); e.status = 503; throw e; } return db; }
 
 function exigirTenant(tenantId) {
   if (!tenantId || typeof tenantId !== 'string') { const e = new Error('consulta sem tenant no contexto'); e.status = 500; throw e; }
@@ -254,7 +254,7 @@ const CIFRA = 'aes-256-gcm';
 const MARCA = Buffer.from('AUDIENC1');
 
 function chaveDaCifra() {
-  const bruta = String(process.env.MANAGER_CHAVE || '').trim();
+  const bruta = String(process.env.TRACE_CHAVE || '').trim();
   if (!bruta) return null;
   if (/^[0-9a-f]{64}$/i.test(bruta)) return Buffer.from(bruta, 'hex');
   return crypto.createHash('sha256').update(bruta).digest();
@@ -273,7 +273,7 @@ function decifrar(dados) {
   const buf = Buffer.from(dados);
   if (buf.length < MARCA.length || !buf.subarray(0, MARCA.length).equals(MARCA)) return buf;
   const chave = chaveDaCifra();
-  if (!chave) { const e = new Error('Conteudo cifrado e MANAGER_CHAVE nao esta definida.'); e.status = 503; throw e; }
+  if (!chave) { const e = new Error('Conteudo cifrado e TRACE_CHAVE nao esta definida.'); e.status = 503; throw e; }
   const iv = buf.subarray(8, 20); const tag = buf.subarray(20, 36);
   const d = crypto.createDecipheriv(CIFRA, chave, iv); d.setAuthTag(tag);
   return Buffer.concat([d.update(buf.subarray(36)), d.final()]);
@@ -281,13 +281,13 @@ function decifrar(dados) {
 
 /* ---------- link assinado (acesso ao corpo sem sessao, por pouco tempo) ---------- */
 /* HMAC sobre tenant, recurso e validade. Trocar qualquer parte no endereco
- * invalida a assinatura. Sem MANAGER_SEGREDO, nao emite link. */
-function segredoLink() { const s = String(process.env.MANAGER_SEGREDO || '').trim(); return s ? crypto.createHash('sha256').update(s).digest() : null; }
+ * invalida a assinatura. Sem TRACE_SEGREDO, nao emite link. */
+function segredoLink() { const s = String(process.env.TRACE_SEGREDO || '').trim(); return s ? crypto.createHash('sha256').update(s).digest() : null; }
 const linkLigado = () => segredoLink() !== null;
 
 function assinarLink(tenantId, recursoId, ttlMs) {
   const seg = segredoLink();
-  if (!seg) { const e = new Error('link desligado: defina MANAGER_SEGREDO'); e.status = 503; throw e; }
+  if (!seg) { const e = new Error('link desligado: defina TRACE_SEGREDO'); e.status = 503; throw e; }
   const exp = agora() + (Number(ttlMs) || 5 * 60 * 1000);
   const base = tenantId + ':' + recursoId + ':' + exp;
   const sig = crypto.createHmac('sha256', seg).update(base).digest('hex');
@@ -385,7 +385,7 @@ function conferirArquivo(caminho) {
     const conta = {};
     for (const t of ['tenants', 'usuarios', 'recursos', 'auditoria']) {
       try { conta[t] = outro.prepare('SELECT count(*) n FROM ' + t).get().n; }
-      catch (e) { const err = new Error('arquivo nao tem cara de Manager (falta ' + t + ')'); err.status = 422; throw err; }
+      catch (e) { const err = new Error('arquivo nao tem cara de Trace (falta ' + t + ')'); err.status = 422; throw err; }
     }
     return conta;
   } finally { outro.close(); }

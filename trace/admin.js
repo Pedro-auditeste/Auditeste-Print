@@ -1,4 +1,4 @@
-/* Manager: administracao por linha de comando.
+/* Trace: administracao por linha de comando.
  *
  * Conta de producao nasce AQUI, nunca pelo formulario: assim ninguem se
  * cadastra sozinho num ambiente que deveria ser fechado.
@@ -82,14 +82,14 @@ const acoes = {
   conferir(arquivo) {
     if (!arquivo) { console.error('uso: conferir <arquivo>'); process.exit(1); }
     const conta = banco.conferirArquivo(arquivo);
-    console.log('arquivo integro e com cara de Manager');
+    console.log('arquivo integro e com cara de Trace');
     for (const [t, n] of Object.entries(conta)) console.log('  ' + t.padEnd(12) + n);
   },
 
   restaurar(arquivo) {
     if (!arquivo) { console.error('uso: restaurar <arquivo>'); process.exit(1); }
-    const atual = process.env.MANAGER_BANCO;
-    if (!atual) { console.error('MANAGER_BANCO nao definido'); process.exit(1); }
+    const atual = process.env.TRACE_BANCO;
+    if (!atual) { console.error('TRACE_BANCO nao definido'); process.exit(1); }
     const conta = banco.conferirArquivo(arquivo);   // confere ANTES de encostar no que vale
     banco.fechar();
     const guardado = atual + '.antes-de-restaurar-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');

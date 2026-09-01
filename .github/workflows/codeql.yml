@@ -64,6 +64,8 @@ jobs:
               - auditeste-a11y
               - audi-print-scanner
               - audi-print
+              - manager
+              - trace
 
       - name: analisar
         uses: github/codeql-action/analyze@v3

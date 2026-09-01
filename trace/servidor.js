@@ -1,4 +1,4 @@
-/* Manager: o servidor.
+/* Trace: o servidor.
  *
  * http puro do Node, sem framework. Cada resposta leva os cabecalhos de
  * seguranca. O portao exige sessao para tudo em /api, menos cadastrar, entrar,
@@ -10,8 +10,8 @@ const banco = require('./banco.js');
 const contas = require('./contas.js');
 const sso = require('./sso.js');
 
-const PORTA = Number(process.env.PORT) || 4000;
-const ORIGENS = String(process.env.MANAGER_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+const PORTA = Number(process.env.PORT) || 4100;
+const ORIGENS = String(process.env.TRACE_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 
 function cabecalhoSeguro(req, origem) {
   const cab = {
@@ -63,7 +63,7 @@ async function roteador(req, res) {
 
     // ---- aberto ----
     if (rota === '/ping') {
-      return responder(res, req, 200, { ok: true, servico: 'manager', banco: banco.ligado() ? 'ligado' : 'desligado', motivo: banco.porque() || undefined, cifra: banco.cifraLigada() ? 'ligada' : 'em claro', link: banco.linkLigado() ? 'ligado' : 'desligado', efemero: banco.efemero() || undefined });
+      return responder(res, req, 200, { ok: true, servico: 'trace', banco: banco.ligado() ? 'ligado' : 'desligado', motivo: banco.porque() || undefined, cifra: banco.cifraLigada() ? 'ligada' : 'em claro', link: banco.linkLigado() ? 'ligado' : 'desligado', efemero: banco.efemero() || undefined });
     }
     if (rota === '/api/cadastrar' && metodo === 'POST') {
       const r = contas.cadastrar(req, await lerCorpo(req));
@@ -162,10 +162,10 @@ function criarServidor() { return http.createServer(roteador); }
 if (require.main === module) {
   banco.abrir();
   criarServidor().listen(PORTA, () => {
-    console.log('Manager no ar em http://127.0.0.1:' + PORTA);
+    console.log('Trace no ar em http://127.0.0.1:' + PORTA);
     console.log('  banco:', banco.ligado() ? banco.onde() : 'desligado (' + banco.porque() + ')');
-    console.log('  cifra:', banco.cifraLigada() ? 'ligada' : 'em claro (defina MANAGER_CHAVE)');
-    console.log('  link :', banco.linkLigado() ? 'ligado' : 'desligado (defina MANAGER_SEGREDO)');
+    console.log('  cifra:', banco.cifraLigada() ? 'ligada' : 'em claro (defina TRACE_CHAVE)');
+    console.log('  link :', banco.linkLigado() ? 'ligado' : 'desligado (defina TRACE_SEGREDO)');
     if (banco.efemero()) console.log('  ATENCAO: banco em disco efemero, o proximo deploy apaga. Monte um volume.');
   });
 }

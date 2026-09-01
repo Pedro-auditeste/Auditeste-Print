@@ -1,4 +1,4 @@
-/* Manager: identidade. Senha, sessao, cookie e freio de forca bruta.
+/* Trace: identidade. Senha, sessao, cookie e freio de forca bruta.
  *
  * Portado do Print. scrypt do proprio Node (KDF de memoria dura, sem
  * compilacao nativa). O token vai para o navegador; o banco guarda so o hash
@@ -8,10 +8,10 @@ const crypto = require('crypto');
 const banco = require('./banco.js');
 
 const N = 16384, r = 8, p = 1, TAM = 32;
-const DURACAO_MS = Number(process.env.MANAGER_SESSAO_MS) || 12 * 60 * 60 * 1000;
+const DURACAO_MS = Number(process.env.TRACE_SESSAO_MS) || 12 * 60 * 60 * 1000;
 const JANELA_TENTATIVAS_MS = 15 * 60 * 1000;
 const MAX_TENTATIVAS = 8;
-const COOKIE = 'manager';
+const COOKIE = 'trace';
 
 function hashSenha(senha) {
   const sal = crypto.randomBytes(16);
@@ -40,7 +40,7 @@ const novoToken = () => crypto.randomBytes(32).toString('base64url');
 const hashToken = t => crypto.createHash('sha256').update(String(t)).digest('hex');
 
 /* Cadastro sem convite cria uma EQUIPE NOVA, isolada. Nasce sem enxergar nada
- * de ninguem: o teto contra abuso e por conta de quem opera o Manager. */
+ * de ninguem: o teto contra abuso e por conta de quem opera o Trace. */
 function cadastrar(req, { email, senha, equipe }) {
   const e = String(email || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { const x = new Error('e-mail invalido'); x.status = 400; throw x; }

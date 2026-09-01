@@ -1,6 +1,6 @@
-/* Trava o nucleo de seguranca do Manager, atacando o servidor de verdade.
+/* Trava o nucleo de seguranca do Trace, atacando o servidor de verdade.
  *
- *   node teste-manager.js
+ *   node teste-trace.js
  *
  * Cada caso e um ataque que tem que ser recusado, nao um caminho feliz.
  */
@@ -11,12 +11,12 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'manager-'));
-process.env.MANAGER_BANCO = path.join(dir, 'manager.db');
-process.env.MANAGER_CHAVE = 'a'.repeat(64);
-process.env.MANAGER_SEGREDO = 'b'.repeat(64);
-process.env.MANAGER_SESSAO_MS = '3600000';
-process.env.MANAGER_ORIGINS = 'https://ok.example';
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trace-'));
+process.env.TRACE_BANCO = path.join(dir, 'trace.db');
+process.env.TRACE_CHAVE = 'a'.repeat(64);
+process.env.TRACE_SEGREDO = 'b'.repeat(64);
+process.env.TRACE_SESSAO_MS = '3600000';
+process.env.TRACE_ORIGINS = 'https://ok.example';
 
 const banco = require('./banco.js');
 const contas = require('./contas.js');
@@ -49,7 +49,7 @@ let n = 0;
 const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome); };
 
 (async () => {
-  console.log('\nmanager - identidade\n');
+  console.log('\ntrace - identidade\n');
   let cookieA, cookieB, recA, tenantA;
 
   await caso('anonimo em /api/eu leva 401', async () => assert.strictEqual((await pedir('GET', '/api/eu')).status, 401));
@@ -74,7 +74,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.ok(!fs.readFileSync(snap).includes(token));
   });
 
-  console.log('\nmanager - isolamento entre clientes\n');
+  console.log('\ntrace - isolamento entre clientes\n');
 
   await caso('cria um recurso na equipe A', async () => {
     const r = await pedir('POST', '/api/recursos', { nome: 'segredo A', conteudo: 'CONTEUDO-SECRETO-DE-A-123' }, comCookie(cookieA));
@@ -89,7 +89,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
   await caso('CRITERIO: a lista de B nao mostra o recurso de A', async () => assert.strictEqual((await pedir('GET', '/api/recursos', null, comCookie(cookieB))).corpo.recursos.length, 0));
   await caso('B nao exclui o recurso de A (404, nem confirma que existe)', async () => assert.strictEqual((await pedir('DELETE', '/api/recursos/' + recA, null, comCookie(cookieB))).status, 404));
 
-  console.log('\nmanager - papeis (RBAC)\n');
+  console.log('\ntrace - papeis (RBAC)\n');
 
   await caso('leitor nao cria (403)', async () => {
     contaComPapel('leitor@a.com', 'leitor', tenantA);
@@ -109,7 +109,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.strictEqual((await pedir('GET', '/api/recursos/' + recA, null, comCookie(cookieA))).status, 404);
   });
 
-  console.log('\nmanager - link assinado\n');
+  console.log('\ntrace - link assinado\n');
   let novo;
   await caso('cria recurso e gera link assinado', async () => {
     novo = (await pedir('POST', '/api/recursos', { nome: 'com link', conteudo: 'CORPO-VIA-LINK' }, comCookie(cookieA))).corpo.recurso.id;
@@ -129,7 +129,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.strictEqual((await pedir('GET', trocado)).status, 403);
   });
 
-  console.log('\nmanager - tipo e cifra em repouso\n');
+  console.log('\ntrace - tipo e cifra em repouso\n');
   await caso('CRITERIO: tipo fora da lista e recusado (415)', async () => assert.strictEqual((await pedir('POST', '/api/recursos', { nome: 'x', conteudo: 'y', tipo: 'application/x-evil' }, comCookie(cookieA))).status, 415));
   await caso('CRITERIO: com a chave, o conteudo nao aparece no arquivo do banco', async () => {
     const snap = path.join(dir, 'conf-cifra.db'); banco.snapshot(snap);
@@ -137,7 +137,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.ok(!bytes.includes('CORPO-VIA-LINK') && bytes.includes('AUDIENC1'));
   });
 
-  console.log('\nmanager - retencao e exclusao (banco)\n');
+  console.log('\ntrace - retencao e exclusao (banco)\n');
   await caso('CRITERIO: recurso vencido some na poda, com o corpo junto', async () => {
     const t = banco.criarTenant('Curto', 0);   // retencao 0 dia: nasce ja vencido
     const u = banco.criarUsuario('curto@x.com', 'h'); banco.vincular(t.id, u.id, 'admin');
@@ -147,7 +147,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.strictEqual(banco.listarRecursos(t.id).length, 0);
   });
 
-  console.log('\nmanager - cabecalhos e CORS\n');
+  console.log('\ntrace - cabecalhos e CORS\n');
   await caso('toda resposta leva nosniff, CSP e Referrer-Policy', async () => {
     const r = await pedir('GET', '/ping');
     assert.strictEqual(r.headers['x-content-type-options'], 'nosniff');
@@ -163,7 +163,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.strictEqual(r.headers['access-control-allow-origin'], 'https://ok.example');
   });
 
-  console.log('\nmanager - freio de forca bruta\n');
+  console.log('\ntrace - freio de forca bruta\n');
   await caso('CRITERIO: a conta trava depois de MAX tentativas erradas', async () => {
     let ultimo = 0;
     for (let i = 0; i < 10; i++) ultimo = (await pedir('POST', '/api/entrar', { email: 'b@b.com', senha: 'errada' })).status;
@@ -171,7 +171,7 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     assert.strictEqual((await pedir('POST', '/api/entrar', { email: 'b@b.com', senha: 'senhaforte2' })).status, 429);
   });
 
-  console.log('\nmanager - SSO (OIDC) contra provedor de mentira\n');
+  console.log('\ntrace - SSO (OIDC) contra provedor de mentira\n');
   await caso('CRITERIO: volta valida cria a sessao com o e-mail do provedor; token adulterado e recusado', async () => {
     // provedor de mentira: discovery + JWKS + assinatura RS256
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -217,13 +217,13 @@ const caso = async (nome, fn) => { await fn(); n++; console.log('  ok   ' + nome
     idp.close();
   });
 
-  console.log('\nmanager - backup e restauracao\n');
+  console.log('\ntrace - backup e restauracao\n');
   await caso('CRITERIO: depois de perder o banco, os dados voltam pelo backup', async () => {
     const bk = path.join(dir, 'backup.db'); banco.snapshot(bk);
     const conta = banco.conferirArquivo(bk);
     assert.ok(conta.recursos >= 1 && conta.usuarios >= 2);
     banco.fechar();
-    fs.copyFileSync(bk, process.env.MANAGER_BANCO);
+    fs.copyFileSync(bk, process.env.TRACE_BANCO);
     banco.abrir();
     const A = banco.tenantPorNome('Alpha');
     const lista = banco.listarRecursos(A.id);

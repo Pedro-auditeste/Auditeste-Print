@@ -1,7 +1,7 @@
-# Manager
+# Trace
 
-Servico Manager da Auditeste com o **nucleo de seguranca do Print portado,
-completo e testado**. O dominio do produto (o que o Manager gerencia) entra no
+Servico Trace da Auditeste com o **nucleo de seguranca do Print portado,
+completo e testado**. O dominio do produto (o que o Trace gerencia) entra no
 lugar do recurso de exemplo (`/api/recursos`), que existe para o isolamento, a
 cifra, o link assinado, a retencao e a exclusao terem algo real para proteger.
 
@@ -9,7 +9,7 @@ cifra, o link assinado, a retencao e a exclusao terem algo real para proteger.
 
 ```
 node servidor.js        # sobe em http://127.0.0.1:4000 (ou PORT)
-node teste-manager.js   # 26 testes de seguranca, atacando o servidor de verdade
+node teste-trace.js   # 26 testes de seguranca, atacando o servidor de verdade
 node dast.js            # 14 sondas dinamicas (o caminho errado e recusado?)
 ```
 
@@ -27,11 +27,11 @@ node admin.js listar
 
 | Variavel | Para que |
 |---|---|
-| `MANAGER_BANCO` | caminho do banco. Em producao, apontar para um volume. |
-| `MANAGER_CHAVE` | hex de 64 para a cifra em repouso. Ausente = grava em claro (o `/ping` avisa). |
-| `MANAGER_SEGREDO` | hex para assinar link temporario. Ausente = link desligado. |
-| `MANAGER_ORIGINS` | origens liberadas no CORS, separadas por virgula. Vazio = nenhuma. |
-| `MANAGER_SESSAO_MS` | duracao da sessao (padrao 12 h). |
+| `TRACE_BANCO` | caminho do banco. Em producao, apontar para um volume. |
+| `TRACE_CHAVE` | hex de 64 para a cifra em repouso. Ausente = grava em claro (o `/ping` avisa). |
+| `TRACE_SEGREDO` | hex para assinar link temporario. Ausente = link desligado. |
+| `TRACE_ORIGINS` | origens liberadas no CORS, separadas por virgula. Vazio = nenhuma. |
+| `TRACE_SESSAO_MS` | duracao da sessao (padrao 12 h). |
 | `PORT` | porta do servidor (padrao 4000). |
 
 Gerar chave/segredo: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
@@ -50,16 +50,16 @@ A chave nao pode morar no mesmo lugar do backup: perder a chave e perder o conte
 
 ## O que ainda depende de decisao
 
-- O dominio real do Manager, no lugar de `recursos`.
+- O dominio real do Trace, no lugar de `recursos`.
 - Pentest externo: contratacao de gente de fora. O equivalente interno (DAST + bateria) ja roda.
 - Documentos de governanca da empresa: em `../specs/` (valem para os tres servicos).
 
 ## Como estender com seguranca
 
-1. Trocar a tabela `recursos` pelo dominio do Manager, com `tenant_id` em toda tabela e `exigirTenant` em toda consulta.
+1. Trocar a tabela `recursos` pelo dominio do Trace, com `tenant_id` em toda tabela e `exigirTenant` em toda consulta.
 2. Rota nova entra depois do portao de sessao no `servidor.js`; o tenant vem SEMPRE de `sessao.tenantId`.
 3. Conteudo sensivel grava com `cifrar()` e volta com `decifrar()`; acao destrutiva checa `podeExcluir`/`podeAdministrar`.
-4. Cada regra nova ganha um caso em `teste-manager.js` que falha se ela quebrar.
+4. Cada regra nova ganha um caso em `teste-trace.js` que falha se ela quebrar.
 
 ## Fluxo de dados e fronteiras de confianca
 
@@ -70,7 +70,7 @@ A chave nao pode morar no mesmo lugar do backup: perder a chave e perder o conte
 === FRONTEIRA: portao de sessao (servidor.js) ===
    |  tenant vem SEMPRE da sessao, nunca do corpo
    v
-[Manager: rotas /api]  --RBAC por papel-->  [banco.js: exigirTenant em toda consulta]
+[Trace: rotas /api]  --RBAC por papel-->  [banco.js: exigirTenant em toda consulta]
    |                                        |
    |  corpo cifrado (AES-256-GCM)           v
    +------------------------------->  [SQLite: recursos.corpo cifrado, auditoria]
@@ -88,5 +88,5 @@ A chave nao pode morar no mesmo lugar do backup: perder a chave e perder o conte
 
 **Dado tratado (inventario):** usuario (e-mail e hash scrypt da senha), recurso do
 dominio (nome, tipo, corpo cifrado, prazo), e auditoria (acao, recurso, quando, ip).
-Nenhum dado sai para modelo de linguagem: o Manager nao usa modelo, entao nao ha
+Nenhum dado sai para modelo de linguagem: o Trace nao usa modelo, entao nao ha
 superficie de injecao de prompt a proteger.
