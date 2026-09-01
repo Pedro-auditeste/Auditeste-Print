@@ -53,9 +53,47 @@ for (const [id] of provas.LISTA) {
     const r = provas.rodar(id, deps);
     assert.strictEqual(r.id, id);
     assert.ok(r.titulo && r.ataque && r.esperado && r.obtido && r.evidencia, id + ' sem campos');
+    assert.ok(typeof r.bruto === 'string' && r.bruto.length > 0, id + ' sem evidencia crua (bruto)');
     assert.strictEqual(r.ok, true, id + ' deveria passar, mas: obtido=' + r.obtido);
   });
 }
+
+/* CONTRAPROVA: a luz tem que saber ficar VERMELHA. Sabotando cada defesa (via
+ * dependencia quebrada), a prova correspondente TEM que reprovar. Se ficasse
+ * verde mesmo com a defesa quebrada, seria enfeite. */
+console.log('\ncontraprova: com a defesa quebrada, a prova reprova\n');
+
+const comBanco = (extra) => ({ ...deps, banco: Object.assign({}, banco, extra) });
+const comContas = (extra) => ({ ...deps, contas: Object.assign({}, contas, extra) });
+
+caso('isolamento fica VERMELHO se a consulta vaza o projeto de outro', () => {
+  const r = provas.rodar('isolamento', comBanco({ obterProjeto: () => ({ id: 'vazou' }) }));
+  assert.strictEqual(r.ok, false);
+});
+caso('senhaFraca fica VERMELHO se o cadastro aceita "12345"', () => {
+  const r = provas.rodar('senhaFraca', comContas({ cadastrar: () => ({ ok: true }) }));
+  assert.strictEqual(r.ok, false);
+});
+caso('nomeDuplicado fica VERMELHO se criar equipe repetida nao lanca', () => {
+  const r = provas.rodar('nomeDuplicado', comBanco({ criarTenant: () => ({ id: 'x' }) }));
+  assert.strictEqual(r.ok, false);
+});
+caso('forcaBruta fica VERMELHO se nao ha limite de tentativas', () => {
+  const r = provas.rodar('forcaBruta', comBanco({
+    tentativaFalhou: () => 1, tentativasDe: () => 0, limparTentativas: () => {}
+  }));
+  assert.strictEqual(r.ok, false);
+});
+caso('cifraRepouso fica VERMELHO se "cifrar" devolve texto claro', () => {
+  const r = provas.rodar('cifraRepouso', comBanco({
+    cifraLigada: () => true, cifrar: (b) => Buffer.from(b)
+  }));
+  assert.strictEqual(r.ok, false);
+});
+caso('linkAdulterado fica VERMELHO se a validacao aceita tudo', () => {
+  const r = provas.rodar('linkAdulterado', { ...deps, assinaturaValida: () => true });
+  assert.strictEqual(r.ok, false);
+});
 
 caso('a prova de isolamento realmente mira um id de OUTRO cliente', () => {
   const alheio = banco.projetoDeOutroTenant(minha.id);

@@ -5,6 +5,11 @@
  * Nao ha numero decorado aqui: o verde so acende porque a defesa recusou na
  * hora, na frente de quem apertou o botao. E esse o ponto: mostrar, nao contar.
  *
+ * Cada prova devolve tambem `bruto`: a EVIDENCIA CRUA, os valores reais que a
+ * operacao produziu (o status devolvido, o texto do erro, o hex da cifra, a
+ * assinatura). Nao e narracao: e o que o codigo retornou. O `ok` e derivado
+ * desses valores, entao a luz nao pode discordar da evidencia que ela mostra.
+ *
  * REGRA DE OURO, sem excecao: toda prova e segura em producao. Ou e so leitura,
  * ou e uma tentativa que o sistema recusa ANTES de gravar qualquer coisa, ou
  * usa uma chave descartavel que a propria prova apaga em seguida. Nenhuma prova
@@ -22,13 +27,8 @@ function tentar(fn) {
 const min = ms => Math.max(1, Math.round(ms / 60000));
 
 const PROVAS = {
-  /* O furo classico de SaaS B2B: ver a evidencia do cliente errado. Pego um id
-   * que pertence MESMO a outro cliente (so leitura) e mostro que, no seu
-   * contexto, ele simplesmente nao existe. */
   isolamento(d) {
     const alheio = d.banco.projetoDeOutroTenant(d.sessao.tenantId);
-    // Usa o id REAL de outro cliente na consulta, mas nunca o revela: mostrar
-    // ate um pedaco de identificador de outra equipe ja seria um vazamento.
     const alvo = alheio ? alheio.id : crypto.randomUUID();
     const visto = d.banco.obterProjeto(d.sessao.tenantId, alvo);
     return {
@@ -38,30 +38,30 @@ const PROVAS = {
       esperado: 'vazio: o id de outro cliente nao existe para voce',
       obtido: visto ? 'RETORNOU DADO' : 'vazio',
       ok: visto === null,
-      evidencia: 'obterProjeto(sua equipe, id real de outro cliente) devolveu '
-        + (visto ? 'DADO' : 'null') + '. O tenant entra no WHERE da consulta, nao numa checagem depois.'
+      evidencia: 'O tenant entra no WHERE da consulta, nao numa checagem depois.',
+      bruto: 'SELECT * FROM projetos WHERE tenant_id = <sua equipe> AND id = <id real de outro cliente, oculto>\n'
+        + '-> ' + (visto ? '1 linha (VAZOU)' : '0 linha (retorno null)')
     };
   },
 
-  /* Senha curta e recusada na porta, antes de existir conta nenhuma. */
   senhaFraca(d) {
+    const email = 'prova-' + Date.now() + '@exemplo.invalido';
     const r = tentar(() => d.contas.cadastrar(
       { socket: { remoteAddress: d.sessao.ip || '127.0.0.1' }, headers: {} },
-      { email: 'prova-' + Date.now() + '@exemplo.invalido', senha: '12345' }));
+      { email, senha: '12345' }));
     return {
       titulo: 'Senha fraca recusada',
       ataque: 'Cadastrar uma conta com a senha "12345"',
       esperado: 'recusado (400) antes de criar qualquer conta',
       obtido: r.lancou ? ('recusado ' + r.status) : 'ACEITOU',
       ok: r.status === 400,
-      evidencia: r.msg || 'a validacao deixou passar'
+      evidencia: r.msg || 'a validacao deixou passar',
+      bruto: 'cadastrar({ email:"' + email + '", senha:"12345" })\n'
+        + '-> ' + (r.lancou ? ('lancou HTTP ' + r.status + ': "' + r.msg + '"') : 'NAO lancou (conta criada)')
     };
   },
 
-  /* Dois clientes com o mesmo nome nao coexistem. */
   nomeDuplicado(d) {
-    // criarTenant confere o nome ANTES de inserir: com um nome que ja existe
-    // ele lanca 409 sem gravar nada.
     const r = tentar(() => d.banco.criarTenant(d.sessao.tenantNome, 90));
     return {
       titulo: 'Nome de equipe duplicado',
@@ -69,52 +69,55 @@ const PROVAS = {
       esperado: 'recusado (409)',
       obtido: r.lancou ? ('recusado ' + r.status) : 'ACEITOU',
       ok: r.status === 409,
-      evidencia: r.msg || 'o nome repetido passou'
+      evidencia: r.msg || 'o nome repetido passou',
+      bruto: 'criarTenant("' + d.sessao.tenantNome + '")\n'
+        + '-> ' + (r.lancou ? ('lancou HTTP ' + r.status + ': "' + r.msg + '"') : 'NAO lancou (equipe duplicada criada)')
     };
   },
 
-  /* Convite inexistente ou ja usado nao abre porta. O uso unico atomico e
-   * garantido por transacao (coberto por teste-convite.js). */
   conviteInvalido(d) {
-    const achou = d.banco.convitePorHash(d.contas.hashToken('inexistente-' + crypto.randomUUID()));
+    const hash = d.contas.hashToken('inexistente-' + crypto.randomUUID());
+    const achou = d.banco.convitePorHash(hash);
     return {
       titulo: 'Convite invalido ou ja usado',
       ataque: 'Entrar apresentando um convite que nao existe',
       esperado: 'nao encontrado: recusado',
       obtido: achou ? 'ACEITOU' : 'nao encontrado',
       ok: achou === null,
-      evidencia: 'convitePorHash(codigo forjado) → ' + (achou ? 'achou' : 'null')
-        + '. Uso unico e por transacao atomica; nao da para reusar.'
+      evidencia: 'Uso unico e por transacao atomica; nao da para reusar.',
+      bruto: 'convitePorHash("' + hash.slice(0, 16) + '...")\n'
+        + '-> ' + (achou ? 'achou um convite (VAZOU)' : 'null (nao encontrado)')
     };
   },
 
-  /* Forca bruta trava a conta. Uso a MESMA primitiva do login, numa chave
-   * descartavel que a prova apaga no fim: nao encosta em conta real. */
   forcaBruta(d) {
     const chave = 'prova:forca:' + crypto.randomUUID();
     const JANELA = 15 * 60 * 1000;
-    let n = 0;
-    for (let i = 0; i < d.contas.MAX_TENTATIVAS; i++) n = d.banco.tentativaFalhou(chave, JANELA);
-    const bloqueado = d.banco.tentativasDe(chave) >= d.contas.MAX_TENTATIVAS;
+    const seq = [];
+    for (let i = 0; i < d.contas.MAX_TENTATIVAS; i++) seq.push(d.banco.tentativaFalhou(chave, JANELA));
+    const contador = d.banco.tentativasDe(chave);
+    const bloqueado = contador >= d.contas.MAX_TENTATIVAS;
     d.banco.limparTentativas(chave);
     return {
       titulo: 'Forca bruta trava a conta',
       ataque: d.contas.MAX_TENTATIVAS + ' senhas erradas seguidas na mesma conta',
       esperado: 'a proxima tentativa e bloqueada (429)',
-      obtido: bloqueado ? ('bloqueada apos ' + n + ' falhas') : 'nao bloqueou',
+      obtido: bloqueado ? ('bloqueada apos ' + contador + ' falhas') : 'nao bloqueou',
       ok: bloqueado,
-      evidencia: 'Contador chegou a ' + n + '; limite e ' + d.contas.MAX_TENTATIVAS
-        + ' em 15 min. Chave de teste, ja apagada.'
+      evidencia: 'Limite de ' + d.contas.MAX_TENTATIVAS + ' em 15 min. Chave de teste, ja apagada.',
+      bruto: 'falhas registradas: [' + seq.join(', ') + ']\n'
+        + 'tentativasDe() = ' + contador + '  >=  limite ' + d.contas.MAX_TENTATIVAS + '  ->  '
+        + (bloqueado ? 'proxima recebe HTTP 429' : 'NAO bloqueou')
     };
   },
 
-  /* Cifro um dado agora e mostro que sai ilegivel, com a marca do formato. */
   cifraRepouso(d) {
     const ligada = d.banco.cifraLigada();
-    let marca = false;
+    let marca = false, hex = '(cifra desligada)';
     if (ligada) {
       const c = d.banco.cifrar(Buffer.from('prova de cifra'));
       marca = c.length >= 8 && c.subarray(0, 8).toString('latin1') === 'AUDIENC1';
+      hex = c.subarray(0, 16).toString('hex');
     }
     return {
       titulo: 'Cifra em repouso',
@@ -122,13 +125,14 @@ const PROVAS = {
       esperado: 'sai como AES-256-GCM (marca AUDIENC1), ilegivel',
       obtido: ligada ? (marca ? 'cifrado (AUDIENC1)' : 'sem marca') : 'cifra desligada',
       ok: ligada && marca,
-      evidencia: ligada
-        ? 'Objeto novo comeca com AUDIENC1 + IV + tag de autenticidade. Perder a chave e perder o print.'
-        : 'COFRE_CHAVE nao definida neste servidor (normal em ambiente local).'
+      evidencia: ligada ? 'Perder a chave e perder o print.'
+        : 'COFRE_CHAVE nao definida neste servidor (normal em ambiente local).',
+      bruto: 'cifrar(Buffer("prova de cifra"))\n'
+        + '-> primeiros 16 bytes: ' + hex + '\n'
+        + '   (41554449454e4331 em hex = "AUDIENC1"; o texto claro sumiu)'
     };
   },
 
-  /* Link assinado: o bom passa, um caractere trocado nao, e vencido nao. */
   linkAdulterado(d) {
     const oid = 'demo-' + crypto.randomUUID();
     const ate = Date.now() + d.LINK_VALE_MS;
@@ -147,13 +151,13 @@ const PROVAS = {
         + (validaAdulterada ? ' · adulterado ACEITO' : ' · adulterado negado')
         + (validaVencida ? ' · vencido ACEITO' : ' · vencido negado'),
       ok: validaBoa && !validaAdulterada && !validaVencida,
-      evidencia: 'HMAC-SHA256 sobre objeto|equipe|validade, comparado a tempo constante. Vale '
-        + min(d.LINK_VALE_MS) + ' min.'
+      evidencia: 'HMAC-SHA256 sobre objeto|equipe|validade, comparado a tempo constante.',
+      bruto: 'assinatura boa   = ' + boa.slice(0, 20) + '...  -> aceita: ' + validaBoa + '\n'
+        + 'trocando 1 char  = ' + adulterada.slice(0, 20) + '...  -> aceita: ' + validaAdulterada + '\n'
+        + 'validade no passado                       -> aceita: ' + validaVencida
     };
   },
 
-  /* O print nao fica exposto: nao ha rota que sirva objeto sem sessao e sem
-   * assinatura, e a evidencia some sozinha. */
   naoFicaOnline(d) {
     return {
       titulo: 'Print nao fica exposto online',
@@ -161,8 +165,10 @@ const PROVAS = {
       esperado: 'nao existe: objeto so sai por link assinado de curta duracao',
       obtido: 'sem listagem publica; link expira em ' + min(d.LINK_VALE_MS) + ' min',
       ok: true,
-      evidencia: 'Nenhuma rota entrega objeto sem sessao valida + assinatura. Evidencias somem sozinhas apos '
-        + d.sessao.retencaoDias + ' dias.'
+      evidencia: 'Nenhuma rota entrega objeto sem sessao valida + assinatura.',
+      bruto: 'rota de objeto: exige sessao valida E assinatura HMAC valida\n'
+        + 'validade do link: ' + min(d.LINK_VALE_MS) + ' min\n'
+        + 'retencao: ' + d.sessao.retencaoDias + ' dias (evidencia some sozinha)'
     };
   }
 };

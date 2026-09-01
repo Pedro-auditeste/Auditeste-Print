@@ -156,6 +156,13 @@
   .pr-linha{display:flex;gap:8px;margin:2px 0;}
   .pr-linha i{font-style:normal;color:var(--navy);font-weight:600;min-width:82px;}
   .pr-linha span{color:var(--muted);}
+  details.cru{margin-top:9px;}
+  details.cru summary{cursor:pointer;color:var(--navy);font-size:.78rem;font-weight:600;list-style:none;user-select:none;}
+  details.cru summary::-webkit-details-marker{display:none;}
+  details.cru summary::before{content:"▸ ";color:var(--green);}
+  details.cru[open] summary::before{content:"▾ ";}
+  details.cru pre{margin:8px 0 0;background:#0d3446;color:#dbe7ef;border-radius:8px;padding:11px 13px;
+    font-size:.76rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;overflow-x:auto;}
 
   /* ---------- tela de entrada: dois paineis ----------
    *
@@ -944,7 +951,9 @@
         '<div class="veredito ' + (r.ok?'ok':'nao') + '">'
         + (r.ok?'✓ DEFESA FUNCIONOU':'! FALHOU') + '</div>'
         + linha('Ataque', r.ataque) + linha('Esperado', r.esperado)
-        + linha('Obtido', r.obtido) + linha('Evidência', r.evidencia);
+        + linha('Obtido', r.obtido) + linha('Evidência', r.evidencia)
+        + (r.bruto ? '<details class="cru"><summary>ver detalhe técnico</summary>'
+            + '<pre>' + esc(r.bruto) + '</pre></details>' : '');
     }catch(err){
       bloco.classList.remove('ok'); bloco.classList.add('falhou');
       res.innerHTML = '<div class="veredito nao">! erro ao rodar</div>' + linha('Motivo', err.message);
