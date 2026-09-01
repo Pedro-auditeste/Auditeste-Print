@@ -316,6 +316,10 @@ function equipesAlcancaveis(usuarioId) {
   const clientes = db.prepare('SELECT id, nome FROM tenants WHERE provedor = 0 ORDER BY nome').all();
   for (const c of clientes) {
     if (jaTem.has(c.id)) continue;
+    /* Segmento e uma sub-equipe PRIVADA (nome "Base · X"): so quem e membro
+     * direto entra. Uma provedora enxerga clientes reais, nunca o segmento de
+     * outra pessoa, senao a equipe aparece para quem nao faz parte dela. */
+    if (c.nome.includes(' · ')) continue;
     proprias.push({ id: c.id, nome: c.nome, papel: prov.papel, via: 'provedor' });
   }
   return proprias;
@@ -335,6 +339,11 @@ function acessoA(tenantId, usuarioId) {
   /* Provedora nao entra em outra provedora: sao pares, nao cliente uma da
    * outra, e permitir isso seria escalonamento lateral. */
   if (!alvo || alvo.provedor) return null;
+  /* Segmento e sub-equipe privada: so entra quem tem vinculo direto (tratado
+   * acima). Nem a provedora alcanca o segmento de outra pessoa. Tem que casar
+   * com equipesAlcancaveis, senao a equipe some da lista mas ainda deixa
+   * entrar, ou aparece na lista e recusa a entrada. */
+  if (alvo.nome.includes(' · ')) return null;
   /* Leitor da provedora fica na provedora: papel mais fraco nao sai visitando
    * cliente. */
   if (prov.papel === 'leitor') return null;

@@ -175,5 +175,24 @@ caso('excluir com EXCLUIR apaga; e se estava nele, volta para a base', () => {
   assert.ok(r.sessao && r.sessao.tenantId === org.id, 'a sessao voltou para a base');
 });
 
+console.log('\nsegmento nao vaza para provedora\n');
+
+caso('provedora ve cliente real, mas NAO ve nem entra em segmento alheio', () => {
+  const gov = banco.criarTenant('GovX', 90);
+  banco.marcarProvedor(gov.id, true);
+  const prov = banco.criarUsuario('provedor@x.com', 'h');
+  banco.vincular(gov.id, prov.id, 'admin');
+  const cliente = banco.criarTenant('ClienteX', 90);
+  const seg = banco.criarTenant('GovX · secreto', 90);
+  const dono = banco.criarUsuario('dono-seg2@x.com', 'h');
+  banco.vincular(seg.id, dono.id, 'admin');
+
+  const nomes = banco.equipesAlcancaveis(prov.id).map(t => t.nome);
+  assert.ok(nomes.includes('ClienteX'), 'cliente real deve aparecer para a provedora');
+  assert.ok(!nomes.includes('GovX · secreto'), 'segmento alheio NAO pode aparecer');
+  assert.strictEqual(banco.acessoA(seg.id, prov.id), null, 'provedora nao entra no segmento alheio');
+  assert.ok(banco.acessoA(seg.id, dono.id), 'o membro direto do segmento entra normal');
+});
+
 banco.fechar();
 console.log('\n' + n + ' casos, tudo certo\n');
