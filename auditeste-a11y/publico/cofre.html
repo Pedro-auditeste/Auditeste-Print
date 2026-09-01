@@ -346,7 +346,12 @@
           Para entrar numa equipe que já existe, cole o convite que alguém dela gerou.
         </p>
         <label><span>E-mail</span><input type="email" id="novoEmail" autocomplete="username" required></label>
-        <label><span>Senha</span><input type="password" id="novaSenha" autocomplete="new-password" required></label>
+        <label class="campo-senha"><span>Senha</span>
+          <input type="password" id="novaSenha" autocomplete="new-password" required>
+          <button type="button" class="olho" id="olhoNovaSenha" aria-label="Mostrar senha" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+          </button>
+        </label>
         <label id="campoEquipe"><span>Nome da equipe</span>
           <input type="text" id="novaEquipe" placeholder="Ex.: Amazon" autocomplete="organization"></label>
         <label><span>Convite (opcional)</span>
@@ -581,14 +586,20 @@
   $('abaEntrar').addEventListener('click', () => abrir('entrar'));
   $('abaCriar').addEventListener('click', () => abrir('criar'));
 
-  /* Olho: mostra e esconde a senha. Puro visual, sem tocar em nada do envio. */
-  $('olhoSenha').addEventListener('click', () => {
-    const campo = $('senha');
-    const vendo = campo.type === 'text';
-    campo.type = vendo ? 'password' : 'text';
-    $('olhoSenha').setAttribute('aria-pressed', String(!vendo));
-    $('olhoSenha').setAttribute('aria-label', vendo ? 'Mostrar senha' : 'Esconder senha');
-  });
+  /* Olho: mostra e esconde a senha. Puro visual, sem tocar em nada do envio.
+   * Serve tanto para o campo de entrar quanto para o de criar conta. */
+  function ligarOlho(olhoId, campoId){
+    const olho = $(olhoId), campo = $(campoId);
+    if(!olho || !campo) return;
+    olho.addEventListener('click', () => {
+      const vendo = campo.type === 'text';
+      campo.type = vendo ? 'password' : 'text';
+      olho.setAttribute('aria-pressed', String(!vendo));
+      olho.setAttribute('aria-label', vendo ? 'Mostrar senha' : 'Esconder senha');
+    });
+  }
+  ligarOlho('olhoSenha', 'senha');
+  ligarOlho('olhoNovaSenha', 'novaSenha');
 
   /* Nao existe reset de senha por conta propria: quem cria a conta e o
    * admin.js, e a troca passa por ele. Um link para lugar nenhum seria pior
