@@ -33,6 +33,10 @@ on:
 jobs:
   analise:
     name: JavaScript
+    # Só no repositório principal. O CodeQL publica os achados na aba Security,
+    # que exige "Code scanning" ligado no repo. No espelho (carvalh001) isso
+    # não está habilitado, então lá o job é pulado em vez de falhar em vermelho.
+    if: github.repository == 'Pedro-auditeste/Auditeste-Print'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
