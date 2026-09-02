@@ -1051,7 +1051,10 @@
         + linha('Obtido', r.obtido)
         + linha('Tempo', ms + ' ms · rodado agora, ' + new Date().toLocaleTimeString('pt-BR'))
         + linha('Evidência', r.evidencia)
-        + (r.bruto ? '<details class="cru"><summary>ver detalhe técnico</summary>'
+        /* Aberto de proposito: a evidencia crua e a prova. Escondida atras de
+         * um clique, quem le fica com a mensagem bonitinha e nao com o dado,
+         * que e exatamente o que faz "tela verde" nao valer nada. */
+        + (r.bruto ? '<details class="cru" open><summary>evidência crua · saída real do servidor</summary>'
             + '<pre>' + esc(r.bruto) + '</pre></details>' : '');
     }catch(err){
       bloco.classList.remove('ok'); bloco.classList.add('falhou');
