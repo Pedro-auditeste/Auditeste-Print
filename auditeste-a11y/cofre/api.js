@@ -409,9 +409,13 @@ async function tratar(req, res, u, lerCorpo) {
       const c = await lerCorpo(req);
       const nome = texto(c.nome, 'Nome do projeto', 120, true);
       const cliente = texto(c.cliente, 'Cliente', 120, false);
-      const proj = banco.criarProjeto(s.tenantId, s.usuarioId, nome, cliente);
-      banco.auditar(s.tenantId, s.usuarioId, 'projeto.criado', proj.id, s.ip);
-      json(res, 201, { projeto: podarProjeto(proj) });
+      /* Quem esta na equipe base pode mandar o projeto para um segmento dela.
+       * O destino e validado no servidor (segmento da MINHA base + vinculo que
+       * grava), nunca aceito so porque veio no corpo do pedido. */
+      const destino = contas.destinoDoProjeto(s, c.segmentoId);
+      const proj = banco.criarProjeto(destino, s.usuarioId, nome, cliente);
+      banco.auditar(destino, s.usuarioId, 'projeto.criado', proj.id, s.ip);
+      json(res, 201, { projeto: podarProjeto(proj), tenantId: destino });
       return true;
     }
 

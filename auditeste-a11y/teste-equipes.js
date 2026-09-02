@@ -185,6 +185,60 @@ caso('excluir com EXCLUIR apaga; e se estava nele, volta para a base', () => {
   assert.ok(r.sessao && r.sessao.tenantId === org.id, 'a sessao voltou para a base');
 });
 
+console.log('');
+console.log('criar projeto dentro de um segmento');
+console.log('');
+
+caso('da base, escolher um segmento manda o projeto para la', () => {
+  const org = banco.criarTenant('OrgProj', 90);
+  const dono = banco.criarUsuario('dono-proj@x.com', 'h');
+  banco.vincular(org.id, dono.id, 'admin');
+  const s = sess(dono, org);
+  contas.criarSegmento(reqFalso, s, 'Alpha');
+  const seg = banco.tenantPorNome('OrgProj · Alpha');
+
+  const destino = contas.destinoDoProjeto(s, seg.id);
+  assert.strictEqual(destino, seg.id, 'o destino tem de ser o segmento');
+  banco.criarProjeto(destino, dono.id, 'Projeto no segmento', 'C');
+  assert.strictEqual(banco.listarProjetos(seg.id).length, 1, 'aparece no segmento');
+  assert.strictEqual(banco.listarProjetos(org.id).length, 0, 'e NAO na base');
+});
+
+caso('sem escolher nada, o projeto vai para a equipe da sessao', () => {
+  const org = banco.tenantPorNome('OrgProj');
+  const dono = banco.usuarioPorEmail('dono-proj@x.com');
+  assert.strictEqual(contas.destinoDoProjeto(sess(dono, org), ''), org.id);
+  assert.strictEqual(contas.destinoDoProjeto(sess(dono, org), undefined), org.id);
+});
+
+caso('CRITERIO: id de segmento de OUTRA empresa e recusado (404)', () => {
+  const org = banco.tenantPorNome('OrgProj');
+  const dono = banco.usuarioPorEmail('dono-proj@x.com');
+  banco.criarTenant('OutraOrg', 90);
+  const alheio = banco.criarTenant('OutraOrg · Secreto', 90);
+  const estranho = banco.criarUsuario('estranho-proj@x.com', 'h');
+  banco.vincular(alheio.id, estranho.id, 'admin');
+  assert.ok(recusa(() => contas.destinoDoProjeto(sess(dono, org), alheio.id), 404),
+    'segmento de outra base nao pode ser destino');
+  assert.strictEqual(banco.listarProjetos(alheio.id).length, 0, 'nada foi escrito la');
+});
+
+caso('CRITERIO: segmento da minha base em que NAO sou membro e recusado (403)', () => {
+  const org = banco.tenantPorNome('OrgProj');
+  const dono = banco.usuarioPorEmail('dono-proj@x.com');
+  const semVinculo = banco.criarTenant('OrgProj · SemMim', 90);
+  assert.ok(recusa(() => contas.destinoDoProjeto(sess(dono, org), semVinculo.id), 403));
+});
+
+caso('CRITERIO: leitor do segmento nao cria projeto la (403)', () => {
+  const org = banco.tenantPorNome('OrgProj');
+  const seg = banco.tenantPorNome('OrgProj · Alpha');
+  const leitor = banco.criarUsuario('leitor-proj@x.com', 'h');
+  banco.vincular(org.id, leitor.id, 'admin');
+  banco.vincular(seg.id, leitor.id, 'leitor');
+  assert.ok(recusa(() => contas.destinoDoProjeto(sess(leitor, org), seg.id), 403));
+});
+
 console.log('\nsegmento nao vaza para provedora\n');
 
 caso('provedora ve cliente real, mas NAO ve nem entra em segmento alheio', () => {

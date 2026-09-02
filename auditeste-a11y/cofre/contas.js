@@ -342,6 +342,34 @@ function criarSegmento(req, sessao, nome) {
   return { segmento: { id: t.id, nome: t.nome, sufixo: n } };
 }
 
+/* Onde criar, quando quem esta na equipe BASE escolhe um segmento no formulario.
+ *
+ * Devolve o tenant de destino, ja validado. Sem segmentoId escolhido, e a
+ * propria equipe da sessao, e nada muda.
+ *
+ * As duas travas que fazem isso nao virar um buraco: o destino tem de ser um
+ * segmento DA MINHA BASE (nao serve o segmento de outra empresa, mesmo que
+ * alguem descubra o id), e eu tenho de ser membro dele com papel que grava.
+ * Sem a primeira, um id vazado escreveria dentro de outro cliente; sem a
+ * segunda, um leitor criaria projeto onde nao pode. */
+function destinoDoProjeto(sessao, segmentoId) {
+  const alvo = String(segmentoId || '').trim();
+  if (!alvo || alvo === sessao.tenantId) return sessao.tenantId;
+
+  const t = banco.obterTenant(alvo);
+  const base = baseDe(sessao.tenantNome);
+  if (!t || !base || t.nome.indexOf(base + ' · ') !== 0) {
+    const e = new Error('Este segmento nao pertence a esta equipe.');
+    e.status = 404; throw e;
+  }
+  const v = banco.vinculo(alvo, sessao.usuarioId);
+  if (!v || (PAPEIS[v.papel] || 0) < PAPEIS.consultor) {
+    const e = new Error('Voce nao pode criar dentro deste segmento.');
+    e.status = 403; throw e;
+  }
+  return alvo;
+}
+
 function segmentoDoUsuario(sessao, tenantId) {
   const t = banco.obterTenant(tenantId);
   if (!t || !t.nome.includes(' · ')) {
@@ -526,7 +554,7 @@ const HASH_ISCA = hashSenha(crypto.randomBytes(32).toString('hex'));
 
 module.exports = {
   hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, criarEquipe, trocarEquipe, sair, sessaoDe, podeOuErro,
-  baseDe, listarSegmentos, criarSegmento, renomearSegmento, excluirSegmento,
+  baseDe, listarSegmentos, criarSegmento, renomearSegmento, excluirSegmento, destinoDoProjeto,
   novoCodigo, SENHA_MINIMA, CADASTRO_ABERTO, MAX_EQUIPES_POR_IP,
   lerCookie, cookieLimpo, ipDe, hashToken, novoToken,
   COOKIE, DURACAO_MS, MAX_TENTATIVAS, PAPEIS

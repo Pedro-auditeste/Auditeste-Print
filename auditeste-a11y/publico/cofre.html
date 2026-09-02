@@ -409,6 +409,7 @@
       <form id="formProjeto" class="linha" style="margin-top:14px">
         <input type="text" id="nomeProjeto" placeholder="Nome do projeto" style="flex:1;min-width:180px">
         <input type="text" id="clienteProjeto" placeholder="Cliente (opcional)" style="flex:1;min-width:160px">
+        <select id="ondeProjeto" aria-label="Onde criar o projeto" hidden style="min-width:170px"></select>
         <button class="btn primario" type="submit">Criar</button>
       </form>
     </div>
@@ -805,6 +806,19 @@
         + '<button class="btn primario" type="submit">Criar</button></form>';
     }
     $('painelSegmentos').innerHTML = html;
+    encherOndeCriar(base, segs);
+  }
+
+  /* O seletor de destino do formulario de projeto. So aparece para quem esta
+   * na equipe base E tem segmento: dentro de um segmento nao ha escolha, e sem
+   * segmento um select de uma opcao so e ruido. */
+  function encherOndeCriar(base, segs){
+    const sel = $('ondeProjeto');
+    if(souSegmento() || !segs.length){ sel.hidden = true; sel.innerHTML = ''; return; }
+    sel.hidden = false;
+    sel.innerHTML = '<option value="">Criar em: ' + esc(base) + '</option>'
+      + segs.map(t => '<option value="' + esc(t.id) + '">Criar em: '
+        + esc(t.nome.slice((base + SEP).length)) + '</option>').join('');
   }
 
   $('painelSegmentos').addEventListener('click', async e => {
@@ -853,8 +867,18 @@
     const nome = $('nomeProjeto').value.trim();
     if(!nome) return;
     try{
-      await api('/api/projetos', { json: { nome, cliente: $('clienteProjeto').value.trim() } });
+      const destino = ($('ondeProjeto') && !$('ondeProjeto').hidden) ? $('ondeProjeto').value : '';
+      const r = await api('/api/projetos', {
+        json: { nome, cliente: $('clienteProjeto').value.trim(), segmentoId: destino || undefined }
+      });
       $('nomeProjeto').value = ''; $('clienteProjeto').value = '';
+      /* Criou dentro de um segmento: leva a pessoa para la. Deixar ela na base
+       * mostrando "nenhum projeto" depois de criar um e a confusao classica. */
+      if(destino && r.tenantId && r.tenantId !== eu.tenantId){
+        await api('/api/trocar-equipe', { json: { tenantId: r.tenantId } });
+        location.reload();
+        return;
+      }
       avisar('Projeto criado.');
       await abrirProjetos();
     }catch(err){ avisar(err.message, true); }
