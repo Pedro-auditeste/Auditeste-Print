@@ -78,11 +78,27 @@ if (EXPOSTO_SEM_TOKEN) {
   console.warn('Defina PONTE_TOKEN na Railway para exigir token em todas as chamadas.');
 }
 
+/* A origem do proprio servidor SEMPRE e liberada, alem do que estiver em
+ * PONTE_ORIGENS. Sem isto, PONTE_ORIGENS desatualizada (apontando para um
+ * ambiente antigo, por exemplo) faz o navegador bloquear o Print chamando
+ * ele mesmo -- com "Allow-Origin: null" e nenhum erro claro na tela.
+ *
+ * Seguro: HOST_CANONICO vem de PONTE_HOST ou de RAILWAY_PUBLIC_DOMAIN, os
+ * dois escritos pelo ambiente, nunca por quem faz o pedido. Ninguem forja
+ * isso mandando um cabecalho Origin diferente. */
+function origemLiberada(origem) {
+  if (ORIGENS === '*') return '*';
+  const configurada = ORIGENS.split(',').map(s => s.trim()).includes(origem);
+  let mesmoHost = false;
+  if (HOST_CANONICO && origem) {
+    try { mesmoHost = new URL(origem).hostname.toLowerCase() === HOST_CANONICO; } catch (e) { /* origem malformada */ }
+  }
+  return (configurada || mesmoHost) ? origem : 'null';
+}
+
 function cabecalho(origem) {
-  const permitida = ORIGENS === '*' ? '*'
-    : (ORIGENS.split(',').map(s => s.trim()).includes(origem) ? origem : 'null');
   return {
-    'Access-Control-Allow-Origin': permitida,
+    'Access-Control-Allow-Origin': origemLiberada(origem),
     'Access-Control-Allow-Headers': 'authorization,content-type',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'X-Content-Type-Options': 'nosniff',
@@ -445,7 +461,7 @@ const servidor = http.createServer(async (req, res) => {
         'Content-Type': 'application/zip',
         'Content-Disposition': 'attachment; filename="audi-print-extensao.zip"',
         'Content-Length': zip.length,
-        'Access-Control-Allow-Origin': ORIGENS === '*' ? '*' : origem
+        'Access-Control-Allow-Origin': origemLiberada(origem)
       });
       return res.end(zip);
     } catch (err) {

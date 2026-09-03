@@ -37,7 +37,8 @@
     "teste-cofre": "node teste-cofre.js",
     "teste-cifra": "node teste-cifra.js",
     "teste-backup": "node teste-backup.js",
-    "teste-privacidade": "node teste-privacidade.js"
+    "teste-privacidade": "node teste-privacidade.js",
+    "teste-cors": "node teste-cors-proprio.js"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",
