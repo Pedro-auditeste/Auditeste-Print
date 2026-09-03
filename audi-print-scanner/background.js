@@ -178,7 +178,14 @@ async function finalizar(tabId) {
       sessao.pendente = null;
       sessao.finalizando = false;
       await gravar(tabId, sessao);
-      empurrarParaPrint(sessao.passos[sessao.passos.length - 1], sessao);
+      /* AWAIT de proposito, nao "atire e esqueca": no service worker do
+       * Manifest V3, uma chamada assincrona disparada sem await nao segura
+       * o worker vivo, e o Chrome pode encerra-lo assim que finalizar()
+       * devolve o controle -- abandonando o push a meio caminho, calado, sem
+       * erro nenhum. Foi exatamente esse o bug que fazia o passo fechar e
+       * salvar (isso e' sincrono) mas nao empurrar: o service worker morria
+       * antes do chrome.tabs.sendMessage() la dentro rodar. */
+      await empurrarParaPrint(sessao.passos[sessao.passos.length - 1], sessao);
     } catch (erro) {
       sessao.finalizando = false;
       sessao.erro = erro.message;
@@ -219,7 +226,7 @@ async function empurrarParaPrint(passo, sessao) {
   let abas = [];
   try { abas = await chrome.tabs.query({ url: ABAS_PRINT }); } catch (_) { return; }
   for (const aba of abas) {
-    chrome.tabs.sendMessage(aba.id, {
+    await chrome.tabs.sendMessage(aba.id, {
       tipo: 'AUDI_NOVO_PASSO',
       passo,
       origem: { url: sessao.url || '', titulo: sessao.titulo || '' }
@@ -279,6 +286,14 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
 function avisarAba(tabId, ativa) {
   chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_SESSAO', ativa }).catch(() => {});
 }
+
+/* A outra ponta da conexao que o content script abre a cada acao. So existir
+ * ja basta: enquanto a porta esta aberta, o Chrome nao encerra este service
+ * worker por inatividade, o que da tempo do setTimeout de
+ * agendarFinalizacao() disparar e o push acontecer de verdade. */
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'audi-keepalive') return;
+});
 
 chrome.runtime.onMessage.addListener((msg, sender, responder) => {
   /* O alvo explicito vence o remetente: o popup manda tabId dizendo qual aba

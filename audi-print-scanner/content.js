@@ -228,6 +228,21 @@
     // O background so responde depois de tirar o print "antes", entao a marca
     // fica na tela exatamente ate a captura acontecer — nem menos, nem mais.
     segurarAte(tirarMarca, chrome.runtime.sendMessage({ tipo: 'AUDI_ACAO', acao }));
+
+    /* Mantem o service worker vivo ate o passo fechar e empurrar sozinho.
+     *
+     * O fechamento (print "depois" + push) acontece num setTimeout DENTRO do
+     * service worker, ate ESPERA_MAX_MS depois deste clique -- e um
+     * setTimeout sozinho nao segura um service worker de Manifest V3 vivo. O
+     * Chrome pode encerra-lo assim que o AUDI_ACAO acima e respondido, e ai o
+     * passo fecha e salva (isso roda so' quando o worker acorda de novo por
+     * outro motivo) mas nunca empurra: some sem erro nenhum na tela.
+     * Content script roda na pagina, nao no worker, entao nao sofre desse
+     * ciclo de vida -- e por isso e' ele quem segura a conexao. */
+    try {
+      const manterVivo = chrome.runtime.connect({ name: 'audi-keepalive' });
+      setTimeout(() => { try { manterVivo.disconnect(); } catch (_) {} }, 9000);
+    } catch (_) { /* extensao recarregando: o proximo clique tenta de novo */ }
   }
 
   document.addEventListener('pointerdown', (evento) => {

@@ -40,7 +40,8 @@
     "teste-privacidade": "node teste-privacidade.js",
     "teste-cors": "node teste-cors-proprio.js",
     "teste-extensao-origens": "node teste-extensao-origens.js",
-    "teste-importar-extensao": "node teste-importar-extensao.js"
+    "teste-importar-extensao": "node teste-importar-extensao.js",
+    "teste-push-automatico": "node teste-push-automatico.js"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",
