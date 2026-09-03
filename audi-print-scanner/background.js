@@ -202,8 +202,14 @@ function agendarFinalizacao(tabId) {
  * pode existir durante a gravacao. Avisar falha de proposito calado em aba sem
  * content script (chrome://, PDF, aba recem-aberta). */
 /* Onde o Print pode estar aberto. Mesma lista do content script: se mudar aqui,
- * mude la tambem. */
+ * mude la tambem.
+ *
+ * Dois dominios Railway de proposito: o do usuario (audiprint) e o espelho
+ * temporario (audi-print-production), que e o que esta no ar hoje. Sem o
+ * segundo aqui, a extensao gravava certinho mas nunca achava a aba do Print
+ * para empurrar o passo -- a gravacao "sumia" sem erro nenhum na tela. */
 const ABAS_PRINT = ['https://audiprint.up.railway.app/*',
+  'https://audi-print-production.up.railway.app/*',
   'http://localhost/*', 'http://127.0.0.1/*'];
 
 /* Passo pronto vai direto para o Print, sem o usuario ir la clicar em trazer.
@@ -232,6 +238,7 @@ function ehAbaDePrint(url) {
   return ORIGENS_PRINT_URL.some((o) => u.startsWith(o));
 }
 const ORIGENS_PRINT_URL = ['https://audiprint.up.railway.app',
+  'https://audi-print-production.up.railway.app',
   'http://localhost', 'http://127.0.0.1'];
 
 async function comecarSeArmado(tabId) {

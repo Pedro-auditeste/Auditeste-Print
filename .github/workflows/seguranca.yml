@@ -148,3 +148,4 @@ jobs:
           node teste-equipes.js
           node teste-provas.js
           node teste-cors-proprio.js
+          node teste-extensao-origens.js

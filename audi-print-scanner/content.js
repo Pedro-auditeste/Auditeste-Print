@@ -375,8 +375,13 @@
    *
    * So nas origens do Print: as sessoes contem prints de outras abas, entao
    * qualquer site poder pedi-las seria vazamento. Se voce hospedar o Print em
-   * outro endereco, acrescente-o aqui. */
-  const ORIGENS_PRINT = ['https://audiprint.up.railway.app'];
+   * outro endereco, acrescente-o aqui.
+   *
+   * Mesma lista do background.js: o espelho audi-print-production e' onde o
+   * Print esta no ar agora, e sem ele aqui a pagina do proprio Print nao era
+   * reconhecida como Print. */
+  const ORIGENS_PRINT = ['https://audiprint.up.railway.app',
+    'https://audi-print-production.up.railway.app'];
 
   /* Local e a maquina do proprio usuario, entao qualquer porta serve.
    *
