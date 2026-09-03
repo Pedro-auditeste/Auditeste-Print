@@ -1158,6 +1158,9 @@
          title="Instala o complemento pela Chrome Web Store, com atualização automática">Instalar complemento</a>
       <button type="button" class="btn pequeno discreto" data-acao="baixarExtensao" id="btnBaixarExtensao"
          title="Para máquina onde a Chrome Web Store está bloqueada">.zip</button>
+      <input type="file" id="arqExtensao" accept="application/json,.json" hidden>
+      <button type="button" class="btn pequeno discreto" data-acao="importarExtensao" id="btnImportarExtensao"
+         title="Use quando Trazer captura do navegador não funcionar: no popup do complemento, clique em Exportar, e escolha o arquivo aqui">Importar arquivo da extensão</button>
       <button type="button" class="btn pequeno perigo-suave" data-acao="excluirPassos" id="btnExcluirPassos" disabled title="Remover todos os passos desta gravação">Excluir passos</button>
     </div>
     <div id="videoAtual"></div>
@@ -3410,6 +3413,32 @@
     return novos.length;
   }
 
+  /* Caminho manual, para quando a ponte automática (postMessage) não estiver
+   * funcionando: extensão desatualizada, bloqueio de política, origem que a
+   * extensão ainda não reconhece. No popup do complemento, o botão Exportar
+   * baixa exatamente este formato — é o mesmo dado, só que por arquivo em vez
+   * de mensagem entre abas. */
+  document.getElementById('arqExtensao').addEventListener('change', async (ev) => {
+    const arquivo = ev.target.files[0];
+    ev.target.value = '';   // permite escolher o mesmo arquivo de novo depois
+    if(!arquivo) return;
+    try{
+      const texto = await arquivo.text();
+      const dados = JSON.parse(texto);
+      if(dados.formato !== 'audi-print-evidencia-v1'){
+        avisar('Este arquivo não é uma exportação do complemento Audi Print.', true);
+        return;
+      }
+      if(!(dados.passos || []).length){ avisar('O arquivo não tem nenhum passo.', true); return; }
+      const novos = acrescentarPassos(dados);
+      if(!novos){ avisar('Estes passos já estavam na tela.'); return; }
+      avisar(novos + ' interação(ões) importada(s) do arquivo.');
+      await gerarDescricoesPendentes();
+    }catch(err){
+      avisar('Não consegui ler o arquivo: ' + ((err && err.message) || 'formato inválido'), true);
+    }
+  });
+
   /* ============ PONTE COM O SCANNER LOCAL ============ */
   const FERRAMENTAS = {
     axe: {
@@ -4725,6 +4754,7 @@
     }
     if(acao === 'puxarExtensao') return puxarDaExtensao();
     if(acao === 'baixarExtensao') return baixarExtensao();
+    if(acao === 'importarExtensao') return document.getElementById('arqExtensao').click();
     if(acao === 'excluirPassos') excluirPassosCapturados();
     if(acao === 'salvar') salvarNoProjeto();
     if(acao === 'descartar') limparGravacao(false).then(ok => { if(ok) abrirProjeto(projetoAtual.id); });
