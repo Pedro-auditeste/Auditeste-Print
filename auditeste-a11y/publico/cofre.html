@@ -816,9 +816,13 @@
     const sel = $('ondeProjeto');
     if(souSegmento() || !segs.length){ sel.hidden = true; sel.innerHTML = ''; return; }
     sel.hidden = false;
-    sel.innerHTML = '<option value="">Criar em: ' + esc(base) + '</option>'
+    /* Um segmento pode ter o MESMO nome da equipe base (nada impede) -- sem
+     * o rotulo "(equipe base)"/"(segmento)" as duas opcoes ficavam identicas
+     * na tela ("Criar em: teste" duas vezes), e escolher a errada manda o
+     * projeto para o lugar que ninguem esperava, sem aviso nenhum. */
+    sel.innerHTML = '<option value="">Criar em: ' + esc(base) + ' (equipe base)</option>'
       + segs.map(t => '<option value="' + esc(t.id) + '">Criar em: '
-        + esc(t.nome.slice((base + SEP).length)) + '</option>').join('');
+        + esc(t.nome.slice((base + SEP).length)) + ' (segmento)</option>').join('');
   }
 
   $('painelSegmentos').addEventListener('click', async e => {
