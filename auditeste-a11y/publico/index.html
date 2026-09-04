@@ -3253,6 +3253,15 @@
     if(origem) preencherCabecalho(origem);
     atualizar();
     if(typeof avisar === 'function') avisar(tituloCurto(p) + ' · chegou do navegador');
+    /* Os outros dois caminhos de trazer passo (botão "Trazer captura" e
+     * "Importar arquivo") já disparam a descrição sozinhos. Este é o
+     * caminho ao vivo -- o passo chega sem ninguém clicar em nada -- e por
+     * isso é o que mais precisa disso: sem a chamada aqui, o passo ficava
+     * parado em "Descrição pendente." até alguém notar e clicar no botão
+     * manual, um por um. gerarDescricoesPendentes() já tem fila própria
+     * (uma rodada por vez), então chamar de novo a cada passo que chega é
+     * seguro, mesmo em pushes rápidos e seguidos. */
+    gerarDescricoesPendentes();
   }
 
   function tituloCurto(p){
