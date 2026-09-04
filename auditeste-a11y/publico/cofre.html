@@ -776,11 +776,18 @@
   const baseNome = n => String(n || '').split(SEP)[0].trim();
   const souSegmento = () => String((eu && eu.tenantNome) || '').includes(SEP);
 
-  function renderPainelSegmentos(){
+  async function renderPainelSegmentos(){
     const base = baseNome(eu.tenantNome);
-    const equipes = (eu.equipes || []).filter(t => t.via !== 'provedor');
-    const baseTime = equipes.find(t => t.nome === base) || (!souSegmento() ? { id: eu.tenantId, nome: base } : null);
-    const segs = equipes.filter(t => t.nome.startsWith(base + SEP));
+    /* Busca fresco a cada chamada -- eu.equipes so e' preenchido uma vez no
+     * login (conferirSessao), entao depois de criar/renomear/excluir um
+     * segmento aqui mesmo, eu.equipes continuava com a lista de ANTES: o
+     * aviso dizia "Segmento criado" e o painel, do lado, continuava
+     * mostrando "Nenhum segmento ainda" ate a pagina ser recarregada.
+     * A tela antiga de segmentos (abrirSegmentos, mais abaixo) sempre fez
+     * assim, buscando fresco; esta e' a mesma correcao aqui. */
+    const d = await api('/api/segmentos').catch(() => null);
+    const baseTime = souSegmento() ? null : { id: eu.tenantId, nome: base };
+    const segs = (d && d.segmentos || []).map(s => ({ id: s.id, nome: s.nome }));
 
     const aba = (t, rotulo, sufixo) => {
       const atual = t && t.id === eu.tenantId;
@@ -844,7 +851,7 @@
     e.preventDefault();
     const nome = $('painelNomeSegmento').value.trim();
     if(!nome) return;
-    try{ await api('/api/segmentos', { json: { nome } }); avisar('Segmento criado.'); renderPainelSegmentos(); }
+    try{ await api('/api/segmentos', { json: { nome } }); avisar('Segmento criado.'); await renderPainelSegmentos(); }
     catch(err){ avisar(err.message, true); }
   });
 
@@ -860,7 +867,7 @@
     $('btnConvidar').hidden = !pode('gestor');
     /* Um segmento nao gerencia segmentos: some o atalho do cabecalho. */
     $('btnNovaEquipe').hidden = souSegmento();
-    renderPainelSegmentos();
+    await renderPainelSegmentos();
 
     const { projetos } = await api('/api/projetos');
     const alvo = $('listaProjetos');
