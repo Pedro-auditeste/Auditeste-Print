@@ -239,6 +239,21 @@ caso('CRITERIO: leitor do segmento nao cria projeto la (403)', () => {
   assert.ok(recusa(() => contas.destinoDoProjeto(sess(leitor, org), seg.id), 403));
 });
 
+caso('CRITERIO: vinculo VALIDO em OUTRA equipe nao serve para criar aqui (404)', () => {
+  // Nao e um estranho: a pessoa e admin de verdade da outra equipe. O ponto
+  // e que "Criar em" so pode apontar para a base ATUAL da sessao ou um
+  // segmento dela -- nunca para outra equipe, mesmo uma onde a pessoa tem
+  // vinculo legitimo. Trocar de equipe existe para isso; este seletor nao.
+  const org = banco.tenantPorNome('OrgProj');
+  const outraEquipe = banco.criarTenant('EquipeVizinha', 90);
+  const membroDasDuas = banco.criarUsuario('membro-duas-equipes@x.com', 'h');
+  banco.vincular(org.id, membroDasDuas.id, 'consultor');
+  banco.vincular(outraEquipe.id, membroDasDuas.id, 'admin');   // admin de verdade la
+  assert.ok(recusa(() => contas.destinoDoProjeto(sess(membroDasDuas, org), outraEquipe.id), 404),
+    'vinculo legitimo em outra equipe nao pode ser usado como destino a partir desta sessao');
+  assert.strictEqual(banco.listarProjetos(outraEquipe.id).length, 0, 'nada foi escrito na equipe vizinha');
+});
+
 console.log('\nsegmento nao vaza para provedora\n');
 
 caso('provedora ve cliente real, mas NAO ve nem entra em segmento alheio', () => {
