@@ -812,14 +812,22 @@
   /* O seletor de destino do formulario de projeto. So aparece para quem esta
    * na equipe base E tem segmento: dentro de um segmento nao ha escolha, e sem
    * segmento um select de uma opcao so e ruido. */
+  /* REGRA GERAL, vale para qualquer lista/seletor deste sistema que mostra
+   * nome escolhido pela pessoa (equipe, segmento, projeto): duas opcoes
+   * NUNCA podem ficar com o mesmo texto na tela, mesmo que o valor por
+   * baixo (o id) seja diferente. Nome de segmento e' so o SUFIXO (a base
+   * fica implicita), e nada impede um segmento de se chamar igual a
+   * equipe base -- entao mostrar so o sufixo faz duas opcoes diferentes
+   * parecerem identicas ("teste" e "teste"), e escolher a errada manda a
+   * coisa para o lugar que ninguem esperava, sem erro nenhum na tela.
+   * Ou usa o nome COMPLETO (nunca truncado -- e' assim que o seletor de
+   * equipe no topo da pagina ja e' seguro por construcao), ou, quando o
+   * texto precisa ficar curto, acrescenta um rotulo fixo que nao depende
+   * do nome escolhido (tipo "(equipe base)"/"(segmento)" abaixo). */
   function encherOndeCriar(base, segs){
     const sel = $('ondeProjeto');
     if(souSegmento() || !segs.length){ sel.hidden = true; sel.innerHTML = ''; return; }
     sel.hidden = false;
-    /* Um segmento pode ter o MESMO nome da equipe base (nada impede) -- sem
-     * o rotulo "(equipe base)"/"(segmento)" as duas opcoes ficavam identicas
-     * na tela ("Criar em: teste" duas vezes), e escolher a errada manda o
-     * projeto para o lugar que ninguem esperava, sem aviso nenhum. */
     sel.innerHTML = '<option value="">Criar em: ' + esc(base) + ' (equipe base)</option>'
       + segs.map(t => '<option value="' + esc(t.id) + '">Criar em: '
         + esc(t.nome.slice((base + SEP).length)) + ' (segmento)</option>').join('');
