@@ -149,16 +149,18 @@ async function finalizar(tabId) {
 
     try {
       const tab = await chrome.tabs.get(tabId);
-      const depois = await capturar(tab);
+      const comPrints = sessao.capturarPrints !== false;
+      const depois = comPrints ? await capturar(tab) : null;
       const textoDepois = await chrome.tabs.sendMessage(tabId, { tipo: 'AUDI_TEXTO' }).catch(() => null);
       const p = sessao.pendente;
       const agora = new Date().toISOString();
       sessao.passos.push({
         id: p.id,
         titulo: tituloDo(p),
-        obs: 'Descrição pendente.',
+        obs: comPrints ? 'Descrição pendente.' : 'Sem print: captura desligada nesta gravação.',
         acao: p.tipo || 'Clicar',
         elemento: p.seletor,
+        elementoId: p.elementoId || '',
         rotulo: p.rotulo,
         valor: p.valor || '',
         html: p.html,
@@ -169,10 +171,10 @@ async function finalizar(tabId) {
         frameUrl: p.frameUrl || '',
         textoAntes: p.textoAntes || null,
         textoDepois: textoDepois || null,
-        imagens: [
+        imagens: comPrints ? [
           { dataUrl: p.antes, legenda: `Antes · ${new Date(p.timestampAntes).toLocaleString('pt-BR')}` },
           { dataUrl: depois, legenda: `Depois · ${new Date(agora).toLocaleString('pt-BR')}` }
-        ]
+        ] : []
       });
       if (sessao.passos.length > MAX_PASSOS) sessao.passos.shift();
       sessao.pendente = null;
@@ -239,6 +241,9 @@ async function empurrarParaPrint(passo, sessao) {
  * focar depois disso — que e exatamente a aba que voce vai testar. */
 const ARMADO_VALE_MS = 5 * 60 * 1000;
 let armadoAte = 0;
+// Escolha feita no popup ao armar/iniciar: vale para a sessao que comeca a
+// seguir, ate o proximo AUDI_ARMAR/AUDI_INICIAR trocar de novo.
+let armarComPrints = true;
 
 function ehAbaDePrint(url) {
   const u = String(url || '');
@@ -261,6 +266,7 @@ async function comecarSeArmado(tabId) {
     inicio: new Date().toISOString(),
     url: tab.url,
     titulo: tab.title || '',
+    capturarPrints: armarComPrints,
     passos: [],
     pendente: null,
     erro: ''
@@ -306,12 +312,14 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
     if (msg.tipo === 'AUDI_STATUS') return { sessao: await obter(tabId) };
 
     if (msg.tipo === 'AUDI_INICIAR') {
+      armarComPrints = msg.capturarPrints !== false;
       const tab = await chrome.tabs.get(tabId);
       const sessao = {
         ativa: true,
         inicio: new Date().toISOString(),
         url: tab.url,
         titulo: tab.title || '',
+        capturarPrints: armarComPrints,
         passos: [],
         pendente: null,
         erro: ''
@@ -361,6 +369,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
     /* Armar: a proxima aba de site que voce focar vira a sessao gravando. */
     if (msg.tipo === 'AUDI_ARMAR') {
       armadoAte = Date.now() + ARMADO_VALE_MS;
+      armarComPrints = msg.capturarPrints !== false;
       // Ja esta numa aba de site? entao comeca nela agora mesmo.
       const [ativa] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (ativa) await comecarSeArmado(ativa.id);
@@ -391,7 +400,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         if (!sessao?.ativa || sessao.finalizando) return { ignorado: true };
         if (sessao.pendente) return { ignorado: true };
         const tab = await chrome.tabs.get(tabId);
-        const antes = await antesDe(tab);
+        const antes = sessao.capturarPrints === false ? null : await antesDe(tab);
         sessao.pendente = {
           ...msg.acao,
           antes,
@@ -408,7 +417,9 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
     /* O mouse pousou num elemento clicavel: hora de guardar a reserva. */
     if (msg.tipo === 'AUDI_PRE') {
       const sessao = await obter(tabId);
-      if (sessao?.ativa && !sessao.pendente && !sessao.finalizando) await preCapturar(tabId);
+      if (sessao?.ativa && sessao.capturarPrints !== false && !sessao.pendente && !sessao.finalizando) {
+        await preCapturar(tabId);
+      }
       return { ok: true };
     }
 

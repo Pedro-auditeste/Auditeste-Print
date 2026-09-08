@@ -3717,6 +3717,7 @@
     if(!passo || !dados) return;
     passo.dataset.acao = dados.acao || '';
     passo.dataset.elemento = dados.elemento || '';
+    passo.dataset.elementoId = dados.elementoId || '';
     passo.dataset.rotulo = dados.rotulo || '';
     passo.dataset.valor = dados.valor || '';
     passo.dataset.html = dados.html || '';
@@ -3759,9 +3760,11 @@
     }
     box.hidden = false;
     const sel = String(dados.elemento || '').trim();
+    const idEl = String(dados.elementoId || '').trim();
     // O HTML vem aberto, logo abaixo da descrição — é o que o QA leva para o script.
     box.innerHTML = '<b>' + esc(dados.acao || '') + '</b>'
       + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')
+      + (idEl ? ' · id: <code>' + esc(idEl) + '</code>' : '')
       + (sel ? ' · <code>' + esc(sel) + '</code> <button type="button" class="copiar-sel">Copiar</button>' : '')
       + (dados.html
           ? '<div class="insp-html"><span class="rotulo-html">HTML do elemento</span>'
@@ -3882,6 +3885,7 @@
       obs: p.querySelector('.obs').textContent.trim(),
       acao: p.dataset.acao || '',
       elemento: p.dataset.elemento || '',
+      elementoId: p.dataset.elementoId || '',
       rotulo: p.dataset.rotulo || '',
       valor: p.dataset.valor || '',
       html: p.dataset.html || '',
@@ -4691,7 +4695,7 @@
           <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
           <div class="obs">${esc(p.obs)}</div>
           ${(p.timestampAntes || p.urlAntes || p.urlDepois || p.frameUrl) ? `<div class="meta-evento">${p.timestampAntes ? `Antes: ${esc(new Date(p.timestampAntes).toLocaleString('pt-BR'))}` : ''}${p.timestampDepois ? ` · Depois: ${esc(new Date(p.timestampDepois).toLocaleString('pt-BR'))}` : ''}${p.urlAntes ? ` · URL antes: ${esc(p.urlAntes)}` : ''}${p.urlDepois ? ` · URL depois: ${esc(p.urlDepois)}` : ''}${p.frameUrl ? ` · Iframe: ${esc(p.frameUrl)}` : ''}</div>` : ''}
-          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code>` : ''}${p.html ? `<div class="insp-html"><span class="rotulo-html">HTML do elemento</span><pre>${esc(p.html)}</pre></div>` : ''}</div>` : ''}
+          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elementoId ? ` · id: <code>${esc(p.elementoId)}</code>` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code>` : ''}${p.html ? `<div class="insp-html"><span class="rotulo-html">HTML do elemento</span><pre>${esc(p.html)}</pre></div>` : ''}</div>` : ''}
           ${(p.imagens || []).length >= 2 ? `<button class="gerar-desc" data-acao="gerarDescricaoRegistro" data-passo="${i}">Gerar descrição novamente</button>` : ''}
           <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">

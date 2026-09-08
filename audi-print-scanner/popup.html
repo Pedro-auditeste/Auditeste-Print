@@ -22,13 +22,20 @@
   #msg{font-size:.78rem;margin-top:12px;line-height:1.45;min-height:2.6em;}
   #msg.erro{color:#b23b3b;}
   #msg b{color:#0d3446;}
+  .campo{display:flex;align-items:flex-start;gap:7px;font-size:.78rem;margin-bottom:10px;}
+  .campo input{margin-top:2px;}
+  .campo span{color:#5b6b73;}
 </style>
 </head>
 <body>
   <h1>Audi Print</h1>
-  <p class="sub">Teste normalmente. Cada clique, preenchimento, limpeza e leitura vira um passo, com o xpath do elemento e o print antes/depois.</p>
+  <p class="sub">Teste normalmente. Cada clique, preenchimento, limpeza e leitura vira um passo, com o xpath e o id do elemento.</p>
   <section class="grupo">
     <h2>Sessão de teste</h2>
+    <label class="campo">
+      <input type="checkbox" id="capturarPrints" checked>
+      <span>Capturar print antes/depois de cada passo. Desmarque para gravar só xpath, id e HTML, mais rápido e sem imagem nenhuma.</span>
+    </label>
     <div class="acoes">
       <button id="iniciar">Iniciar</button>
       <button id="parar" class="sec">Parar</button>

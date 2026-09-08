@@ -19,10 +19,13 @@
     } catch (e) { return false; }
   }
 
-  function posicional(el) {
+  /* Caminho posicional entre dois nos. `ate` fica de fora do resultado --
+   * e o ponto de partida, nao faz parte do caminho ate o alvo. Sem `ate`,
+   * sobe ate a raiz do documento (o absoluto de sempre). */
+  function posicional(el, ate) {
     const partes = [];
     let atual = el;
-    while (atual && atual.nodeType === Node.ELEMENT_NODE) {
+    while (atual && atual.nodeType === Node.ELEMENT_NODE && atual !== ate) {
       let indice = 1;
       let irmao = atual.previousElementSibling;
       while (irmao) {
@@ -36,7 +39,20 @@
     return partes.length ? '/' + partes.join('/') : '';
   }
 
-  /** Xpath curto e estavel quando da, absoluto quando nao ha por onde ancorar. */
+  /* O ancestral com id mais proximo. Um xpath preso nele quebra so quando
+   * ALGUEM MEXE NESSE RAMO da tela; o absoluto desde a raiz quebra quando
+   * qualquer div acima muda -- banner novo, aviso de cookie, o que for. */
+  function ancoraProxima(el) {
+    let atual = el.parentElement;
+    while (atual) {
+      if (atual.id) return atual;
+      atual = atual.parentElement;
+    }
+    return null;
+  }
+
+  /** Xpath curto e estavel quando da, ancorado no id mais proximo quando o
+   * elemento em si nao tem atributo nenhum, absoluto so' em ultimo caso. */
   function seletorDe(el) {
     const tag = el.tagName.toLowerCase();
     const candidatos = [];
@@ -58,6 +74,15 @@
       if (v) candidatos.push(`//${tag}[normalize-space(.)=${v}]`);
     }
     for (const cand of candidatos) if (unico(cand)) return cand;
+
+    const ancora = ancoraProxima(el);
+    if (ancora) {
+      const v = aspas(ancora.id);
+      if (v) {
+        const relativo = `//*[@id=${v}]` + posicional(el, ancora);
+        if (unico(relativo)) return relativo;
+      }
+    }
     return posicional(el);
   }
 
@@ -215,6 +240,9 @@
     const acao = {
       id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       seletor,
+      // Id cru do elemento, separado do xpath: quem monta automacao propria
+      // as vezes quer By.ID direto, sem ter que extrair do xpath na mao.
+      elementoId: el.id || '',
       tipo: tipo || 'Clicar',
       valor: String(valor == null ? '' : valor).replace(/\s+/g, ' ').trim().slice(0, 300),
       rotulo: rotuloDe(el),

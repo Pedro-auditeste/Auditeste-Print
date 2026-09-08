@@ -9,6 +9,7 @@ const iniciar = document.getElementById('iniciar');
 const parar = document.getElementById('parar');
 const exportar = document.getElementById('exportar');
 const limpar = document.getElementById('limpar');
+const capturarPrints = document.getElementById('capturarPrints');
 
 function avisar(texto, erro) {
   msg.innerHTML = texto;
@@ -23,9 +24,9 @@ async function abaAtual() {
   return aba;
 }
 
-async function comando(tipo) {
+async function comando(tipo, extra) {
   const aba = await abaAtual();
-  const resposta = await chrome.runtime.sendMessage({ tipo, tabId: aba.id });
+  const resposta = await chrome.runtime.sendMessage(Object.assign({ tipo, tabId: aba.id }, extra));
   if (resposta?.erro) throw new Error(resposta.erro);
   return { aba, sessao: resposta?.sessao || null };
 }
@@ -33,6 +34,7 @@ async function comando(tipo) {
 function mostrarStatus(sessao) {
   const total = sessao?.passos?.length || 0;
   iniciar.disabled = !!sessao?.ativa;
+  capturarPrints.disabled = !!sessao?.ativa;
   parar.disabled = !sessao?.ativa;
   exportar.disabled = !total;
   avisar(sessao?.ativa
@@ -44,7 +46,7 @@ function mostrarStatus(sessao) {
 
 iniciar.addEventListener('click', async () => {
   try {
-    const { sessao } = await comando('AUDI_INICIAR');
+    const { sessao } = await comando('AUDI_INICIAR', { capturarPrints: capturarPrints.checked });
     mostrarStatus(sessao);
   } catch (erro) {
     avisar(erro.message, true);
