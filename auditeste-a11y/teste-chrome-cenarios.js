@@ -3,13 +3,25 @@
  *
  *   node teste-chrome-cenarios.js
  *   node teste-chrome-cenarios.js --visivel   # abre o Chrome na tela
+ *
+ * ESTADO EM 08/09/2026, achado limpando o espelho morto que este arquivo
+ * mirava antes (audi-print/evidencias-auditeste.html): "Gerar cenários"
+ * hoje chama gerarCenariosIA(), que exige uma ponte de verdade no ar
+ * (resolverPonteIA()) -- não é mais o cálculo puramente local que este
+ * teste, aberto por file:// sem servidor nenhum, foi escrito para provar.
+ * Os 3 primeiros casos (projeto, passos, salvar) continuam válidos; os de
+ * geração de cenário falham hoje porque não existe ponte na página aberta
+ * assim. Para cobrir de verdade, este arquivo precisa subir um servidor
+ * local (padrão de teste-chrome-cofre.js) e servir a página por http, não
+ * abrir por file://. Não fiz essa reescrita agora -- é tarefa própria, não
+ * limpeza de código morto.
  */
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 
 const VISIVEL = process.argv.includes('--visivel');
-const HTML = path.resolve(__dirname, '../audi-print/evidencias-auditeste.html');
+const HTML = path.resolve(__dirname, 'publico', 'index.html');
 const ALVO = 'file:///' + HTML.replace(/\\/g, '/');
 const SAIDA = path.join(__dirname, 'saida');
 
@@ -107,29 +119,13 @@ const ok = (caso, cond, obtido) => {
       p.querySelector('.obs').textContent = 'Dashboard carregou após o login.';
     });
 
-    /* 5. Importar JSON axe (simula scan) */
-    await pagina.evaluate(() => {
-      const j = JSON.stringify({
-        ferramenta: 'axe-core',
-        url: 'https://exemplo.teste/login',
-        violations: [{
-          id: 'color-contrast',
-          impact: 'serious',
-          help: 'Contraste fraco entre texto e fundo',
-          description: 'O texto pode ficar difícil de ler.',
-          nodes: [{ target: ['.btn-entrar'] }]
-        }]
-      });
-      const dt = new DataTransfer();
-      dt.items.add(new File([j], 'axe.json', { type: 'application/json' }));
-      const i = document.getElementById('arqA11y');
-      i.files = dt.files;
-      i.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await delay(1000);
-
+    /* A importação manual de JSON de acessibilidade (arqA11y) saiu da tela:
+     * quem escaneia hoje usa os botões de scan ao vivo (escanear() -> /scan
+     * na ponte), que exigem servidor no ar e não fazem sentido neste teste
+     * aberto por file://. Cobertura desse caminho fica para um teste com
+     * servidor de verdade; aqui só os passos manuais. */
     const qtdPassos = await pagina.$$eval('#lista .passo', els => els.length);
-    ok('Tem passos funcionais + a11y', qtdPassos >= 3, qtdPassos + ' passos');
+    ok('Tem os passos funcionais', qtdPassos >= 2, qtdPassos + ' passos');
 
     /* 6. Salvar no projeto */
     await pagina.click('[data-acao="salvar"]');
@@ -154,8 +150,8 @@ const ok = (caso, cond, obtido) => {
       if (!u.startsWith('file://') && !u.startsWith('data:')) pedidosRede.push(u);
     });
 
-    await pagina.waitForSelector('[data-acao="gerarCenarios"]', { visible: true });
-    await pagina.click('[data-acao="gerarCenarios"]');
+    await pagina.waitForSelector('[data-acao="gerarCenariosIA"]', { visible: true });
+    await pagina.click('[data-acao="gerarCenariosIA"]');
     await delay(2000);
 
     const gherkin = await pagina.$eval('#caixaCenarios pre', el => el.textContent).catch(() => '');

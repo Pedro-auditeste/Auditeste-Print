@@ -43,8 +43,7 @@ let n = 0;
 const caso = (nome, fn) => { fn(); n++; console.log('  OK   ' + nome); };
 
 const arquivos = [
-  path.join(__dirname, 'publico', 'index.html'),
-  path.join(__dirname, '..', 'audi-print', 'evidencias-auditeste.html')
+  path.join(__dirname, 'publico', 'index.html')
 ];
 
 /* O alerta de lados trocados vinha do servidor escrito com "A IA leu", e

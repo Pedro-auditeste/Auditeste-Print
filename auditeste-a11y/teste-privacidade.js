@@ -12,7 +12,6 @@ const http = require('http');
 
 const RAIZ = path.join(__dirname, '..');
 const PAGINA = path.join(__dirname, 'publico', 'index.html');
-const ESPELHO = path.join(RAIZ, 'audi-print', 'evidencias-auditeste.html');
 const CONTENT = path.join(RAIZ, 'audi-print-scanner', 'content.js');
 const BACKGROUND = path.join(RAIZ, 'audi-print-scanner', 'background.js');
 
@@ -193,13 +192,6 @@ caso('excluir projeto alcanca a copia guardada no complemento', () => {
   assert.ok(m, 'handler do AUDI_DESCARTAR não encontrado');
   assert.ok(/s\.ativa/.test(m[0]) && /s\.importada/.test(m[0]),
     'o descarte precisa poupar a gravação em andamento e tocar só no que já foi trazido');
-});
-
-/* ---------- espelho ---------- */
-
-caso('o gemeo esta identico', () => {
-  assert.strictEqual(ler(ESPELHO), pagina,
-    'audi-print/evidencias-auditeste.html ficou para trás: a correção vale só em metade do sistema');
 });
 
 /* ---------- cabecalhos ---------- */

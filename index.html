@@ -152,7 +152,7 @@
         axe-core, Pa11y e Lighthouse prontos para importar.
       </p>
       <div class="acoes">
-        <a class="btn btn-prim" id="link-print" href="audi-print/evidencias-auditeste.html">Abrir Audi Print</a>
+        <a class="btn btn-prim" href="https://audi-print-production.up.railway.app/">Abrir Audi Print</a>
         <a class="btn btn-sec" href="https://github.com/Pedro-auditeste/Auditeste-Print" target="_blank" rel="noopener">Ver no GitHub</a>
         <a class="btn btn-sec" href="LEIA-ME.md">Documentação</a>
       </div>
@@ -164,8 +164,8 @@
       <article class="card">
         <span class="num">1</span>
         <h2>Audi Print</h2>
-        <p>Gravador de evidências em arquivo único. Importa JSON de acessibilidade, gera cenários Gherkin, exporta HTML e PDF.</p>
-        <a class="link" id="link-print-card" href="audi-print/evidencias-auditeste.html">Abrir gravador →</a>
+        <p>Gravador de evidências, com login e cofre por cliente. Importa JSON de acessibilidade, gera cenários Gherkin, exporta HTML e PDF.</p>
+        <a class="link" href="https://audi-print-production.up.railway.app/">Abrir gravador →</a>
       </article>
       <article class="card">
         <span class="num">2</span>
@@ -196,16 +196,5 @@
     <p>Auditeste Consultoria · <a href="https://github.com/Pedro-auditeste/Auditeste-Print">Auditeste-Print</a></p>
   </footer>
 
-  <script>
-    /* Hospedado na ponte (Railway): o Print fica em /. Localmente, abre o arquivo. */
-    (function () {
-      var hospedado = location.protocol.startsWith('http') &&
-        !location.pathname.endsWith('/index.html') &&
-        !location.pathname.includes('/audi-print/');
-      var alvo = hospedado ? '/' : 'audi-print/evidencias-auditeste.html';
-      document.getElementById('link-print').href = alvo;
-      document.getElementById('link-print-card').href = alvo;
-    })();
-  </script>
 </body>
 </html>

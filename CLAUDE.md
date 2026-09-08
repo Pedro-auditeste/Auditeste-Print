@@ -15,12 +15,15 @@ audi-print-scanner/ extensão Chrome (grava cliques + roda axe)
 specs/              notas de design
 ```
 
-## Armadilha principal: o HTML é duplicado
+## `publico/index.html` é a única fonte
 
-`audi-print/evidencias-auditeste.html` e `auditeste-a11y/publico/index.html` são
-**byte a byte idênticos** (4126 linhas). O Dockerfile só copia `publico/`.
-Ao editar um, copie para o outro — senão o Print aberto por `file://` e o
-servido pela Railway divergem.
+Existiu um espelho em `audi-print/evidencias-auditeste.html` para abrir por
+`file://`, sem servidor. Ele parou de ser mantido, divergiu de `publico/`
+por milhares de linhas sem ninguém notar, e derrubava `teste-privacidade.js`
+sem que a falha fizesse sentido para quem lia. Removido em 08/09/2026: hoje
+só existe `auditeste-a11y/publico/index.html`, servido pela Railway. Não
+recriar um segundo caminho sem servidor sem repensar como mantê-lo em sincronia
+de verdade (script de build, não cópia manual).
 
 ## Servidor (`auditeste-a11y/servidor.js`)
 

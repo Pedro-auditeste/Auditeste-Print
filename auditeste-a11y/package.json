@@ -50,7 +50,6 @@
     "axe-core": "^4.13.0",
     "chrome-launcher": "^1.2.1",
     "lighthouse": "^13.4.1",
-    "openai": "^7.4.0",
     "pa11y": "^9.1.1",
     "playwright": "1.62.1",
     "puppeteer": "^25.9.0"

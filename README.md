@@ -48,11 +48,9 @@ npm run servidor
 
 Ou dê duplo clique em `auditeste-a11y/ponte.cmd`.
 
-## Audi Print (sem instalação)
+## Audi Print
 
-Abra `audi-print/evidencias-auditeste.html` com duplo clique, ou sirva por localhost:
+Hospedado na Railway, com login e cofre por cliente: https://audi-print-production.up.railway.app/
 
-```bash
-cd audi-print
-python -m http.server 8080
-```
+Para rodar localmente, veja "Uso local (ponte)" acima: `npm run servidor` serve
+o Print em `http://localhost:8900/`.

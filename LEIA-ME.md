@@ -11,10 +11,11 @@ audi-print/           recebe o JSON e vira relatório de evidência
 
 ---
 
-## 1. audi-print/ — o gravador de evidências
+## 1. auditeste-a11y/publico/index.html — o gravador de evidências (Print)
 
-`evidencias-auditeste.html`. Arquivo único, sem instalação: **duplo clique e
-abre**. Guarda tudo no navegador (IndexedDB) da própria máquina.
+Hospedado na Railway, com login e cofre por cliente:
+https://audi-print-production.up.railway.app/. Guarda a gravação no navegador
+(IndexedDB) até você mandar para o cofre.
 
 **Novidades desta entrega**
 
@@ -34,14 +35,6 @@ abre**. Guarda tudo no navegador (IndexedDB) da própria máquina.
 - Tipos de teste **Acessibilidade** e **Usabilidade** na ficha
 - O próprio Print foi corrigido: campos e selects sem nome acessível, avisos que
   mudavam em silêncio, conteúdo fora de landmark
-
-**Se a gravação de tela falhar** abrindo por `file://`, sirva por localhost:
-
-```bash
-cd audi-print && python -m http.server 8080
-```
-
-E abra `http://localhost:8080/evidencias-auditeste.html`.
 
 ---
 
@@ -144,9 +137,9 @@ Senha por variável de ambiente. Não escreva credencial no arquivo.
 
 ## O teste
 
-`relatorio-teste.html` — as quatro ferramentas executadas de ponta a ponta, com
-a saída real de cada comando, as violações encontradas e um print do Audi Print
-com tudo importado. Última execução: **4/4, 29 passos importados, zero falha**.
+A bateria automatizada roda em CI a cada envio (veja `.github/workflows/`).
+Para rodar local, os comandos estão em `auditeste-a11y/package.json`, seção
+`scripts`.
 
 Para repetir: `cd auditeste-a11y && node teste.js`
 
