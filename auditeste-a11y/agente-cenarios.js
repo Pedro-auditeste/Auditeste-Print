@@ -36,7 +36,12 @@ function msDoAmbiente(bruto, padrao) {
   const n = Number(bruto);
   return Number.isFinite(n) && n >= 0 ? n : padrao;
 }
-const ORCAMENTO_CENARIOS_MS = msDoAmbiente(process.env.AGENTE_ORCAMENTO_CENARIOS_MS, 25000);
+/* Medido ao vivo em 08/09/2026: o mesmo pedido, com a mesma chave, levou
+ * de 10 a 21,6 s so para um passo SEM imagem nenhuma. Com 25000 (o padrao
+ * antigo), a chamada estourava o orcamento perto da metade das vezes e
+ * caia no "montado dos prints" sem erro nenhum na tela -- parecia a chave
+ * estar quebrada, quando o problema era so' nao dar tempo do modelo responder. */
+const ORCAMENTO_CENARIOS_MS = msDoAmbiente(process.env.AGENTE_ORCAMENTO_CENARIOS_MS, 60000);
 
 const SISTEMA = `Você gera a entrada da skill automacao-web-qa / SKILL-MAPEAMENTO-QA a partir dos PRINTS do Audi Print.
 
@@ -977,6 +982,7 @@ async function gerarCenarios({ ficha, passos, quadros }) {
     });
   } catch (err) {
     if (err && err.semChave) throw err;
+    console.log('cenarios: IA falhou, usando fallback local: ' + (err && err.stack || err));
     return {
       cenarios: local.cenarios,
       mapeamento: local.mapeamento,
