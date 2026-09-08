@@ -140,13 +140,14 @@
   #painelSegmentos{width:250px;flex:none;}
   #painelSegmentos h3{margin:0 0 2px;color:var(--navy);font-size:1rem;}
   .seg-abas{display:flex;flex-direction:column;gap:6px;margin:12px 0;}
-  .seg-abas button{
+  .onde-abas{display:flex;gap:6px;flex-wrap:wrap;}
+  .seg-abas button,.onde-abas button{
     text-align:left;background:#fff;border:1px solid var(--line);border-left:4px solid transparent;
     border-radius:10px;padding:9px 12px;font:inherit;font-size:.9rem;color:var(--navy);cursor:pointer;
   }
-  .seg-abas button:hover{border-color:var(--green);}
-  .seg-abas button[aria-current=true]{border-left-color:var(--green);background:#f2f8f3;font-weight:700;cursor:default;}
-  .seg-abas small{display:block;color:var(--muted);font-weight:400;font-size:.72rem;margin-top:2px;}
+  .seg-abas button:hover,.onde-abas button:hover{border-color:var(--green);}
+  .seg-abas button[aria-current=true],.onde-abas button[aria-current=true]{border-left-color:var(--green);background:#f2f8f3;font-weight:700;cursor:default;}
+  .seg-abas small,.onde-abas small{display:block;color:var(--muted);font-weight:400;font-size:.72rem;margin-top:2px;}
   .seg-criar{display:flex;gap:6px;margin-top:6px;}
   .seg-criar input{flex:1;min-width:0;}
   @media(max-width:720px){ .colunas{flex-direction:column;} #painelSegmentos{width:auto;align-self:stretch;} }
@@ -409,7 +410,7 @@
       <form id="formProjeto" class="linha" style="margin-top:14px">
         <input type="text" id="nomeProjeto" placeholder="Nome do projeto" style="flex:1;min-width:180px">
         <input type="text" id="clienteProjeto" placeholder="Cliente (opcional)" style="flex:1;min-width:160px">
-        <select id="ondeProjeto" aria-label="Onde criar o projeto" hidden style="min-width:170px"></select>
+        <div id="ondeProjeto" class="onde-abas" aria-label="Onde criar o projeto" hidden></div>
         <button class="btn primario" type="submit">Criar</button>
       </form>
     </div>
@@ -833,12 +834,21 @@
    * do nome escolhido (tipo "(equipe base)"/"(segmento)" abaixo). */
   function encherOndeCriar(base, segs){
     const sel = $('ondeProjeto');
-    if(souSegmento() || !segs.length){ sel.hidden = true; sel.innerHTML = ''; return; }
+    if(souSegmento() || !segs.length){ sel.hidden = true; sel.innerHTML = ''; sel.dataset.valor = ''; return; }
     sel.hidden = false;
-    sel.innerHTML = '<option value="">Criar em: ' + esc(base) + ' (equipe base)</option>'
-      + segs.map(t => '<option value="' + esc(t.id) + '">Criar em: '
-        + esc(t.nome.slice((base + SEP).length)) + ' (segmento)</option>').join('');
+    sel.dataset.valor = '';
+    sel.innerHTML = '<button type="button" data-onde="" aria-current="true">' + esc(base) + '<small>equipe base</small></button>'
+      + segs.map(t => '<button type="button" data-onde="' + esc(t.id) + '">'
+        + esc(t.nome.slice((base + SEP).length)) + '<small>segmento</small></button>').join('');
   }
+  $('ondeProjeto').addEventListener('click', e => {
+    const b = e.target.closest('[data-onde]');
+    if(!b) return;
+    const sel = $('ondeProjeto');
+    sel.dataset.valor = b.dataset.onde;
+    sel.querySelectorAll('button').forEach(x => x.removeAttribute('aria-current'));
+    b.setAttribute('aria-current', 'true');
+  });
 
   $('painelSegmentos').addEventListener('click', async e => {
     const b = e.target.closest('[data-troca]');
@@ -886,7 +896,7 @@
     const nome = $('nomeProjeto').value.trim();
     if(!nome) return;
     try{
-      const destino = ($('ondeProjeto') && !$('ondeProjeto').hidden) ? $('ondeProjeto').value : '';
+      const destino = ($('ondeProjeto') && !$('ondeProjeto').hidden) ? $('ondeProjeto').dataset.valor : '';
       const r = await api('/api/projetos', {
         json: { nome, cliente: $('clienteProjeto').value.trim(), segmentoId: destino || undefined }
       });
