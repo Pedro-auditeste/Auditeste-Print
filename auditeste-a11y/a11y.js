@@ -56,11 +56,33 @@ async function resolverChrome() {
 /* Resolve cedo, sem travar o modulo, para o /ping ja ter a resposta certa. */
 resolverChrome().catch(() => {});
 
+/* Achado em 08/09/2026: caminhoChrome() e sincrona, mas so acerta se
+ * resolverChrome() (assincrona, disparada acima) ja tiver terminado. Um
+ * script curto que chama isto logo no inicio quase sempre PERDE essa
+ * corrida -- chromeCache ainda null -- e cai no Chrome padrao do
+ * Puppeteer sem avisar, que nesta maquina as vezes carrega, as vezes nao
+ * carrega extensao nenhuma em modo headless (sem erro, so sem
+ * service_worker). Por isso o resultado mudava de teste para teste.
+ * Correcao: se a corrida foi perdida, varre o cache do Puppeteer na hora,
+ * sincrono, e pega a versao mais nova instalada -- sem depender de mais
+ * nenhum await. */
+function chromeDoCachePuppeteer() {
+  try {
+    const raiz = path.join(require('os').homedir(), '.cache', 'puppeteer', 'chrome');
+    const versoes = fs.readdirSync(raiz).filter((v) => v.startsWith('win64-')).sort();
+    for (let i = versoes.length - 1; i >= 0; i--) {
+      const p = path.join(raiz, versoes[i], 'chrome-win64', 'chrome.exe');
+      if (fs.existsSync(p)) return (chromeCache = p);
+    }
+  } catch (e) { /* sem cache do puppeteer nesta maquina */ }
+  return null;
+}
+
 function caminhoChrome() {
   if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
     return process.env.CHROME_PATH;
   }
-  return chromeCache;
+  return chromeCache || chromeDoCachePuppeteer();
 }
 
 async function garantirChrome(motor) {

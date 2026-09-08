@@ -23,9 +23,9 @@ const SITE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><tit
 <body style="font-family:system-ui;padding:40px">
   <div id="painel">
     <div><button id="comId">Tem id próprio</button></div>
-    <div><button>Sem id, mas dentro de #painel</button></div>
+    <div><button type="button" style="padding:8px 16px">·</button></div>
   </div>
-  <div><div><button>Sem id em lugar nenhum da ancestralidade</button></div></div>
+  <div><div><button type="button" style="padding:8px 16px">·</button></div></div>
 </body></html>`;
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -70,17 +70,31 @@ function chromeLocal() {
     const popup = await browser.newPage();
     await popup.goto(`chrome-extension://${idExt}/popup.html`, { waitUntil: 'domcontentloaded' });
 
-    // CRITERIO 1: sem print -- desmarca o checkbox antes de iniciar.
+    // CRITERIO 1: sem print -- desmarca o checkbox e manda o comando com o
+    // tabId explicito (como teste-push-automatico.js: abaAtual() depende de
+    // qual aba esta "ativa" de verdade, o que a popup virando uma aba normal
+    // do Puppeteer nao replica direito).
     await popup.$eval('#capturarPrints', (el) => { el.checked = false; });
-    await popup.click('#iniciar');
-    await esperar(300);
+    const resp = await popup.evaluate(async () => {
+      const [a] = await chrome.tabs.query({ url: 'http://127.0.0.1:8995/*' });
+      const checked = document.getElementById('capturarPrints').checked;
+      return chrome.runtime.sendMessage({ tipo: 'AUDI_INICIAR', tabId: a.id, capturarPrints: checked });
+    });
+    assert.ok(resp?.sessao?.ativa, 'a sessão não iniciou: ' + JSON.stringify(resp));
+    assert.strictEqual(resp.sessao.capturarPrints, false, 'a sessão deveria ter nascido com capturarPrints:false');
     console.log('  ok   gravação iniciada com "Capturar prints" desmarcado');
 
     await aba.bringToFront();
+    // Cada clique so pode ir depois do anterior FECHAR (finalizar() em
+    // background.js): enquanto sessao.pendente esta ocupado, AUDI_ACAO
+    // devolve {ignorado:true} sem gravar nada. ESPERA_DEPOIS_MS e 900ms;
+    // 1500ms da folga de sobra.
     await aba.click('#comId');
+    await esperar(1500);
     await aba.click('body > div:nth-of-type(1) > div:nth-of-type(2) > button');
+    await esperar(1500);
     await aba.click('body > div:nth-of-type(2) button');
-    await esperar(4000); // ESPERA_DEPOIS_MS + folga para os 3 passos fecharem
+    await esperar(1500);
 
     const status = await popup.evaluate(async () => {
       const [aba] = await chrome.tabs.query({ url: 'http://127.0.0.1:8995/*' });
