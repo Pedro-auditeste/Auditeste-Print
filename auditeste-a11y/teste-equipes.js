@@ -273,5 +273,36 @@ caso('provedora ve cliente real, mas NAO ve nem entra em segmento alheio', () =>
   assert.ok(banco.acessoA(seg.id, dono.id), 'o membro direto do segmento entra normal');
 });
 
+/* ---------- nome de projeto ----------
+ *
+ * Bug visto na producao em 09/09/2026: a equipe tinha dois projetos chamados
+ * "teste", identicos na lista, so a data mudando. Quem abre nao distingue e
+ * manda evidencia para o errado sem erro nenhum na tela. Nome de EQUIPE ja
+ * era unico desde sempre; o de projeto tinha ficado de fora. */
+
+caso('projeto: nome repetido na MESMA equipe e recusado', () => {
+  const t = banco.criarTenant('EquipeProj', 90);
+  const u = banco.criarUsuario('proj@x.com', 'h');
+  banco.vincular(t.id, u.id, 'admin');
+  assert.ok(banco.criarProjeto(t.id, u.id, 'Portal', 'ACME'));
+  assert.ok(recusa(() => banco.criarProjeto(t.id, u.id, 'Portal', 'Outro'), 409),
+    'deveria recusar projeto com nome repetido na mesma equipe');
+});
+
+caso('projeto: nem com caixa diferente (PORTAL vs Portal)', () => {
+  const t = banco.tenantPorNome('EquipeProj');
+  const u = banco.usuarioPorEmail('proj@x.com');
+  assert.ok(recusa(() => banco.criarProjeto(t.id, u.id, 'PORTAL', ''), 409),
+    'a comparacao tem de ignorar caixa, igual a de equipe');
+});
+
+caso('projeto: o MESMO nome em OUTRA equipe continua valendo', () => {
+  const outra = banco.criarTenant('EquipeProj2', 90);
+  const u = banco.usuarioPorEmail('proj@x.com');
+  banco.vincular(outra.id, u.id, 'admin');
+  assert.ok(banco.criarProjeto(outra.id, u.id, 'Portal', 'ACME'),
+    'a trava e por equipe: cliente diferente pode ter projeto de mesmo nome');
+});
+
 banco.fechar();
 console.log('\n' + n + ' casos, tudo certo\n');

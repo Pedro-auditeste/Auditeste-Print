@@ -555,9 +555,27 @@ function revogarSessoesDoUsuario(usuarioId) {
 
 /* ---------- projetos ---------- */
 
+/* Dois projetos com o MESMO nome na mesma equipe ficam identicos na lista:
+ * mesmo titulo, mesmo subtitulo, e so a data para diferenciar. Quem abre nao
+ * tem como saber qual e qual, e manda evidencia para o errado sem nenhum erro
+ * na tela. E a mesma regra que ja vale para nome de equipe (exigirNomeLivre),
+ * aplicada onde faltava. Comparacao sem caixa, igual a das equipes. */
+function exigirNomeDeProjetoLivre(tenantId, nome) {
+  exigirTenant(tenantId);
+  const achado = db.prepare(
+    'SELECT id FROM projetos WHERE tenant_id = ? AND lower(nome) = lower(?) LIMIT 1'
+  ).get(tenantId, String(nome));
+  if (achado) {
+    const e = new Error('Já existe um projeto com esse nome nesta equipe.');
+    e.status = 409;
+    throw e;
+  }
+}
+
 function criarProjeto(tenantId, usuarioId, nome, cliente) {
   exigirTenant(tenantId);
   exigir();
+  exigirNomeDeProjetoLivre(tenantId, nome);
   const p = {
     id: id(), tenant_id: tenantId, nome: String(nome), cliente: cliente ? String(cliente) : null,
     criado_em: agora(), criado_por: usuarioId
@@ -1011,7 +1029,7 @@ function limparTentativas(chave) {
 module.exports = {
   abrir, fechar, ligado, porque, efemero, onde, exigirTenant,
   cifraLigada, cifrar, decifrar,
-  criarTenant, obterTenant, listarTenants, renomearTenant, tenantPorNome, apagarTenant,
+  exigirNomeDeProjetoLivre, criarTenant, obterTenant, listarTenants, renomearTenant, tenantPorNome, apagarTenant,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
   marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,
