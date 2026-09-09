@@ -74,7 +74,11 @@ function chromeLocal() {
     // tabId explicito (como teste-push-automatico.js: abaAtual() depende de
     // qual aba esta "ativa" de verdade, o que a popup virando uma aba normal
     // do Puppeteer nao replica direito).
-    await popup.$eval('#capturarPrints', (el) => { el.checked = false; });
+    /* O foco do produto e xpath + id: o print e' o extra, entao o checkbox
+     * nasce DESMARCADO. Este assert existe para o padrao nao voltar a ser
+     * "sempre capturar print" sem alguem decidir isso de proposito. */
+    const padrao = await popup.$eval('#capturarPrints', (el) => el.checked);
+    assert.strictEqual(padrao, false, 'o padrão do "Capturar prints" tem de ser desmarcado');
     const resp = await popup.evaluate(async () => {
       const [a] = await chrome.tabs.query({ url: 'http://127.0.0.1:8995/*' });
       const checked = document.getElementById('capturarPrints').checked;

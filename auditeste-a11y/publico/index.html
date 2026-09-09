@@ -1094,6 +1094,7 @@
         </div>
         <div class="opcoes" style="margin-top:12px">
           <label><input type="checkbox" id="gravarVideo"> Gravar vídeo da sessão</label>
+          <label><input type="checkbox" id="capturarPrintsPasso"> Capturar print antes/depois de cada passo</label>
           <button type="button" class="btn pequeno" id="btnIniciarManual">Iniciar gravação da minha tela</button>
         </div>
       </div>
@@ -3243,7 +3244,13 @@
         ok(d);
       }
       window.addEventListener('message', ouvir);
-      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar, pararTudo, descartar }, location.origin);
+      /* A escolha de capturar print viaja junto com o "armar": e' aqui, na
+       * tela do gravador, que a gravacao comeca de verdade -- o checkbox do
+       * popup da extensao so vale para quem inicia por la. Por padrao o passo
+       * sai so' com xpath, id e HTML; o print e' o extra que voce marca. */
+      const comPrints = !!document.getElementById('capturarPrintsPasso')?.checked;
+      window.postMessage({ tipo: 'AUDI_PRINT_PEDE', pedido, deTab, marcar, armar, pararTudo, descartar,
+        capturarPrints: comPrints }, location.origin);
     });
   }
 

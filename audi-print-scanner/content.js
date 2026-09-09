@@ -479,7 +479,8 @@
           : d.pararTudo
           ? await chrome.runtime.sendMessage({ tipo: 'AUDI_PARAR_TUDO' })
           : d.armar
-          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_ARMAR' })
+          // A escolha de capturar print vem da tela do gravador do Print.
+          ? await chrome.runtime.sendMessage({ tipo: 'AUDI_ARMAR', capturarPrints: !!d.capturarPrints })
           : d.marcar
           ? await chrome.runtime.sendMessage({ tipo: 'AUDI_IMPORTADA', deTab: d.deTab })
           : d.deTab == null
