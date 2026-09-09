@@ -85,6 +85,13 @@ const PASSO = {
     await pagina.click('[data-acao="novaGravacao"]');
     await pagina.waitForSelector('#telaGravador.ativa');
 
+    /* A descricao automatica le o par antes/depois, entao ela so faz sentido
+     * com o print ligado. Desde que o foco do produto virou xpath + id
+     * (09/09/2026), o print nasce DESLIGADO e o Print descarta imagem que
+     * chega sem a opcao marcada -- por isso este teste liga a opcao de
+     * proposito, em vez de depender do padrao. */
+    await pagina.evaluate(() => { document.getElementById('capturarPrintsPasso').checked = true; });
+
     // Espera passar da janela dos 3s que abrirGravador() usa para o UNICO
     // pull automatico de abertura (pedirAoNavegador(null,3000) dentro de
     // completarComONavegador). Depois dela, SO o conserto desta funcao

@@ -3383,7 +3383,16 @@
   function montarPassoDaExtensao(p){
     const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
     marcarQa(el, p);
-    const figs = p.imagens || [];
+    /* O print so entra se voce pediu print.
+     *
+     * A guarda fica AQUI, na entrada do passo, e nao so na extensao, por dois
+     * motivos. Primeiro: uma extensao antiga instalada continua mandando
+     * imagem, e sem isto a escolha da tela nao valeria nada ate a pessoa
+     * atualizar o complemento. Segundo: e' o Print que decide o que vira
+     * evidencia, entao a decisao mora do lado que guarda, nao do lado que
+     * envia. Desmarcado, o passo fica so com xpath, id, rotulo e HTML. */
+    const querPrints = !!document.getElementById('capturarPrintsPasso')?.checked;
+    const figs = querPrints ? (p.imagens || []) : [];
     el.querySelector('.imagens').classList.toggle('par-antes-depois', figs.length >= 2);
     figs.forEach(im => {
       const blob = dataUrlParaBlob(im.dataUrl || im);
