@@ -312,6 +312,18 @@
   .btn.discreto:hover{opacity:1;}
   a.btn{display:inline-flex;align-items:center;text-decoration:none;}
   .linha-opcao{display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
+  /* Mesmo padrao de abas do cofre, e pela mesma regra: rotulo fixo
+   * ("equipe base"/"segmento") para duas opcoes nunca ficarem com o mesmo
+   * texto na tela quando o segmento tem o nome da equipe. */
+  .onde-abas{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .onde-abas button{
+    text-align:left;background:#fff;border:1px solid var(--line);border-left:4px solid transparent;
+    border-radius:10px;padding:8px 12px;font:inherit;font-size:.88rem;color:var(--navy);cursor:pointer;
+  }
+  .onde-abas button:hover{border-color:var(--green);}
+  .onde-abas button[aria-current=true]{border-left-color:var(--green);background:#f2f8f3;font-weight:700;cursor:default;}
+  .onde-abas small{display:block;color:var(--muted);font-weight:400;font-size:.72rem;margin-top:2px;}
+  .dica-cofre{display:block;color:var(--muted);font-size:.78rem;margin-top:6px;}
   .linha-opcao input{margin-top:3px;flex:0 0 auto;width:16px;height:16px;accent-color:var(--navy);}
   .linha-opcao .rot{margin-bottom:2px;}
   .linha-opcao small{display:block;color:#5b6472;font-size:.78rem;line-height:1.45;}
@@ -1222,6 +1234,11 @@
           <small>Envia o print, o HTML do elemento e a URL da tela para o serviço de descrição. Desmarque quando o cliente não autorizar que a evidência saia desta máquina.</small>
         </span>
       </label>
+      <div id="blocoCofre" hidden>
+        <span class="rot">Criar também no cofre, em</span>
+        <div class="onde-abas" id="ondeCofre" aria-label="Onde criar o projeto no cofre"></div>
+        <small id="avisoCofre" class="dica-cofre"></small>
+      </div>
       <div>
         <span class="rot">Logo do cliente</span>
         <div class="escolhe-logo" id="escolheLogo">
@@ -1594,7 +1611,63 @@
     textoLogo.textContent = projeto?.logo ? 'Clique para trocar a imagem' : 'Clique para escolher uma imagem';
     fundoModal.classList.add('aberto');
     setTimeout(()=> campoNome.focus(), 90);
+    // Projeto novo nasce no cofre junto; editar mexe so' no local.
+    montarOndeCofre(!projeto);
   }
+
+  /* ---------- criar o projeto tambem no cofre ----------
+   *
+   * Antes disto, projeto criado aqui era so' local (IndexedDB), e o cofre so
+   * ficava sabendo dele quando alguem clicava "Enviar ao cofre" numa
+   * evidencia -- entao a lista de projetos do cofre vivia vazia mesmo com o
+   * QA tendo criado projeto no Print. Agora o projeto nasce nos dois lugares,
+   * e a pessoa escolhe em qual equipe/segmento ele nasce.
+   *
+   * Sem sessao do cofre, ou com o cofre desligado, nada muda: o Print
+   * continua funcionando local, sem erro na tela. */
+  const blocoCofre = document.getElementById('blocoCofre');
+  const ondeCofre = document.getElementById('ondeCofre');
+  const avisoCofre = document.getElementById('avisoCofre');
+
+  async function montarOndeCofre(paraProjetoNovo){
+    ondeCofre.innerHTML = '';
+    ondeCofre.dataset.valor = '';
+    blocoCofre.hidden = true;
+    if(!ENVIO_AO_COFRE || !paraProjetoNovo) return;
+
+    const eu = await cofreEu();
+    if(!eu) return;   // sem login no cofre o Print segue local, como sempre
+
+    const base = String(eu.tenantNome || '').split(' · ')[0].trim();
+    const noSegmento = String(eu.tenantNome || '').includes(' · ');
+    let segs = [];
+    if(!noSegmento){
+      const d = await cofrePedir('/api/segmentos').catch(() => null);
+      segs = (d && d.segmentos) || [];
+    }
+
+    blocoCofre.hidden = false;
+    if(noSegmento){
+      // Dentro de um segmento nao ha escolha: o projeto nasce nele.
+      avisoCofre.textContent = 'Você está no segmento ' + eu.tenantNome + '. O projeto nasce aqui.';
+      return;
+    }
+    ondeCofre.innerHTML = '<button type="button" data-onde="" aria-current="true">' + esc(base)
+      + '<small>equipe base</small></button>'
+      + segs.map(s => '<button type="button" data-onde="' + esc(s.id) + '">'
+        + esc(String(s.nome).slice((base + ' · ').length)) + '<small>segmento</small></button>').join('');
+    avisoCofre.textContent = segs.length
+      ? 'O projeto aparece na lista do cofre da equipe escolhida.'
+      : 'O projeto aparece na lista do cofre de ' + base + '.';
+  }
+
+  ondeCofre.addEventListener('click', e => {
+    const b = e.target.closest('[data-onde]');
+    if(!b) return;
+    ondeCofre.dataset.valor = b.dataset.onde;
+    ondeCofre.querySelectorAll('button').forEach(x => x.removeAttribute('aria-current'));
+    b.setAttribute('aria-current', 'true');
+  });
 
   function fecharFormulario(){
     fundoModal.classList.remove('aberto');
@@ -1619,12 +1692,30 @@
       await abrirProjeto(id);
       avisar('Projeto atualizado.');
     } else {
+      /* Nasce no cofre ANTES do local: se o servidor recusar (nome repetido
+       * na equipe, sessao vencida), o QA corrige no mesmo modal, sem ficar
+       * com um projeto local orfao que ele acha que esta no cofre. */
+      let noCofre = null;
+      if(!blocoCofre.hidden){
+        try{
+          const destino = ondeCofre.dataset.valor || undefined;
+          const r = await cofrePedir('/api/projetos', { nome, cliente, segmentoId: destino });
+          noCofre = r && r.projeto ? { id: r.projeto.id, tenantId: r.tenantId || null } : null;
+        }catch(err){
+          avisar('Não criei no cofre: ' + err.message);
+          return;
+        }
+      }
       const id = await criarProjetoDB({nome, cliente, logo:logoEscolhida,
-        iaPermitida: campoIA.checked, criadoEm:Date.now()});
+        iaPermitida: campoIA.checked, criadoEm:Date.now(),
+        cofreProjetoId: noCofre ? noCofre.id : null,
+        cofreTenantId: noCofre ? noCofre.tenantId : null});
       fecharFormulario();
       projetoNovo = id;
       await desenharProjetos();
-      avisar('Projeto ' + nome + ' criado.');
+      avisar(noCofre
+        ? 'Projeto ' + nome + ' criado aqui e no cofre.'
+        : 'Projeto ' + nome + ' criado.');
     }
   }
 
@@ -3988,7 +4079,15 @@
     try{
       const nome = r.projetoNome || 'Projeto sem nome';
       const { projetos } = await cofrePedir('/api/projetos');
-      let alvo = projetos.find(p => p.nome === nome);
+      /* O vinculo gravado quando o projeto foi criado vem primeiro: casar por
+       * NOME so' acerta enquanto ninguem renomeia e ninguem repete nome entre
+       * equipes. O id nao tem esse problema. Nome continua como plano B, para
+       * projeto local antigo, criado antes de existir esse vinculo. */
+      const projetoLocal = await obterProjeto(r.projetoId).catch(() => null);
+      let alvo = projetoLocal && projetoLocal.cofreProjetoId
+        ? projetos.find(p => p.id === projetoLocal.cofreProjetoId)
+        : null;
+      if(!alvo) alvo = projetos.find(p => p.nome === nome);
       if(!alvo) alvo = (await cofrePedir('/api/projetos', { nome })).projeto;
 
       const titulo = (r.ficha && r.ficha.registro) || 'Evidencia';
