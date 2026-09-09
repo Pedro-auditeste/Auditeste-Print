@@ -130,6 +130,33 @@ caso('o outerHTML tambem perde o value quando o campo e sensivel', () => {
     'o outerHTML cru voltou a ser gravado: o value renderizado pelo servidor vaza por ali');
 });
 
+/* ---------- fora de sessao a extensao nao le a pagina ---------- */
+
+caso('sem gravacao ativa, registrar() sai antes de ler qualquer coisa', () => {
+  const m = /function registrar\(el, tipo, valor\)\s*\{([\s\S]*?)\n  \}/.exec(content);
+  assert.ok(m, 'registrar() não encontrada');
+  const corpo = m[1];
+
+  const guarda = corpo.indexOf('if (!gravando) return;');
+  assert.ok(guarda !== -1,
+    'registrar() voltou a capturar sem conferir a sessão: em QUALQUER site, só de estar '
+    + 'instalada, a extensão passa a ler xpath, outerHTML e texto da tela a cada clique');
+
+  /* A guarda tem de vir antes das leituras, nao adianta no fim. */
+  for (const leitura of ['seletorDe(', 'htmlSeguro(', 'resumoDaTela(', 'sendMessage', 'destacar(']) {
+    const onde = corpo.indexOf(leitura);
+    if (onde === -1) continue;
+    assert.ok(guarda < onde,
+      'a guarda de gravando ficou DEPOIS de ' + leitura + ': a leitura acontece mesmo desligada');
+  }
+});
+
+caso('o content script pergunta a sessao ao carregar (navegar nao perde passo)', () => {
+  assert.ok(/tipo: 'AUDI_STATUS'/.test(content),
+    'sem perguntar AUDI_STATUS ao carregar, a guarda de gravando faz o primeiro clique '
+    + 'depois de cada navegação sumir da gravação');
+});
+
 /* ---------- ponte da extensao ---------- */
 
 caso('arquivo aberto do disco nao recebe as gravacoes', () => {

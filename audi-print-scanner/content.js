@@ -229,6 +229,17 @@
   }
 
   function registrar(el, tipo, valor) {
+    /* Fora de sessao a extensao nao le NADA da pagina.
+     *
+     * Antes de 09/09/2026 esta checagem nao existia: em qualquer site, com a
+     * extensao so instalada e nenhuma gravacao rodando, todo clique e todo
+     * Enter/Espaco calculava xpath, lia o outerHTML do elemento e um resumo
+     * do texto da tela, mandava tudo para o service worker e ainda pintava o
+     * realce. O background descartava (sessao inativa), mas a leitura ja
+     * tinha acontecido, e o realce aparecia na tela de quem nao estava
+     * gravando nada. A guarda fica aqui, no ponto por onde clique, tecla e
+     * preenchimento passam, e nao em cada listener. */
+    if (!gravando) return;
     const agora = Date.now();
     if (!el || agora - ultimaAcao < 450) return;
     ultimaAcao = agora;
@@ -373,6 +384,8 @@
   }, true);
 
   document.addEventListener('click', () => {
+    // Mesma razao do registrar(): sem sessao, nem acordar o service worker.
+    if (!gravando) return;
     chrome.runtime.sendMessage({ tipo: 'AUDI_ACAO_CONCLUIDA' }).catch(() => {});
   }, true);
 
@@ -404,6 +417,19 @@
       esconderRealce();
     }
   }
+
+  /* Pergunta o estado da sessao ao carregar.
+   *
+   * Navegar no meio de uma gravacao cria um documento novo, e com ele um
+   * content script novo, com gravando=false. O background so manda
+   * AUDI_SESSAO quando a sessao COMECA ou PARA, nunca a cada navegacao --
+   * entao, com a guarda de gravando no registrar(), sem perguntar aqui o
+   * primeiro clique depois de qualquer navegacao sumiria da gravacao.
+   * AUDI_STATUS resolve o tabId pelo proprio remetente, entao nao precisa
+   * mandar tabId nenhum. */
+  chrome.runtime.sendMessage({ tipo: 'AUDI_STATUS' })
+    .then((r) => { if (r && r.sessao && r.sessao.ativa) ligarRealce(true); })
+    .catch(() => { /* service worker dormindo ou extensao recarregando */ });
 
   chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
     if (msg && msg.tipo === 'AUDI_TEXTO') { responder(resumoDaTela()); return true; }

@@ -123,7 +123,26 @@ function chromeLocal() {
     for (const p of passos) assert.strictEqual((p.imagens || []).length, 0, 'não deveria ter imagem: ' + JSON.stringify(p.imagens));
     console.log('  ok   CRITERIO: "Capturar prints" desmarcado, nenhum dos 3 passos tem imagem');
 
-    console.log('\n5 casos, tudo certo\n');
+    /* CRITERIO 6: navegar no meio da gravacao nao pode perder passo.
+     *
+     * A guarda "if (!gravando) return" no registrar() (que impede a extensao
+     * de ler a pagina fora de sessao) so e' segura porque o content script
+     * pergunta AUDI_STATUS ao carregar. Recarregar a aba cria documento novo
+     * e content script novo: sem essa pergunta, o clique abaixo sumiria. */
+    await aba.reload({ waitUntil: 'domcontentloaded' });
+    await esperar(1000);
+    await aba.click('#comId');
+    await esperar(1500);
+
+    const depois = await popup.evaluate(async () => {
+      const [a] = await chrome.tabs.query({ url: 'http://127.0.0.1:8995/*' });
+      return chrome.runtime.sendMessage({ tipo: 'AUDI_STATUS', tabId: a.id });
+    });
+    assert.strictEqual(depois.sessao.passos.length, 4,
+      'depois de navegar, o clique novo tinha de virar o 4º passo: ' + depois.sessao.passos.length);
+    console.log('  ok   CRITERIO: navegar no meio da gravação não perde o clique seguinte');
+
+    console.log('\n6 casos, tudo certo\n');
   } finally {
     await encerrar();
   }
