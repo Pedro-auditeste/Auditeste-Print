@@ -418,6 +418,11 @@ const servidor = http.createServer(async (req, res) => {
       motores: ['axe', 'pa11y', 'nota'],
       aliases: { lighthouse: 'nota' },
       status: motores,
+      /* A Railway injeta isto sozinha em toda instancia, sem precisar de
+       * nenhum ARG no Dockerfile. Existe porque um deploy de 08/09/2026
+       * rodou sem erro e sem trocar o conteudo servido -- sem isto aqui,
+       * nao tinha como provar de fora se o commit certo tinha chegado. */
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || undefined,
       exigeToken: !!TOKEN,
       sessaoAutoriza: cofreLigado,
       modo: TOKEN ? 'token' : (ehLoopback ? 'local' : 'mesma-origem'),

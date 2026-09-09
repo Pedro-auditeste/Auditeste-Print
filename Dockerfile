@@ -3,6 +3,14 @@
 # Node 24 e nao 20 por causa do cofre: node:sqlite so existe do 22 em diante.
 # Se este bump quebrar o build, voltar para node:20 e seguro: o cofre desliga
 # sozinho (banco.js trata o require ausente) e o Print continua igual.
+#
+# 08/09/2026: um deploy rodou sem erro nenhum e nao trocou o que ficou
+# servido (commit b6c745d nao chegava no ar mesmo depois de "Redeploy" no
+# painel). Editar o Dockerfile aqui forca a Railway a hashear tudo de novo
+# a partir desta linha, entao esta mudanca serve tanto de conserto (destrava
+# o build parado) quanto de aviso: se isto acontecer de novo, comparar o
+# campo "commit" de /ping com o commit real do repositorio antes de mexer
+# em mais nada.
 FROM node:24-bookworm-slim
 
 WORKDIR /app
