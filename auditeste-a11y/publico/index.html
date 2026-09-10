@@ -2237,9 +2237,18 @@
     pingPonte();
     mudarEstado('gravando');
     const st = document.getElementById('statusIA');
-    if(st) st.textContent = 'Gravando: cada print será descrito. Aguarde “Descrevendo…” nos passos.';
+    if(st) st.textContent = 'Gravando: cada interação vira um passo com xpath e id. O print só entra se você marcar a opção.';
     vigiaBuffer = setInterval(() => atualizarTelaEstavel(), 120);
-    setTimeout(()=> { atualizarTelaEstavel(true); capturar(true, 100); }, 400);
+    /* Nao capturar mais a tela de abertura sozinho.
+     *
+     * Ate 10/09/2026 a gravacao comecava disparando capturar(true, 100) 400ms
+     * depois do play: nascia um passo no segundo zero, com o print do topo da
+     * pagina e uma descricao dela. Com o foco em xpath e id, esse passo nao
+     * documenta interacao nenhuma (ninguem clicou em nada ainda), engorda a
+     * evidencia e foi o que o QA pediu para tirar. O print continua existindo
+     * por escolha: "Capturar agora" na barra, ou a captura por mudanca de tela
+     * quando ela esta ligada. */
+    setTimeout(()=> { atualizarTelaEstavel(true); }, 400);
     vigia = setInterval(observar, 200);
   }
 
@@ -4704,6 +4713,47 @@
     });
   }
 
+
+  /* Copiar seletor e HTML tambem na evidencia ja salva.
+   *
+   * No gravador cada botao e ligado na hora, elemento por elemento
+   * (ligarCopia, dentro de marcarQa). A tela do registro monta tudo como
+   * texto de uma vez, entao nao havia onde pendurar aquilo, e os botoes
+   * apareciam sem funcionar. Um ouvinte so, no container, resolve os dois
+   * casos e continua valendo para o que for redesenhado depois. */
+  document.getElementById('conteudoRegistro')?.addEventListener('click', async (e) => {
+    const b = e.target.closest('.copiar-sel, .copiar-html');
+    if(!b) return;
+    const caixa = b.closest('.meta-qa');
+    if(!caixa) return;
+    const seletor = b.classList.contains('copiar-sel');
+    const fonte = seletor ? caixa.querySelector('code:last-of-type') : caixa.querySelector('.insp-html pre');
+    const texto = fonte ? fonte.textContent : '';
+    if(!texto) return;
+    const antes = b.textContent;
+    try{
+      /* Tudo dentro do try de proposito.
+       *
+       * navigator.clipboard nao existe fora de contexto seguro (Print servido
+       * por http num IP da rede, por exemplo), e ali o acesso estoura na hora.
+       * Na primeira versao eu montava a corrida ANTES do try: o clique morria
+       * calado, sem copiar e sem avisar.
+       *
+       * O limite de tempo existe porque writeText fica PENDURADA, sem resolver
+       * nem falhar, quando a janela nao esta em foco. Sem ele o botao ficava
+       * mudo para sempre e parecia quebrado. */
+      if(!navigator.clipboard) throw new Error('sem area de transferencia');
+      await Promise.race([
+        navigator.clipboard.writeText(texto),
+        new Promise((_, falha) => setTimeout(() => falha(new Error('sem resposta')), 1500))
+      ]);
+      b.textContent = 'Copiado';
+    }catch(_){
+      b.textContent = 'Copie manualmente';
+    }
+    setTimeout(() => { b.textContent = antes; }, 1600);
+  });
+
   async function gerarCenariosIA(r){
     if(!r){ avisar('Nenhum registro aberto.'); return; }
     const botao = document.querySelector('[data-acao="gerarCenariosIA"]');
@@ -4859,20 +4909,38 @@
         <video src="${url(r.video)}" controls></video></div>` : ''}
 
       <h2 class="bloco">Passos capturados</h2>
-      ${r.passos.map((p,i)=>`
+      ${r.passos.map((p,i)=>{
+        /* Passo salvo: o elemento vem primeiro, porque e ele que o QA reusa e
+         * que o cliente confere. Titulo e observacao so aparecem quando dizem
+         * algo A MAIS: passo gravado tem titulo montado de acao + rotulo, que
+         * a propria linha do elemento ja mostra, e observacao vazia desde que
+         * a descricao saiu do gravador. Repetir isso enchia a evidencia de
+         * linha morta. Achado de acessibilidade e passo manual continuam com
+         * texto de verdade, e por isso continuam aparecendo. */
+        const acaoRotulo = [p.acao, p.rotulo].map(x => String(x || '').trim()).filter(Boolean).join(' · ');
+        const tituloUtil = String(p.titulo || '').trim() && String(p.titulo || '').trim() !== acaoRotulo;
+        const obsUtil = !!String(p.obs || '').trim();
+        const datas = (p.timestampAntes || p.urlAntes || p.urlDepois || p.frameUrl)
+          ? `<div class="meta-evento">${p.timestampAntes ? `Antes: ${esc(new Date(p.timestampAntes).toLocaleString('pt-BR'))}` : ''}${p.timestampDepois ? ` · Depois: ${esc(new Date(p.timestampDepois).toLocaleString('pt-BR'))}` : ''}${p.urlAntes ? ` · URL antes: ${esc(p.urlAntes)}` : ''}${p.urlDepois ? ` · URL depois: ${esc(p.urlDepois)}` : ''}${p.frameUrl ? ` · Iframe: ${esc(p.frameUrl)}` : ''}</div>`
+          : '';
+        const elemento = (p.elemento || p.acao)
+          ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elementoId ? ` · id: <code>${esc(p.elementoId)}</code>` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code> <button type="button" class="copiar-sel">Copiar</button>` : ''}${p.html ? `<div class="insp-html"><span class="rotulo-html">HTML do elemento</span><button type="button" class="copiar-html">Copiar HTML</button><pre>${esc(p.html)}</pre></div>` : ''}</div>`
+          : '';
+        return `
         <article class="passo ${normalizarAnaliseQa(p.analiseQa).alerta_qa ? 'alerta-qa' : ''}">
           <div class="num">${i+1}</div>
+          ${elemento}
+          ${tituloUtil ? `<div class="titulo">${esc(p.titulo)}</div>` : ''}
+          ${obsUtil ? `<div class="obs">${esc(p.obs)}</div>` : ''}
           <div class="carimbo">${esc(p.carimbo)}</div>
-          <div class="titulo">${esc(p.titulo) || 'Passo sem descrição'}</div>
-          <div class="obs">${esc(p.obs)}</div>
-          ${(p.timestampAntes || p.urlAntes || p.urlDepois || p.frameUrl) ? `<div class="meta-evento">${p.timestampAntes ? `Antes: ${esc(new Date(p.timestampAntes).toLocaleString('pt-BR'))}` : ''}${p.timestampDepois ? ` · Depois: ${esc(new Date(p.timestampDepois).toLocaleString('pt-BR'))}` : ''}${p.urlAntes ? ` · URL antes: ${esc(p.urlAntes)}` : ''}${p.urlDepois ? ` · URL depois: ${esc(p.urlDepois)}` : ''}${p.frameUrl ? ` · Iframe: ${esc(p.frameUrl)}` : ''}</div>` : ''}
-          ${p.elemento || p.acao ? `<div class="meta-qa"><b>${esc(p.acao || '')}</b>${p.rotulo ? ` · ${esc(p.rotulo)}` : ''}${p.elementoId ? ` · id: <code>${esc(p.elementoId)}</code>` : ''}${p.elemento ? ` · <code>${esc(p.elemento)}</code>` : ''}${p.html ? `<div class="insp-html"><span class="rotulo-html">HTML do elemento</span><pre>${esc(p.html)}</pre></div>` : ''}</div>` : ''}
+          ${datas}
           ${(p.imagens || []).length >= 2 ? `<button class="gerar-desc" data-acao="gerarDescricaoRegistro" data-passo="${i}">Gerar descrição novamente</button>` : ''}
-          <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${p.imagens.map(im=>`<figure style="margin:0 0 10px">
+          <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${(p.imagens || []).map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
             <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}</div>
           ${htmlAnaliseQa(normalizarAnaliseQa(p.analiseQa), i, p)}
-        </article>`).join('')}
+        </article>`;
+      }).join('')}
 
       <div class="caixa-cenarios" id="caixaCenarios" hidden></div>
       <p class="estado-cenarios" id="estadoCenarios" role="status" hidden></p>`;
