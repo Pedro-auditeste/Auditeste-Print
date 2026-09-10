@@ -457,7 +457,12 @@ async function tratar(req, res, u, lerCorpo) {
     if (p === '/api/evidencias' && req.method === 'GET') {
       const s = exigirSessao(req);
       const xid = texto(u.searchParams.get('execucao'), 'execucao', 64, false) || '';
-      const lista = banco.listarEvidencias(s.tenantId, xid).map(podarEvidencia);
+      /* Os objetos vao junto: a tela precisa do id da capa para montar o
+       * <img>, e buscar um por evidencia era uma ida ao servidor por passo.
+       * Nao expoe nada novo, e o mesmo que /api/evidencias/<id> ja devolve. */
+      const lista = banco.listarEvidencias(s.tenantId, xid).map(e => ({
+        ...podarEvidencia(e), objetos: banco.objetosDe(s.tenantId, e.id)
+      }));
       banco.auditar(s.tenantId, s.usuarioId, 'evidencia.listada',
         xid + ' (' + lista.length + ')', s.ip);
       json(res, 200, { evidencias: lista });

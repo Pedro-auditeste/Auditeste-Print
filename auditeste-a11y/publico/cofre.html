@@ -110,6 +110,16 @@
   .item b{display:block;color:var(--navy);}
   .item small{color:var(--muted);display:block;}
   .item img{width:92px;height:58px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#fff;}
+  /* O alvo (xpath e id) e o que a pessoa copia para automatizar depois, entao
+   * vem antes de titulo e observacao, em monoespacada e selecionavel. */
+  .item .alvo{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;}
+  .item .alvo code{font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--navy);
+    background:#f4f6fa;border:1px solid var(--line);border-radius:6px;padding:2px 6px;
+    max-width:100%;overflow-wrap:anywhere;}
+  .item .alvo .rot{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .item .copiar{font:11px inherit;color:var(--muted);background:none;border:1px solid var(--line);
+    border-radius:6px;padding:2px 6px;cursor:pointer;}
+  .item .copiar:hover{color:var(--navy);}
 
   table{width:100%;border-collapse:collapse;font-size:.85rem;}
   th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
@@ -933,6 +943,23 @@
 
   /* ---------- um projeto ---------- */
 
+  /* Extrai o id de um xpath //*[@id="x"]. Sem regex de propósito: a versão
+   * com expressão regular já quebrou o script inteiro por causa de escape. */
+  function idDoXpath(xp){
+    const t = String(xp || '').trim();
+    if(t.slice(0, 2) !== '//') return '';
+    const i = t.indexOf('[@id=');
+    if(i < 0 || t.slice(-1) !== ']') return '';
+    const tag = t.slice(2, i);
+    if(!tag || tag.indexOf('/') >= 0 || tag.indexOf('[') >= 0) return '';
+    const bruto = t.slice(i + 5, -1).trim();
+    const aspa = bruto.slice(0, 1);
+    if(aspa !== '"' && aspa !== "'") return '';
+    if(bruto.slice(-1) !== aspa) return '';
+    const valor = bruto.slice(1, -1);
+    return valor.indexOf(aspa) >= 0 ? '' : valor;
+  }
+
   async function abrirProjeto(id, nome){
     projetoAberto = { id, nome };
     mostrar('telaProjeto');
@@ -956,6 +983,8 @@
         + '<div class="lista" style="margin-top:12px"></div>';
       alvo.appendChild(cartao);
 
+      /* Uma chamada por execução, não uma por evidência: a lista já traz os
+       * objetos, então 40 evidências custam 1 ida ao servidor e não 41. */
       const { evidencias } = await api('/api/evidencias?execucao=' + encodeURIComponent(x.id));
       const dentro = cartao.querySelector('.lista');
       if(!evidencias.length){
@@ -963,15 +992,22 @@
         continue;
       }
       for(const ev of evidencias){
-        const det = await api('/api/evidencias/' + encodeURIComponent(ev.id));
-        const capa = (det.objetos || []).find(o => o.papel === 'depois') || (det.objetos || [])[0];
+        const objetos = ev.objetos || [];
+        const capa = objetos.find(o => o.papel === 'depois') || objetos[0];
         const el = document.createElement('div');
         el.className = 'item';
+        const xp = String(ev.elemento || '').trim();
+        const idEl = idDoXpath(xp);
         /* O src aponta para a rota autorizada, com o cookie da sessão. Não
          * existe URL pública do arquivo: quem não tem sessão leva 401. */
         el.innerHTML = (capa ? '<img src="/api/objetos/' + esc(capa.id) + '" alt="">' : '<div class="item-sem"></div>')
-          + '<div class="txt"><b>' + esc(ev.titulo || 'Passo ' + ev.ordem) + '</b>'
-          + '<small>' + esc(ev.obs || '') + '</small>'
+          + '<div class="txt">'
+          + (idEl ? '<div class="alvo"><span class="rot">id</span><code>' + esc(idEl) + '</code>'
+              + '<button class="copiar" data-copiar="' + esc(idEl) + '">Copiar</button></div>' : '')
+          + (xp ? '<div class="alvo"><span class="rot">xpath</span><code>' + esc(xp) + '</code>'
+              + '<button class="copiar" data-copiar="' + esc(xp) + '">Copiar</button></div>' : '')
+          + '<b>' + esc(ev.titulo || 'Passo ' + ev.ordem) + '</b>'
+          + (ev.obs ? '<small>' + esc(ev.obs) + '</small>' : '')
           + '<small>criada em ' + quando(ev.criada_em) + ' · vence em ' + quando(ev.expira_em) + '</small></div>'
           + (pode('gestor') ? '<button class="btn perigo" data-excluir="' + esc(ev.id) + '">Excluir</button>' : '');
         dentro.appendChild(el);
@@ -980,6 +1016,23 @@
   }
 
   $('listaExecucoes').addEventListener('click', async e => {
+    const c = e.target.closest('[data-copiar]');
+    if(c){
+      const texto = c.dataset.copiar || '';
+      const rotulo = c.textContent;
+      /* clipboard só existe em contexto seguro, e writeText trava sem foco:
+       * por isso o acesso vai dentro do try e com prazo. */
+      try{
+        if(!navigator.clipboard) throw new Error('sem área de transferência');
+        await Promise.race([
+          navigator.clipboard.writeText(texto),
+          new Promise((_, falha) => setTimeout(() => falha(new Error('sem resposta')), 1500))
+        ]);
+        c.textContent = 'Copiado';
+      }catch(_){ c.textContent = 'Copie manualmente'; }
+      setTimeout(() => { c.textContent = rotulo; }, 1600);
+      return;
+    }
     const b = e.target.closest('[data-excluir]');
     if(!b) return;
     if(!confirm('Excluir esta evidência? O arquivo sai do servidor junto e não há como desfazer.')) return;

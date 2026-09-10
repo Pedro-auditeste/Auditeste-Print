@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Segurança do Audi Print</title>
+<style>
+  /* Paleta do Audi Print, valor por valor, e a mesma pilha de fontes do
+     sistema que o produto usa. Sem nada externo: o arquivo abre sozinho,
+     inclusive sem internet. Sem modo escuro, porque o Print nao tem. */
+  :root{
+    --navy:#0d3446;
+    --navy-deep:#092838;
+    --green:#76c043;
+    --green-dark:#5ea32f;
+    --bg:#f3f4f3;
+    --card:#ffffff;
+    --ink:#1e2a30;
+    --muted:#5b6b73;
+    --line:#e3e7e5;
+    --rec:#d84f4f;
+    --sombra:0 2px 10px rgba(13,52,70,.07);
+    --sombra-forte:0 4px 20px rgba(13,52,70,.10);
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+    font-size:16.5px;
+    line-height:1.62;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px 80px;}
+
+  h1,h2,h3{color:var(--navy);margin:0;text-wrap:balance;}
+  h1{font-size:clamp(1.9rem,4.6vw,2.85rem);line-height:1.08;font-weight:800;letter-spacing:-.02em;margin-bottom:14px;}
+  h2{font-size:clamp(1.3rem,2.4vw,1.65rem);font-weight:700;letter-spacing:-.01em;margin-bottom:6px;}
+  h3{font-size:1rem;font-weight:700;margin-bottom:4px;}
+  p{margin:0 0 14px;max-width:66ch;}
+
+  .eyebrow{
+    display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.15em;
+    text-transform:uppercase;color:var(--green-dark);margin-bottom:10px;
+  }
+
+  /* ---------- topo ---------- */
+  header.topo{
+    background:var(--navy);
+    color:#eaf2f6;
+    margin:0 0 46px;
+    padding:52px 0 34px;
+    border-bottom:5px solid var(--green);
+  }
+  header.topo .interno{max-width:1000px;margin:0 auto;padding:0 24px;}
+  header.topo h1{color:#fff;}
+  .selo{
+    display:inline-flex;align-items:center;gap:9px;
+    font-size:.74rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+    color:#dff3cd;border:1px solid var(--green);border-radius:999px;
+    padding:5px 14px;margin-bottom:20px;
+  }
+  .selo::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green);}
+  .lide{font-size:1.13rem;color:#c6d8e2;max-width:62ch;margin-bottom:28px;}
+
+  .placar{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .placar div{
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:12px;padding:16px 17px;
+  }
+  .num{display:block;font-size:2rem;font-weight:800;line-height:1;letter-spacing:-.02em;
+       color:#fff;font-variant-numeric:tabular-nums;}
+  .num.verde{color:#a8e07a;}
+  .rot{display:block;font-size:.76rem;color:#b6cdd9;margin-top:7px;line-height:1.35;}
+  .carimbo{
+    display:flex;flex-wrap:wrap;gap:5px 22px;margin-top:22px;padding-top:18px;
+    border-top:1px solid rgba(255,255,255,.14);
+    font-size:.78rem;color:#a9c3d1;font-family:ui-monospace,Consolas,monospace;
+  }
+  .carimbo b{color:#fff;font-weight:700;}
+  @media(max-width:780px){ .placar{grid-template-columns:repeat(2,1fr);} }
+
+  section{margin-bottom:56px;}
+  .intro{max-width:66ch;margin-bottom:24px;}
+
+  /* ---------- contraprova ---------- */
+  .contraste{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:6px;}
+  @media(max-width:840px){ .contraste{grid-template-columns:1fr;} }
+  .lado{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:19px;box-shadow:var(--sombra);border-top:4px solid var(--line);
+  }
+  .lado.viva{border-top-color:var(--green);}
+  .lado.morta{border-top-color:var(--rec);}
+  .marca{font-size:.71rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+         font-family:ui-monospace,Consolas,monospace;}
+  .viva .marca{color:var(--green-dark);}
+  .morta .marca{color:var(--rec);}
+  .lado p{font-size:.92rem;color:var(--muted);margin:7px 0 12px;}
+
+  pre{
+    background:var(--navy-deep);color:#dbe7ef;border-radius:9px;
+    padding:14px 15px;margin:0;overflow-x:auto;
+    font-family:ui-monospace,Consolas,monospace;font-size:.78rem;line-height:1.7;
+  }
+  pre .ok{color:#a8e07a;}
+  pre .mau{color:#ff9b97;}
+  pre .dim{color:#8aa6b5;}
+
+  .moral{
+    border-left:4px solid var(--green);padding:3px 0 3px 16px;margin-top:22px;
+    font-size:1rem;max-width:64ch;color:var(--ink);
+  }
+  .moral b{color:var(--navy);}
+
+  /* ---------- camadas ---------- */
+  .camadas{display:grid;grid-template-columns:repeat(auto-fill,minmax(262px,1fr));gap:14px;}
+  .camada{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);
+          border-radius:12px;padding:16px 17px;box-shadow:var(--sombra);}
+  .camada p{font-size:.88rem;color:var(--muted);margin:5px 0 11px;max-width:none;}
+  .arq{font-family:ui-monospace,Consolas,monospace;font-size:.72rem;color:var(--navy);
+       background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:3px 8px;
+       display:inline-block;}
+
+  /* ---------- provas ---------- */
+  .prova{background:var(--card);border:1px solid var(--line);border-radius:12px;
+         padding:18px 19px;margin-bottom:13px;box-shadow:var(--sombra);}
+  .prova-topo{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px;}
+  .veredito{font-size:.71rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+            color:var(--green-dark);white-space:nowrap;font-family:ui-monospace,Consolas,monospace;}
+  .prova p{font-size:.9rem;color:var(--muted);margin:6px 0 12px;max-width:none;}
+  .cru-rot{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+           color:var(--muted);margin-bottom:6px;font-family:ui-monospace,Consolas,monospace;}
+  .listinha{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px;}
+  .chip{font-size:.82rem;background:var(--card);border:1px solid var(--line);
+        border-radius:999px;padding:5px 13px;color:var(--ink);}
+
+  /* ---------- tabela ---------- */
+  .tabela-caixa{overflow-x:auto;border:1px solid var(--line);border-radius:12px;
+                background:var(--card);box-shadow:var(--sombra);}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;}
+  th,td{text-align:left;padding:9px 15px;border-bottom:1px solid var(--line);}
+  thead th{font-size:.68rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+           color:#cfe0ea;background:var(--navy);white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  th.st,td.st{text-align:center;width:108px;}
+  td.ctrl{font-weight:600;color:var(--navy);}
+  .grupo td{background:var(--bg);font-weight:700;font-size:.72rem;letter-spacing:.11em;
+            text-transform:uppercase;color:var(--muted);}
+  .tag{display:inline-block;font-family:ui-monospace,Consolas,monospace;font-size:.66rem;
+       font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:5px;
+       padding:3px 9px;border:1px solid;}
+  .t-feito{color:#fff;background:var(--green-dark);border-color:var(--green-dark);}
+  .t-na{color:var(--muted);border-color:var(--line);background:var(--bg);}
+  .legenda{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;font-size:.86rem;color:var(--muted);}
+  .legenda span{display:inline-flex;align-items:center;gap:8px;}
+
+  /* ---------- duas colunas ---------- */
+  .duas{display:grid;grid-template-columns:1fr 1fr;gap:34px;}
+  @media(max-width:840px){ .duas{grid-template-columns:1fr;} }
+  ul.limpa{list-style:none;padding:0;margin:14px 0 0;}
+  ul.limpa li{padding:9px 0;border-bottom:1px solid var(--line);font-size:.92rem;
+              display:flex;gap:11px;align-items:baseline;}
+  ul.limpa li:last-child{border-bottom:none;}
+  ul.limpa li::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;
+                      background:var(--green);transform:translateY(-2px);}
+  ul.limpa b{font-weight:600;color:var(--navy);}
+  ul.limpa small{display:block;color:var(--muted);font-size:.83rem;}
+
+  footer{border-top:3px solid var(--green);padding-top:20px;font-size:.87rem;color:var(--muted);}
+  footer b{color:var(--navy);}
+
+  @media print{
+    body{background:#fff;}
+    header.topo{background:var(--navy) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .prova,.camada,.lado,.tabela-caixa{break-inside:avoid;box-shadow:none;}
+    pre{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <div class="interno">
+    <div class="selo">387 verificações · 0 falha</div>
+    <h1>Segurança do Audi Print</h1>
+    <p class="lide">O que protege o cofre de evidências, e como cada defesa é provada. Não pela
+       afirmação de que existe, mas pelo comportamento dela quando alguém ataca, e pelo alarme
+       que toca quando ela é quebrada de propósito.</p>
+
+    <div class="placar">
+      <div><span class="num">3</span><span class="rot">serviços cobertos<br>Print, Manager, Trace</span></div>
+      <div><span class="num">48</span><span class="rot">controles de segurança<br>por serviço</span></div>
+      <div><span class="num verde">319</span><span class="rot">testes automatizados<br>de ataque</span></div>
+      <div><span class="num verde">68</span><span class="rot">sondas de varredura<br>0 achado</span></div>
+    </div>
+
+    <div class="carimbo">
+      <span>Execução real · <b>02/09/2026</b></span>
+      <span>Print <b>267 testes + 40 sondas</b></span>
+      <span>Manager <b>26 + 14</b></span>
+      <span>Trace <b>26 + 14</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <div class="eyebrow">O princípio</div>
+  <h2>Um teste verde não prova nada</h2>
+  <div class="intro">
+    <p>Um teste que passa seria verde igualzinho se não estivesse testando coisa nenhuma. O que
+       prova uma defesa é a <b>contraprova</b>: quebrar a proteção de propósito e confirmar que o
+       alarme toca. Abaixo, a mesma pergunta feita duas vezes ao sistema real.</p>
+  </div>
+
+  <div class="contraste">
+    <div class="lado viva">
+      <span class="marca">Defesa ligada</span>
+      <p>A Google pede um projeto que pertence à Amazon, sabendo o identificador dele.</p>
+<pre><span class="dim">// o cliente entra no WHERE, não numa checagem depois</span>
+SELECT * FROM projetos
+ WHERE tenant_id = &lt;sua equipe&gt;
+   AND id = &lt;id real de outro cliente&gt;
+
+<span class="ok">-&gt; 0 linha (retorno null)</span></pre>
+    </div>
+    <div class="lado morta">
+      <span class="marca">Defesa quebrada</span>
+      <p>O mesmo pedido, com o filtro por cliente removido. Um esquecimento de uma linha.</p>
+<pre><span class="dim">// sem WHERE tenant_id</span>
+SELECT nome, cliente
+  FROM projetos
+
+<span class="mau">-&gt; VAZOU: "Checkout do cliente Amazon"
+        do cliente Amazon</span></pre>
+    </div>
+  </div>
+
+  <p class="moral">Os dois casos devolvem <b>HTTP 200</b>. Nenhum teste de “funcionou?” separa um
+     do outro. Por isso o isolamento aqui não é uma checagem que alguém pode esquecer: é
+     argumento obrigatório da consulta, e uma consulta sem cliente no contexto <b>para</b>, em
+     vez de devolver tudo.</p>
+</section>
+
+<section>
+  <div class="eyebrow">As camadas</div>
+  <h2>O que protege o quê</h2>
+  <div class="intro">
+    <p>Cada camada existe contra um ataque específico, e cada uma tem um teste que falha se ela
+       sumir do código.</p>
+  </div>
+
+  <div class="camadas">
+    <div class="camada">
+      <h3>Isolamento entre clientes</h3>
+      <p>Todo acesso ao banco carrega o cliente da sessão. Consulta sem cliente é recusada, não
+         atendida por padrão.</p>
+      <span class="arq">exigirTenant()</span>
+    </div>
+    <div class="camada">
+      <h3>Identidade</h3>
+      <p>Senha guardada com scrypt, comparação em tempo fixo. O token da sessão vive no
+         navegador; o banco guarda só o hash dele.</p>
+      <span class="arq">scrypt</span>
+    </div>
+    <div class="camada">
+      <h3>Cifra em repouso</h3>
+      <p>O conteúdo da evidência é AES-256-GCM. Abrir o arquivo do banco num editor não revela o
+         print, e um byte alterado não passa por bom.</p>
+      <span class="arq">AES-256-GCM</span>
+    </div>
+    <div class="camada">
+      <h3>Acesso ao arquivo</h3>
+      <p>O objeto sai por link assinado que expira em minutos. Remendar o cliente, o prazo ou a
+         assinatura derruba o link.</p>
+      <span class="arq">HMAC-SHA256</span>
+    </div>
+    <div class="camada">
+      <h3>Papéis</h3>
+      <p>Leitor não cria, consultor não exclui, ninguém convida para papel acima do próprio.
+         Tirar o vínculo derruba a sessão aberta na hora.</p>
+      <span class="arq">RBAC</span>
+    </div>
+    <div class="camada">
+      <h3>Força bruta</h3>
+      <p>Oito senhas erradas travam a conta, e a trava é por conta: as outras seguem entrando
+         normalmente.</p>
+      <span class="arq">HTTP 429</span>
+    </div>
+    <div class="camada">
+      <h3>Fronteira de saída</h3>
+      <p>O scanner não visita rede interna nem metadados de nuvem, e recusa o nome que resolve
+         para um endereço público e um privado.</p>
+      <span class="arq">SSRF · DNS rebind</span>
+    </div>
+    <div class="camada">
+      <h3>Conteúdo do cliente</h3>
+      <p>A tela testada entra como dado cercado por uma fronteira, nunca como ordem. Resposta que
+         troca de papel é recusada.</p>
+      <span class="arq">fronteira de confiança</span>
+    </div>
+    <div class="camada">
+      <h3>Dado sensível na captura</h3>
+      <p>Senha, CPF, CNPJ e cartão são mascarados antes de a evidência existir, não antes de ser
+         exibida.</p>
+      <span class="arq">mascaramento</span>
+    </div>
+    <div class="camada">
+      <h3>Auditoria</h3>
+      <p>Quem criou, viu, baixou e excluiu. A auditoria de um cliente não mostra a de outro, e
+         não guarda cookie nem corpo do pedido.</p>
+      <span class="arq">trilha por cliente</span>
+    </div>
+    <div class="camada">
+      <h3>Recuperação</h3>
+      <p>“Temos backup” não é o controle. O controle é destruir o banco, restaurar e confirmar
+         que a evidência volta com o arquivo dentro.</p>
+      <span class="arq">restore testado</span>
+    </div>
+    <div class="camada">
+      <h3>Login corporativo</h3>
+      <p>Entrada por OIDC com assinatura, emissor, audiência, validade, nonce e state de uso
+         único, e o domínio do e-mail conferido.</p>
+      <span class="arq">SSO · OIDC</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">A prova</div>
+  <h2>Oito ataques que você dispara sozinho</h2>
+  <div class="intro">
+    <p>Dentro do cofre, na tela de Segurança, cada botão executa o ataque de verdade contra o
+       servidor, na hora. O que aparece não é uma mensagem de “tudo certo”: é a saída crua da
+       operação. Estas são três delas, como saíram na última execução.</p>
+  </div>
+
+  <div class="prova">
+    <div class="prova-topo"><h3>Isolamento entre clientes</h3><span class="veredito">✓ defesa funcionou</span></div>
+    <p>Pedir, no seu contexto, um projeto que pertence a outro cliente.</p>
+    <div class="cru-rot">evidência crua · saída real do servidor</div>
+<pre>SELECT * FROM projetos WHERE tenant_id = &lt;sua equipe&gt; AND id = &lt;id real de outro cliente, oculto&gt;
+-&gt; 0 linha (retorno null)</pre>
+  </div>
+
+  <div class="prova">
+    <div class="prova-topo"><h3>Cifra em repouso</h3><span class="veredito">✓ defesa funcionou</span></div>
+    <p>Cifrar um dado de teste agora e olhar o que iria para o disco.</p>
+    <div class="cru-rot">evidência crua · saída real do servidor</div>
+<pre>cifrar(Buffer("prova de cifra"))
+-&gt; primeiros 16 bytes: 41554449454e4331cb0054b2d5dbc4a3
+   (41554449454e4331 em hex = "AUDIENC1"; o texto claro sumiu)</pre>
+  </div>
+
+  <div class="prova">
+    <div class="prova-topo"><h3>Força bruta trava a conta</h3><span class="veredito">✓ defesa funcionou</span></div>
+    <p>Oito senhas erradas seguidas na mesma conta.</p>
+    <div class="cru-rot">evidência crua · saída real do servidor</div>
+<pre>falhas registradas: [1, 2, 3, 4, 5, 6, 7, 8]
+tentativasDe() = 8  &gt;=  limite 8  -&gt;  proxima recebe HTTP 429</pre>
+  </div>
+
+  <p style="margin-top:18px">As outras cinco, no mesmo formato:</p>
+  <div class="listinha">
+    <span class="chip">Senha fraca é recusada</span>
+    <span class="chip">Nome de equipe duplicado</span>
+    <span class="chip">Convite inválido</span>
+    <span class="chip">Link adulterado</span>
+    <span class="chip">Nada fica exposto sem sessão</span>
+  </div>
+
+  <p class="moral"><b>Seis delas têm contraprova automatizada:</b> o teste sabota a defesa de
+     propósito e confirma que a prova fica vermelha. Prova que nunca sabe reprovar é enfeite.</p>
+</section>
+
+<section>
+  <div class="eyebrow">A cobertura</div>
+  <h2>48 controles, três serviços</h2>
+  <div class="intro">
+    <p>O manual de segurança de serviços da Auditeste, controle a controle. O Print está em
+       produção; o Manager e o Trace têm o mesmo núcleo de segurança implementado e testado.</p>
+  </div>
+
+  <div class="tabela-caixa">
+    <table>
+      <thead>
+        <tr><th>Controle</th><th class="st">Print</th><th class="st">Manager</th><th class="st">Trace</th></tr>
+      </thead>
+      <tbody>
+        <tr class="grupo"><td colspan="4">Marco 1 · roda dentro do serviço</td></tr>
+        <tr><td class="ctrl">Tenant / Multitenancy</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Autenticação</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Autorização</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Storage privado</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">HTTPS / TLS</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Criptografia em repouso</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Ciclo de vida da evidência</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Retenção</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Exclusão segura</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Secrets management</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Audit log mínimo</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+
+        <tr class="grupo"><td colspan="4">Marco 2 · esteira e processo</td></tr>
+        <tr><td class="ctrl">RBAC</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Auditoria completa</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Rate limiting</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Validação de payload</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Limite de upload</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Validação MIME / tipo de arquivo</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">CORS restritivo</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Security headers</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Tratamento seguro de erros</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Backup</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Restore testado</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Separação de ambientes</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Secure SDLC</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Code review</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">SAST · análise estática</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Dependency scanning</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Secret scanning</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Patch / dependency management</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">SSO-ready</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Gestão de incidentes</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">LGPD operacional</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Inventário de dados</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Subprocessadores</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+
+        <tr class="grupo"><td colspan="4">Marco 3 · garantia e diligência</td></tr>
+        <tr><td class="ctrl">SSO / OIDC / SAML</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">DAST · varredura dinâmica</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Segurança de IA</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-na">n/a</span></td><td class="st"><span class="tag t-na">n/a</span></td></tr>
+        <tr><td class="ctrl">Proteção contra prompt injection</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-na">n/a</span></td><td class="st"><span class="tag t-na">n/a</span></td></tr>
+        <tr><td class="ctrl">Allowlist de ferramentas do modelo</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-na">n/a</span></td><td class="st"><span class="tag t-na">n/a</span></td></tr>
+        <tr><td class="ctrl">Validação de saída do modelo</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-na">n/a</span></td><td class="st"><span class="tag t-na">n/a</span></td></tr>
+        <tr><td class="ctrl">Arquitetura de segurança</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Fluxo de dados documentado</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Fronteiras de confiança</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Perguntas de segurança</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Questionário padrão de segurança</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Evidências dos controles</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Política de vulnerabilidades</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+        <tr><td class="ctrl">Revisões periódicas de segurança</td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td><td class="st"><span class="tag t-feito">feito</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legenda">
+    <span><span class="tag t-feito">feito</span> implementado, com teste que o trava</span>
+    <span><span class="tag t-na">n/a</span> o serviço não usa modelo de linguagem: não há superfície a proteger</span>
+  </div>
+</section>
+
+<section class="duas">
+  <div>
+    <div class="eyebrow">A esteira</div>
+    <h2>O que roda sozinho</h2>
+    <p style="font-size:.95rem;color:var(--muted)">Metade da revisão não espera ninguém lembrar.
+       Roda a cada mudança de código e também toda semana, porque falha de dependência aparece
+       quando alguém publica o aviso, não quando a gente mexe.</p>
+    <ul class="limpa">
+      <li><div><b>Análise estática do código</b><small>conjunto estendido de regras</small></div></li>
+      <li><div><b>Varredura dinâmica</b><small>ataca o sistema em execução, 68 sondas</small></div></li>
+      <li><div><b>Dependências</b><small>vulnerabilidade conhecida em biblioteca</small></div></li>
+      <li><div><b>Segredos</b><small>varre toda a história do repositório</small></div></li>
+      <li><div><b>Bateria de ataque</b><small>319 testes, a cada envio</small></div></li>
+      <li><div><b>Varredura externa semanal</b><small>OWASP ZAP contra o ambiente publicado</small></div></li>
+      <li><div><b>Revisão de alteração</b><small>aprovação e checagens verdes antes de publicar</small></div></li>
+    </ul>
+  </div>
+  <div>
+    <div class="eyebrow">Os documentos</div>
+    <h2>O que a diligência pede</h2>
+    <p style="font-size:.95rem;color:var(--muted)">Escritos a partir do sistema real, e não da
+       intenção. Onde um controle depende de algo em aberto, o texto diz, e diz de quem é.</p>
+    <ul class="limpa">
+      <li><div><b>Arquitetura de segurança</b><small>e o fluxo de dados, fronteira a fronteira</small></div></li>
+      <li><div><b>LGPD operacional</b><small>papéis, base legal, retenção, direitos do titular</small></div></li>
+      <li><div><b>Subprocessadores</b><small>quem toca o dado, onde, com que salvaguarda</small></div></li>
+      <li><div><b>Resposta a incidentes</b><small>severidade, prazo, quem responde</small></div></li>
+      <li><div><b>Política de vulnerabilidades</b><small>prazo de correção por gravidade</small></div></li>
+      <li><div><b>Perguntas de segurança</b><small>respostas oficiais para o seu questionário</small></div></li>
+      <li><div><b>Evidências dos controles</b><small>cada afirmação com o teste que a demonstra</small></div></li>
+      <li><div><b>Guia para você atacar</b><small>o roteiro para a sua equipe tentar invadir</small></div></li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <b>Auditeste · segurança do Audi Print.</b> Os números desta página vêm de execução real, não de
+  estimativa: 319 testes de ataque e 68 sondas de varredura, com 0 falha e 0 achado, em
+  02/09/2026. Cada afirmação aqui tem um teste correspondente que falha se a defesa for removida.
+</footer>
+
+</div>
+</body>
+</html>
