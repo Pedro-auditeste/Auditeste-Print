@@ -96,7 +96,23 @@ const passoCom = (id) => ({
     assert.ok(/id:\s*entrar/.test(velho.texto), 'o id tinha de aparecer na tela também');
     console.log('  ok   CRITERIO: extensão antiga sem o campo, o id sai do próprio xpath');
 
-    console.log('\n5 casos, tudo certo\n');
+    /* O passo gravado mostra o ELEMENTO, nada de narrativa (10/09/2026).
+     * Titulo, observacao, carimbo e o bloco de datas continuam no DOM porque
+     * salvar, exportar e os achados de acessibilidade dependem deles, mas
+     * somem da tela do gravador. */
+    const naTela = await p.evaluate(() => {
+      const el = document.querySelector('#lista > .passo');
+      const mostra = (s) => { const n = el.querySelector(s); return !!n && !n.hidden && getComputedStyle(n).display !== 'none'; };
+      return { meta: mostra('.meta-qa'), titulo: mostra('.titulo'), obs: mostra('.obs'),
+               carimbo: mostra('.carimbo'), datas: mostra('.meta-evento'), botaoDesc: mostra('.gerar-desc') };
+    });
+    assert.strictEqual(naTela.meta, true, 'a linha do elemento tem de aparecer');
+    for (const parte of ['titulo', 'obs', 'carimbo', 'datas', 'botaoDesc']) {
+      assert.strictEqual(naTela[parte], false, parte + ' voltou a aparecer no passo gravado');
+    }
+    console.log('  ok   CRITERIO: no passo gravado sobra só o elemento, sem narrativa');
+
+    console.log('\n6 casos, tudo certo\n');
   } finally {
     await navegador.close().catch(() => {});
   }

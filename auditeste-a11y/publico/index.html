@@ -312,6 +312,26 @@
   .btn.discreto:hover{opacity:1;}
   a.btn{display:inline-flex;align-items:center;text-decoration:none;}
   .linha-opcao{display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
+  /* Passo de gravacao mostra o ELEMENTO, nao uma narrativa.
+   *
+   * Decisao de produto de 10/09/2026: o que interessa no passo gravado e a
+   * acao, o rotulo, o xpath, o id e o HTML do elemento. Titulo e observacao
+   * eram heranca da epoca em que o passo girava em torno do print, e viraram
+   * ruido: repetiam o que a linha do elemento ja diz, e ficavam vazios
+   * quando o print esta desligado.
+   *
+   * Some da TELA, nao do DOM: os mesmos campos sao usados pelos achados de
+   * acessibilidade (que viram passo com texto de verdade) e por salvar,
+   * exportar e publicar no cofre. Apagar o elemento quebraria os tres. */
+  .passo.so-elemento .carimbo,
+  .passo.so-elemento .titulo,
+  .passo.so-elemento .obs,
+  .passo.so-elemento .gerar-desc,
+  .passo.so-elemento .meta-evento,
+  .passo.so-elemento .legenda-ia,
+  .passo.so-elemento .analise-qa{display:none;}
+  .passo.so-elemento .meta-qa{margin-top:0;}
+
   /* Mesmo padrao de abas do cofre, e pela mesma regra: rotulo fixo
    * ("equipe base"/"segmento") para duas opcoes nunca ficarem com o mesmo
    * texto na tela quando o segmento tem o nome da equipe. */
@@ -3383,6 +3403,19 @@
   function montarPassoDaExtensao(p){
     const el = novoPasso(p.titulo || 'Passo do teste', p.obs || '');
     marcarQa(el, p);
+    /* Passo de gravacao: so o elemento na tela (ver CSS .so-elemento).
+     *
+     * O titulo continua existindo por baixo, escondido, porque e ele que vira
+     * o nome da evidencia ao salvar, exportar e publicar no cofre. Montado da
+     * acao mais o rotulo, que e exatamente o que a linha visivel ja mostra,
+     * em vez de uma frase inventada sobre a tela. */
+    el.classList.add('so-elemento');
+    const nome = [p.acao, p.rotulo].map(x => String(x || '').trim()).filter(Boolean).join(' · ');
+    const t = el.querySelector('.titulo');
+    if(t){ t.textContent = nome || String(p.titulo || 'Passo'); t.dataset.auto = '1'; }
+    const o = el.querySelector('.obs');
+    if(o){ o.textContent = ''; o.dataset.auto = '1'; }
+
     /* O print so entra se voce pediu print.
      *
      * A guarda fica AQUI, na entrada do passo, e nao so na extensao, por dois
