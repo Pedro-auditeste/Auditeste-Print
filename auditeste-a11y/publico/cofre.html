@@ -141,6 +141,15 @@
   #painelSegmentos h3{margin:0 0 2px;color:var(--navy);font-size:1rem;}
   .seg-abas{display:flex;flex-direction:column;gap:6px;margin:12px 0;}
   .onde-abas{display:flex;gap:6px;flex-wrap:wrap;}
+  /* O seletor do formulario e a navegacao de segmentos do painel ao lado
+   * mostravam a MESMA lista, com o MESMO desenho, um do lado do outro: na
+   * tela viravam "duas abas de segmento" sem nada dizendo que uma escolhe
+   * onde criar e a outra troca de equipe. O rotulo "Criar em" e a moldura
+   * abaixo existem para separar as duas coisas. */
+  .grupo-onde{display:flex;align-items:center;gap:9px;border:1px dashed var(--line);
+    border-radius:12px;padding:6px 10px;background:var(--card);}
+  .rot-onde{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;white-space:nowrap;}
   .seg-abas button,.onde-abas button{
     text-align:left;background:#fff;border:1px solid var(--line);border-left:4px solid transparent;
     border-radius:10px;padding:9px 12px;font:inherit;font-size:.9rem;color:var(--navy);cursor:pointer;
@@ -410,7 +419,10 @@
       <form id="formProjeto" class="linha" style="margin-top:14px">
         <input type="text" id="nomeProjeto" placeholder="Nome do projeto" style="flex:1;min-width:180px">
         <input type="text" id="clienteProjeto" placeholder="Cliente (opcional)" style="flex:1;min-width:160px">
-        <div id="ondeProjeto" class="onde-abas" aria-label="Onde criar o projeto" hidden></div>
+        <div id="grupoOnde" class="grupo-onde" hidden>
+          <span class="rot-onde">Criar em</span>
+          <div id="ondeProjeto" class="onde-abas" aria-label="Onde criar o projeto"></div>
+        </div>
         <button class="btn primario" type="submit">Criar</button>
       </form>
     </div>
@@ -834,8 +846,9 @@
    * do nome escolhido (tipo "(equipe base)"/"(segmento)" abaixo). */
   function encherOndeCriar(base, segs){
     const sel = $('ondeProjeto');
-    if(souSegmento() || !segs.length){ sel.hidden = true; sel.innerHTML = ''; sel.dataset.valor = ''; return; }
-    sel.hidden = false;
+    const grupo = $('grupoOnde');
+    if(souSegmento() || !segs.length){ grupo.hidden = true; sel.innerHTML = ''; sel.dataset.valor = ''; return; }
+    grupo.hidden = false;
     sel.dataset.valor = '';
     sel.innerHTML = '<button type="button" data-onde="" aria-current="true">' + esc(base) + '<small>equipe base</small></button>'
       + segs.map(t => '<button type="button" data-onde="' + esc(t.id) + '">'
@@ -896,7 +909,7 @@
     const nome = $('nomeProjeto').value.trim();
     if(!nome) return;
     try{
-      const destino = ($('ondeProjeto') && !$('ondeProjeto').hidden) ? $('ondeProjeto').dataset.valor : '';
+      const destino = ($('grupoOnde') && !$('grupoOnde').hidden) ? $('ondeProjeto').dataset.valor : '';
       const r = await api('/api/projetos', {
         json: { nome, cliente: $('clienteProjeto').value.trim(), segmentoId: destino || undefined }
       });

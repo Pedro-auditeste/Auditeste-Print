@@ -3820,11 +3820,34 @@
     return el;
   }
 
+  /* O id, quando a extensao nao manda o campo separado.
+   *
+   * Complemento antigo (2.1.0) so manda o xpath, e o xpath de elemento com id
+   * JA CARREGA o id dentro: //*[@id="entrar"]. Extrair dali faz o id aparecer
+   * na hora, sem depender de ninguem atualizar a extensao. Quando a extensao
+   * manda elementoId, ele vence: e o valor lido do elemento, nao uma leitura
+   * do texto do seletor. Sem regex de proposito: este arquivo ja levou um
+   * conserto errado por escape de barra em regex. */
+  function idDoXpath(xp){
+    const s = String(xp || '').trim();
+    if(s.slice(0, 2) !== '//') return '';
+    const i = s.indexOf('[@id=');
+    if(i < 0 || s.slice(-1) !== ']') return '';
+    const tag = s.slice(2, i);
+    if(!tag || tag.indexOf('/') >= 0 || tag.indexOf('[') >= 0) return '';
+    const bruto = s.slice(i + 5, -1).trim();
+    const aspa = bruto.slice(0, 1);
+    if(aspa !== '"' && aspa !== "'") return '';
+    if(bruto.slice(-1) !== aspa) return '';
+    const valor = bruto.slice(1, -1);
+    return valor.indexOf(aspa) >= 0 ? '' : valor;
+  }
+
   function marcarQa(passo, dados){
     if(!passo || !dados) return;
     passo.dataset.acao = dados.acao || '';
     passo.dataset.elemento = dados.elemento || '';
-    passo.dataset.elementoId = dados.elementoId || '';
+    passo.dataset.elementoId = dados.elementoId || idDoXpath(dados.elemento);
     passo.dataset.rotulo = dados.rotulo || '';
     passo.dataset.valor = dados.valor || '';
     passo.dataset.html = dados.html || '';
@@ -3867,7 +3890,7 @@
     }
     box.hidden = false;
     const sel = String(dados.elemento || '').trim();
-    const idEl = String(dados.elementoId || '').trim();
+    const idEl = String(dados.elementoId || idDoXpath(dados.elemento) || '').trim();
     // O HTML vem aberto, logo abaixo da descrição — é o que o QA leva para o script.
     box.innerHTML = '<b>' + esc(dados.acao || '') + '</b>'
       + (dados.rotulo ? ' · ' + esc(dados.rotulo) : '')

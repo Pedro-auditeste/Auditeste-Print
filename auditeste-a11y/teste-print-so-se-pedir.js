@@ -77,7 +77,26 @@ const passoCom = (id) => ({
     assert.strictEqual(imgs2, 2, 'marcado, o par antes/depois tinha de entrar: ' + imgs2);
     console.log('  ok   CRITERIO: marcando a opção, o print antes/depois volta a entrar');
 
-    console.log('\n4 casos, tudo certo\n');
+    /* O caso real do QA em 09/09/2026: a extensao instalada e a 2.1.0, que
+     * manda o xpath e NAO manda elementoId. Sem o fallback, o id ficava vazio
+     * na tela e parecia que "o id nao vem", quando ele estava dentro do
+     * proprio xpath o tempo todo. */
+    const passoVelho = passoCom('extensao-antiga');
+    delete passoVelho.elementoId;
+    await p.evaluate((passo) => {
+      window.postMessage({ tipo: 'AUDI_PRINT_PASSO', passo, origem: { url: passo.urlAntes, titulo: 'x' } }, location.origin);
+    }, passoVelho);
+    await p.waitForFunction(() => document.querySelectorAll('#lista > .passo').length === 3, { timeout: 8000 });
+    const velho = await p.evaluate(() => {
+      const ps = document.querySelectorAll('#lista > .passo');
+      const el = ps[ps.length - 1];
+      return { id: el.dataset.elementoId || '', texto: el.querySelector('.meta-qa').textContent };
+    });
+    assert.strictEqual(velho.id, 'entrar', 'o id tinha de sair do xpath quando a extensão não manda: ' + velho.id);
+    assert.ok(/id:\s*entrar/.test(velho.texto), 'o id tinha de aparecer na tela também');
+    console.log('  ok   CRITERIO: extensão antiga sem o campo, o id sai do próprio xpath');
+
+    console.log('\n5 casos, tudo certo\n');
   } finally {
     await navegador.close().catch(() => {});
   }
