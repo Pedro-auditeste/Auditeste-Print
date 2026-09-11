@@ -103,6 +103,14 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     await pagina.waitForSelector('#gradeProjetos .cartao[data-projeto]');
     await pagina.click('#gradeProjetos .cartao[data-projeto]');
     await pagina.waitForSelector('[data-acao="novaGravacao"]');
+    /* Desde 52b7c55 o Print descarta a imagem que chega sem a opcao de print
+     * marcada, e ela nasce desmarcada. Sem par antes/depois o passo nem entra
+     * na fila de descricao. Tem de ser ANTES de abrir a gravacao:
+     * abrirGravador() ja puxa sozinho a gravacao recente do complemento, e os
+     * passos que entram ali com a caixa desmarcada ficam sem imagem; o clique
+     * em puxarExtensao depois nao traz de novo o que ja esta na lista. Direto
+     * no elemento: clicar no input do <label> alterna duas vezes. */
+    await pagina.evaluate(() => { document.getElementById('capturarPrintsPasso').checked = true; });
     await pagina.click('[data-acao="novaGravacao"]');
     await pagina.waitForSelector('[data-acao="puxarExtensao"]:not([hidden])');
     await pagina.click('[data-acao="puxarExtensao"]');

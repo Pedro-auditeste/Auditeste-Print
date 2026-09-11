@@ -100,13 +100,23 @@ const DESCRICAO_LONGA = 'Antes havia a tela de login com e-mail e senha. '
     await pagina.waitForSelector('#gradeProjetos .cartao[data-projeto]');
     await pagina.click('#gradeProjetos .cartao[data-projeto]');
     await pagina.waitForSelector('[data-acao="novaGravacao"]');
+    /* Desde 52b7c55 o Print descarta a imagem que chega sem a opcao de print
+     * marcada, e ela nasce desmarcada. Este teste e do par antes/depois, entao
+     * liga a opcao. Tem de ser ANTES de abrir a gravacao: abrirGravador() ja
+     * puxa sozinho a gravacao recente do complemento, e o passo que entra ali
+     * com a caixa desmarcada fica sem imagem; o clique em puxarExtensao depois
+     * nao traz de novo o que ja esta na lista. Direto no elemento: clicar no
+     * input do <label> alterna duas vezes. */
+    await pagina.evaluate(() => { document.getElementById('capturarPrintsPasso').checked = true; });
     await pagina.click('[data-acao="novaGravacao"]');
     await pagina.waitForSelector('[data-acao="puxarExtensao"]:not([hidden])');
     await pagina.click('[data-acao="puxarExtensao"]');
     await pagina.waitForSelector('.passo .imagens.par-antes-depois figure:nth-child(2)');
     await pagina.waitForFunction(() => /abriu o painel/i.test(document.querySelector('.passo .titulo')?.textContent || ''));
 
-    assert.strictEqual(await pagina.$eval('.passo .meta-qa code', (el) => el.textContent), '//*[@id="btn-entrar"]');
+    // Desde 8e26d45 a linha do elemento mostra o id e o xpath, cada um no seu <code>.
+    assert.deepStrictEqual(await pagina.$$eval('.passo .meta-qa > code', (els) => els.map((el) => el.textContent)),
+      ['btn-entrar', '//*[@id="btn-entrar"]']);
     assert.ok(await pagina.$eval('.passo .meta-evento', (el) => /URL antes:.*login.*URL depois:.*dashboard/i.test(el.textContent)));
     assert.strictEqual(await pagina.$eval('.passo .legenda-ia', (el) => el.textContent), 'Clique em Entrar abriu o painel');
     assert.ok(await pagina.$eval('.passo .analise-qa pre', (el) => /Dado que[\s\S]*Quando[\s\S]*Então/.test(el.textContent)));
