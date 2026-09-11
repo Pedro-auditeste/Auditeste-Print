@@ -86,6 +86,10 @@ async function esperar(pagina, fn, ms, passo = 400) {
     await pagina.waitForSelector('#campoNome', { visible: true });
     await pagina.click('#campoNome', { clickCount: 3 });
     await pagina.type('#campoNome', 'Demo NVIDIA Cenários', { delay: 40 });
+    /* O consentimento e opt-in: sem marcar a caixa, iaLiberada() bloqueia
+     * antes do fetch e a descricao nunca chega. Este teste e justamente do
+     * caminho autorizado, entao marca. */
+    await pagina.click('#campoIA');
     await pagina.click('#btnConfirmarModal');
     await delay(1200);
 

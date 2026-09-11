@@ -50,14 +50,22 @@ const background = ler(BACKGROUND);
 
 /* ---------- consentimento ---------- */
 
-caso('projeto sem o campo continua liberado (nao quebra banco antigo)', () => {
+caso('o envio e opt-in: so o true explicito libera', () => {
   const m = /const iaLiberada = ([^;]+);/.exec(pagina);
   assert.ok(m, 'iaLiberada não encontrada');
   const iaLiberada = new Function('return ' + m[1])();
-  assert.strictEqual(iaLiberada(undefined), true, 'sem projeto deveria liberar');
-  assert.strictEqual(iaLiberada({}), true, 'projeto da versão antiga deveria continuar liberado');
-  assert.strictEqual(iaLiberada({ iaPermitida: true }), true);
+  assert.strictEqual(iaLiberada(undefined), false, 'sem projeto não pode liberar');
+  assert.strictEqual(iaLiberada({}), false, 'projeto sem o campo tem que ficar bloqueado');
   assert.strictEqual(iaLiberada({ iaPermitida: false }), false, 'false explícito tem que bloquear');
+  assert.strictEqual(iaLiberada({ iaPermitida: true }), true, 'só o true explícito libera');
+});
+
+/* O portão acima só vale se a caixa não vier marcada de fábrica: com o
+ * checked no HTML, criar projeto já grava iaPermitida:true sem ninguém ler. */
+caso('a caixa do consentimento nasce desmarcada', () => {
+  const m = /<input type="checkbox" id="campoIA"([^>]*)>/.exec(pagina);
+  assert.ok(m, 'não achei a caixa do consentimento');
+  assert.ok(!/\bchecked\b/.test(m[1]), 'a caixa não pode nascer marcada: o envio é opt-in');
 });
 
 caso('o bloqueio fica antes do fetch, nao depois', () => {

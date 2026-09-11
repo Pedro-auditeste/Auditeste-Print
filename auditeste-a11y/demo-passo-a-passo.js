@@ -118,7 +118,9 @@ function chromeLocal() {
     await print.click('[data-acao="novoProjeto"]');
     await print.waitForSelector('#campoNome', { visible: true });
     await print.type('#campoNome', 'Demo Passo a Passo');
-    // #campoIA já nasce marcado: descrição automática liberada por padrão.
+    // O consentimento e opt-in: a caixa nasce desmarcada, e a demo mostra
+    // justamente o caminho autorizado, entao marca.
+    await print.click('#campoIA');
     await print.click('#btnConfirmarModal');
     await print.waitForSelector('#gradeProjetos .cartao[data-projeto]');
     await print.click('#gradeProjetos .cartao[data-projeto]');

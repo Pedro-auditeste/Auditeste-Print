@@ -1249,10 +1249,10 @@
         <input type="text" id="campoCliente" placeholder="Opcional" autocomplete="off">
       </label>
       <label class="linha-opcao">
-        <input type="checkbox" id="campoIA" checked>
+        <input type="checkbox" id="campoIA">
         <span>
           <span class="rot">Permitir descrição automática dos prints</span>
-          <small>Envia o print, o HTML do elemento e a URL da tela para o serviço de descrição. Desmarque quando o cliente não autorizar que a evidência saia desta máquina.</small>
+          <small>Envia o print, o HTML do elemento e a URL da tela para o serviço de descrição. Marque apenas quando o cliente autorizar que a evidência saia desta máquina.</small>
         </span>
       </label>
       <div id="blocoCofre" hidden>
@@ -1335,10 +1335,10 @@
    * terceiro, então precisa de duas coisas que não existiam: alguém ter
    * autorizado, e ficar escrito que aconteceu.
    *
-   * Projeto antigo, sem o campo, continua liberado: a trava é o valor false
-   * explícito. Mudar o padrão para bloqueado deixaria todo mundo sem
-   * descrição depois de atualizar, sem entender por quê. */
-  const iaLiberada = p => !p || p.iaPermitida !== false;
+   * O padrão é NÃO enviar, e a liberação é o true explícito. Projeto antigo,
+   * sem o campo, fica bloqueado junto: a evidência é do cliente, e default
+   * que manda sozinho é decisão que ninguém tomou. Quem quiser, marca. */
+  const iaLiberada = p => !!p && p.iaPermitida === true;
 
   const MOTIVO_IA_BLOQUEADA = 'Descrição automática desligada neste projeto. '
     + 'Os prints e o HTML continuam sendo capturados e ficam nesta máquina. '
@@ -1626,8 +1626,8 @@
     document.getElementById('btnConfirmarModal').textContent = projeto ? 'Salvar' : 'Criar projeto';
     campoNome.value = projeto ? projeto.nome : '';
     campoCliente.value = projeto ? (projeto.cliente || '') : '';
-    // Projeto sem o campo veio da versao anterior: continua liberado.
-    campoIA.checked = projeto ? iaLiberada(projeto) : true;
+    // Projeto novo, e projeto antigo sem o campo, nascem desmarcados.
+    campoIA.checked = iaLiberada(projeto);
     previaLogo.innerHTML = projeto?.logo ? `<img src="${url(projeto.logo)}" alt="">` : 'sem logo';
     textoLogo.textContent = projeto?.logo ? 'Clique para trocar a imagem' : 'Clique para escolher uma imagem';
     fundoModal.classList.add('aberto');

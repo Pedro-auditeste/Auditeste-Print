@@ -78,6 +78,10 @@ const PASSO = {
     await pagina.click('[data-acao="novoProjeto"]');
     await pagina.waitForSelector('#campoNome', { visible: true });
     await pagina.type('#campoNome', 'Teste Descrição Automática');
+    /* O consentimento e opt-in: sem marcar a caixa, iaLiberada() bloqueia
+     * antes do fetch e a descricao nunca chega. Este teste e justamente do
+     * caminho autorizado, entao marca. */
+    await pagina.click('#campoIA');
     await pagina.click('#btnConfirmarModal');
     await pagina.waitForSelector('#gradeProjetos .cartao[data-projeto]');
     await pagina.click('#gradeProjetos .cartao[data-projeto]');
