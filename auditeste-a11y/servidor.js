@@ -298,8 +298,12 @@ function tokenInvalido(req, u) {
 }
 
 function msgToken(req) {
+  /* Com o cofre ligado, tokenInvalido() devolve true antes de olhar token
+   * nenhum: a sessao e o unico caminho. Mandar usar "o token da ponte" era
+   * conselho impossivel, e mandava a pessoa procurar um campo que saiu da
+   * tela. O que resolve e entrar de novo, entao e isso que a mensagem diz. */
   if (cofreLigado) {
-    return 'Entre no Print para usar os scans. Se estiver chamando de fora do navegador, use o token da ponte.';
+    return 'Sua sessão terminou ou você ainda não entrou. Abra o cofre, entre de novo e repita o scan.';
   }
   if (!TOKEN && !ehLoopback && !mesmaOrigem(req)) {
     return 'Acesso negado. Abra o Print nesta mesma URL ou configure PONTE_TOKEN.';

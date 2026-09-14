@@ -898,8 +898,18 @@ async function principal() {
     const r = await fetch(BASE + '/scan?tipo=axe&url=https://example.com', {
       headers: { Origin: BASE }, redirect: 'manual'
     });
-    await r.text().catch(() => {});
+    const corpo = await r.json().catch(() => ({}));
     assert.strictEqual(r.status, 401, 'a ponte voltou a aceitar chamada anonima');
+
+    /* Com o cofre ligado, tokenInvalido() devolve true antes de comparar
+     * token nenhum. Prometer o token na mensagem mandava a pessoa tentar
+     * uma coisa que o servidor nem le, e procurar um campo que saiu da
+     * tela. O 401 tem de dizer o que de fato resolve: entrar de novo. */
+    const msg = String(corpo.erro || '');
+    assert.ok(!/token/i.test(msg),
+      'a mensagem do 401 voltou a prometer token, que aqui nunca e conferido: ' + msg);
+    assert.ok(/entre|entrar|sess[aã]o/i.test(msg),
+      'a mensagem do 401 precisa mandar entrar de novo: ' + msg);
   });
 
   await caso('CRITERIO: com sessao do cofre, a ponte autoriza sem token nenhum', async () => {

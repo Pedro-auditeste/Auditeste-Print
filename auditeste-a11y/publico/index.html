@@ -3673,10 +3673,11 @@
     const fim = ' Os prints foram preservados.';
     // Bloqueio por consentimento não é falha: é o sistema obedecendo.
     if(err && err.bloqueado) return err.message;
+    /* O campo "token" saiu da tela faz tempo, entao mandar corrigi-lo era
+     * mandar procurar o que nao existe. Com o cofre ligado o que autoriza e
+     * a sessao, e e ela que vence. */
     if(status === 401){
-      return ponteToken()
-        ? 'O token informado não confere. Corrija no campo "token" da tela inicial e clique em Descrever de novo.' + fim
-        : 'Esta ponte exige token. Cole o token no campo "token" da tela inicial e clique em Descrever de novo.' + fim;
+      return 'Sua sessão terminou. Abra o cofre, entre de novo e clique em Descrever outra vez.' + fim;
     }
     if(status === 429) return 'A ponte está ocupada com outra descrição. Tente de novo em alguns segundos.' + fim;
     if(status >= 500) return 'A ponte falhou ao descrever (' + msg + '). Tente de novo.' + fim;
@@ -3801,7 +3802,13 @@
       const r = await fetch(ponteUrl() + '/scan?tipo=' + encodeURIComponent(tipo) + '&url=' + encodeURIComponent(alvo),
         { headers: ponteCabecalho(), signal: AbortSignal.timeout(180000) });
       const dados = await r.json().catch(() => ({}));
-      if(!r.ok) throw new Error(dados.erro || ('HTTP ' + r.status));
+      if(!r.ok){
+        /* O status viaja junto: sem ele, o catch so tem a frase do servidor
+         * e nao consegue separar sessao vencida de falha de verdade. */
+        const e = new Error(dados.erro || ('HTTP ' + r.status));
+        e.status = r.status;
+        throw e;
+      }
       const n = aplicarAchados(dados, alvo, tipo);
       if(dados.aviso){
         el.textContent = dados.aviso;
@@ -3814,6 +3821,15 @@
         el.className = 'estado-ponte ok';
       }
     }catch(err){
+      /* 401 aqui e sessao vencida, nao scan quebrado: /scan fica de fora do
+       * portao que protege /index.html, entao a pagina continua aberta e so
+       * o scan denuncia. A sessao dura 12h e nao renova sozinha. */
+      if(err.status === 401){
+        el.innerHTML = 'Sua sessão terminou. <a href="/cofre.html?ir=%2Findex.html">Entre de novo</a> e repita o scan.';
+        el.className = 'estado-ponte off';
+        avisar('Sua sessão terminou. Entre de novo para usar os scans.');
+        return;
+      }
       const timeout = /AbortError|aborted/i.test(err.name || '') || /aborted|timeout/i.test(err.message || '');
       const semPonte = err instanceof TypeError || /fetch|Failed to fetch|NetworkError/i.test(err.message || '');
       el.textContent = timeout
