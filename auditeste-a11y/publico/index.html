@@ -3114,14 +3114,25 @@
     return 'no trecho "' + ultimo + '" da pagina';
   }
 
+  /* O motivo real vem com preambulo de lista ("Corrija qualquer um dos itens
+   * a seguir:"). O preambulo e ruido; a linha seguinte e a informacao. */
+  function motivoLimpo(txt){
+    const linhas = String(txt || '').split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !/^(corrija|fix) (qualquer um d|any of the follow)/i.test(l));
+    return linhas.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
   function humanizarAxe(v, n) {
     const gravidade = GRAVIDADE[v.impact] || 'A verificar';
     const trad = traduzirRegra(v.id, v.help, v.description, REGRAS_AXE_PT);
     const titulo = trad.titulo;
     let obs = trad.obs;
-    const onde = simplificarSeletor([].concat(n.target || []).join(' '));
+    const alvo = [].concat(n.target || []).join(' ').trim();
+    const onde = simplificarSeletor(alvo);
     if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
-    return { gravidade, titulo, obs, tecnico: v.id };
+    return { gravidade, titulo, obs, tecnico: v.id,
+      alvo, html: n.html || '', porque: motivoLimpo(n.failureSummary) };
   }
 
   function humanizarPa11y(i) {
@@ -3135,7 +3146,12 @@
       const resumo = simplificarCodigoPa11y(i.code);
       if(resumo) obs += '\n\nCritério WCAG: ' + resumo + '.';
     }
-    return { gravidade, titulo, obs, tecnico: i.code };
+    /* A mensagem do pa11y e especifica desta pagina ("Invalid autocomplete
+     * value: username"). O mapa de regras troca ela por texto generico, entao
+     * ela so sobrevive se for guardada aqui. */
+    return { gravidade, titulo, obs, tecnico: i.code,
+      alvo: String(i.selector || '').trim(), html: i.context || '',
+      porque: motivoLimpo(i.message) };
   }
 
   function humanizarLighthouse(a, it) {
@@ -3154,9 +3170,12 @@
       obs = 'Este ponto foi marcado na nota de acessibilidade e deve ser revisado na página.';
       if(REGRAS_LH_PT[id]) obs = 'Problema: ' + REGRAS_LH_PT[id] + '.';
     }
-    const onde = simplificarSeletor(it.node && (it.node.selector || it.node.snippet));
+    const no = it.node || {};
+    const alvo = String(no.selector || '').trim();
+    const onde = simplificarSeletor(alvo || no.snippet);
     if(onde) obs += '\n\nOnde aparece: ' + onde + '.';
-    return { gravidade: 'A corrigir', titulo, obs, tecnico: a.id };
+    return { gravidade: 'A corrigir', titulo, obs, tecnico: a.id,
+      alvo, html: no.snippet || '', porque: motivoLimpo(no.explanation) };
   }
 
   function detectarFerramenta(dados) {
@@ -3249,8 +3268,30 @@
       el.classList.add('passo-a11y', 'passo-a11y-' + tipo);
       el.querySelector('.carimbo').textContent = a.gravidade + ' · ' + f.nomeCurto;
       el.querySelector('.titulo').textContent = a.titulo;
+      /* O motivo e especifico DESTA pagina, entao vai na obs, que o
+       * serializador grava. Solto num <div> ele sumiria ao salvar. */
+      const detalhe = a.porque ? a.obs + '\n\nMotivo: ' + a.porque : a.obs;
       const obs = el.querySelector('.obs');
-      obs.textContent = a.tecnico ? a.obs + '\n\nReferência técnica: ' + a.tecnico : a.obs;
+      obs.textContent = a.tecnico ? detalhe + '\n\nReferência técnica: ' + a.tecnico : detalhe;
+
+      /* Seletor e elemento vao nos MESMOS campos que o gravador usa. Sao os
+       * que o serializador grava, o export mostra e o cofre recebe: campo
+       * novo significaria mexer em cinco lugares para o mesmo dado. Passo de
+       * acessibilidade nao chama marcarQa, entao isto nao dispara o bloco
+       * "Capturado na gravacao", e o export de cenarios descarta passo a11y
+       * pelo carimbo antes de olhar o elemento. */
+      if(a.alvo) el.dataset.elemento = a.alvo;
+      if(a.html) el.dataset.html = a.html;
+
+      const linhas = [];
+      if(a.alvo) linhas.push('Seletor: ' + a.alvo);
+      if(a.html) linhas.push('Elemento: ' + String(a.html).replace(/\s+/g, ' ').trim().slice(0, 300));
+      if(linhas.length){
+        const det = document.createElement('div');
+        det.className = 'detalhe-tecnico';
+        det.textContent = linhas.join('\n');
+        el.insertBefore(det, el.querySelector('.imagens'));
+      }
     });
     avisar(achados.length === 1 ? '1 ponto registrado.' : achados.length + ' pontos registrados.');
     return achados.length;
