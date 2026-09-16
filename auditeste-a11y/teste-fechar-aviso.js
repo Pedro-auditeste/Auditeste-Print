@@ -60,6 +60,21 @@ async function caso(nome, fn) {
     if (await visivel()) throw new Error('clicou no X e o aviso continuou');
   });
 
+  await caso('Print: o aviso nao rouba o clique do que esta embaixo dele', async () => {
+    await pagina.click('#btnConfirmarModal');
+    await pagina.waitForSelector('.aviso-toast.visivel');
+    await delay(400); // fim da animacao de entrada
+    const alvo = await pagina.evaluate(() => {
+      const r = document.querySelector('.aviso-toast .aviso-texto').getBoundingClientRect();
+      const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return e && e.closest('.aviso-toast') ? 'o aviso' : 'o que esta embaixo';
+    });
+    if (alvo !== 'o que esta embaixo') throw new Error('o texto do aviso ainda captura o clique');
+    // Pelo X: o Esc fecharia tambem o formulario, e o proximo caso precisa dele.
+    await pagina.click('.aviso-toast .aviso-fechar');
+    await delay(100);
+  });
+
   await caso('Print: aviso fechado nao deixa o X alcançavel pelo Tab', async () => {
     const inerte = await pagina.$eval('.aviso-toast', el => el.inert);
     if (!inerte) throw new Error('fora da tela o X ainda recebe foco');
@@ -102,7 +117,7 @@ async function caso(nome, fn) {
     if (erros.length) throw new Error(erros.join(' | '));
   });
 
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (7 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (8 casos)\n');
 })().catch(e => { falhas++; console.error('FALHOU:', e.message); })
   .finally(async () => {
     if (navegador) await navegador.close().catch(() => {});

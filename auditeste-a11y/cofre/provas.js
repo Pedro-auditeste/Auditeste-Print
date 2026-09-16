@@ -158,17 +158,69 @@ const PROVAS = {
     };
   },
 
+  /* Esta prova ficava verde por decreto (ok: true fixo) e ainda descrevia a
+   * rota errado: dizia "sessao E assinatura", mas a rota aceita sessao OU
+   * link assinado. Agora ela ataca de verdade a unica porta que existe sem
+   * sessao, que e a assinatura do link. */
   naoFicaOnline(d) {
+    const oid = 'prova-' + crypto.randomUUID();
+    const ate = Date.now() + d.LINK_VALE_MS;
+    const semAssinatura = d.assinaturaValida(oid, d.sessao.tenantId, ate, '');
+    const inventada = d.assinaturaValida(oid, d.sessao.tenantId, ate,
+      crypto.randomBytes(32).toString('base64url'));
+    const outraEquipe = d.assinaturaValida(oid, 'outra-equipe-' + crypto.randomUUID(), ate,
+      d.assinar(oid, d.sessao.tenantId, ate));
+    const recusou = !semAssinatura && !inventada && !outraEquipe;
     return {
       titulo: 'Print nao fica exposto online',
-      ataque: 'Procurar uma URL publica que liste ou sirva os prints sem sessao',
-      esperado: 'nao existe: objeto so sai por link assinado de curta duracao',
-      obtido: 'sem listagem publica; link expira em ' + min(d.LINK_VALE_MS) + ' min',
-      ok: true,
-      evidencia: 'Nenhuma rota entrega objeto sem sessao valida + assinatura.',
-      bruto: 'rota de objeto: exige sessao valida E assinatura HMAC valida\n'
-        + 'validade do link: ' + min(d.LINK_VALE_MS) + ' min\n'
-        + 'retencao: ' + d.sessao.retencaoDias + ' dias (evidencia some sozinha)'
+      ataque: 'Pedir um print sem sessao: sem assinatura, com assinatura inventada, '
+        + 'e com um link valido desta equipe apontado para outra',
+      esperado: 'os tres recusados: sem sessao, so um link assinado desta equipe abre o print',
+      obtido: recusou ? 'os tres recusados' : 'ALGUM FOI ACEITO',
+      ok: recusou,
+      evidencia: 'O print sai com sessao da equipe OU com link assinado que vale '
+        + min(d.LINK_VALE_MS) + ' min. Nao existe endereco publico nem listagem.',
+      bruto: 'sem assinatura              -> aceito: ' + semAssinatura + '\n'
+        + 'assinatura inventada        -> aceito: ' + inventada + '\n'
+        + 'link desta equipe em outra  -> aceito: ' + outraEquipe + '\n'
+        + 'sem nada disso a rota pede sessao (HTTP 401)'
+    };
+  },
+
+  /* Imagem guardada e imagem devolvida precisam ser a mesma. A cifra usada
+   * (AES-256-GCM) carrega uma etiqueta de autenticacao: um byte trocado no
+   * disco faz a leitura FALHAR, em vez de devolver um print alterado. */
+  printIntegro(d) {
+    if (!d.banco.cifraLigada()) {
+      return {
+        titulo: 'Print adulterado e detectado',
+        ataque: 'Guardar um print cifrado e trocar 1 byte dele',
+        esperado: 'a leitura do print adulterado e recusada',
+        obtido: 'cifra desligada neste servidor',
+        ok: false,
+        evidencia: 'COFRE_CHAVE nao definida (normal em ambiente local).',
+        bruto: 'cifraLigada() -> false'
+      };
+    }
+    const print = crypto.randomBytes(512);
+    const hash = b => crypto.createHash('sha256').update(b).digest('hex');
+    const guardado = d.banco.cifrar(print);
+    const devolvido = d.banco.decifrar(guardado);
+    const igual = hash(devolvido) === hash(print);
+    const adulterado = Buffer.from(guardado);
+    adulterado[adulterado.length - 1] ^= 0x01;
+    const leitura = tentar(() => d.banco.decifrar(adulterado));
+    return {
+      titulo: 'Print adulterado e detectado',
+      ataque: 'Guardar um print cifrado, trocar 1 byte dele "no disco" e ler de novo',
+      esperado: 'o original volta identico (mesmo SHA-256) e o adulterado e recusado',
+      obtido: (igual ? 'original identico' : 'ORIGINAL MUDOU')
+        + (leitura.lancou ? ' · adulterado recusado' : ' · adulterado ACEITO'),
+      ok: igual && leitura.lancou,
+      evidencia: 'Cada print guarda o SHA-256 do original, e a cifra recusa conteudo alterado.',
+      bruto: 'sha256(original)  = ' + hash(print).slice(0, 24) + '...\n'
+        + 'sha256(devolvido) = ' + hash(devolvido).slice(0, 24) + '...  -> identico: ' + igual + '\n'
+        + '1 byte trocado    -> ' + (leitura.lancou ? ('leitura recusada: "' + leitura.msg + '"') : 'leitura ACEITA')
     };
   }
 };
@@ -181,7 +233,8 @@ const LISTA = [
   ['forcaBruta', 'Forca bruta trava a conta', 'Erra a senha 8 vezes seguidas'],
   ['cifraRepouso', 'Cifra em repouso', 'Cifra um dado e olha se sai ilegivel'],
   ['linkAdulterado', 'Link a prova de adulteracao', 'Adultera a assinatura de um link'],
-  ['naoFicaOnline', 'Print nao fica online', 'Procura URL publica dos prints']
+  ['naoFicaOnline', 'Print nao fica online', 'Tenta abrir um print sem sessao e com link forjado'],
+  ['printIntegro', 'Print adulterado e detectado', 'Troca 1 byte de um print guardado']
 ];
 
 /** Roda UMA prova pelo id. Lanca 400 se o id nao existe. */

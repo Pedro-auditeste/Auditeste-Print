@@ -839,6 +839,15 @@ async function principal() {
     assert.ok(destino.startsWith('/cofre.html?ir='), 'desviou para lugar estranho: ' + destino);
   });
 
+  /* A pagina de seguranca existe para quem AINDA nao tem conta: se o portao
+   * passasse a barra-la, ela deixaria de servir para o que foi feita. */
+  await caso('a pagina de seguranca continua aberta com o portao ligado', async () => {
+    const r = await fetch(BASE + '/seguranca.html', { redirect: 'manual' });
+    const corpo = await r.text();
+    assert.strictEqual(r.status, 200, 'a pagina de seguranca foi barrada pelo portao: ' + r.status);
+    assert.ok(/Segurança dos prints/.test(corpo), 'nao veio a pagina de seguranca');
+  });
+
   await caso('index.html pela porta dos fundos tambem barra', async () => {
     const r = await fetch(BASE + '/index.html', { redirect: 'manual' });
     await r.text();

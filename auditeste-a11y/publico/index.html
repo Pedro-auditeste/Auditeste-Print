@@ -237,11 +237,20 @@
     transition:transform .32s cubic-bezier(.2,.8,.3,1);
   }
   .aviso-toast.visivel{transform:translate(-50%,0);}
+  /* Pasta de destino no formulario do projeto. */
+  .linha-pasta{display:flex;flex-direction:column;gap:6px;}
+  .linha-pasta .pasta-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .linha-pasta .pasta-nome{font-size:.86rem;color:var(--navy);font-weight:600;}
+  .linha-pasta small{color:var(--muted);font-size:.8rem;line-height:1.45;}
   /* O X fica dentro do aviso: com 26 passos na tela, esperar 3,6s para o
    * aviso sair de cima dos botoes e tempo perdido. */
   /* z-index acima do fundo do modal (90) e da lupa (220): atras deles o X
    * aparecia escurecido e nao recebia clique. */
   .aviso-toast{display:flex;align-items:center;gap:14px;}
+  /* O aviso fica em cima de botoes (o Salvar, por exemplo) e roubava o clique
+   * de quem nao esperou ele sumir. O clique atravessa o aviso; so o X recebe. */
+  .aviso-toast{pointer-events:none;}
+  .aviso-toast .aviso-fechar{pointer-events:auto;}
   .aviso-fechar{flex:none;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;
     border-radius:8px;width:28px;height:28px;font-size:.8rem;line-height:1;cursor:pointer;}
   .aviso-fechar:hover,.aviso-fechar:focus-visible{background:rgba(255,255,255,.14);}
@@ -304,6 +313,10 @@
     background:var(--card);border-radius:18px;width:100%;max-width:430px;
     box-shadow:0 24px 60px rgba(9,40,56,.4);overflow:hidden;
     transform:scale(.92) translateY(18px);opacity:0;
+    /* Titulo e botoes fixos, so o corpo rola. Sem teto de altura, em tela
+     * baixa o botao de confirmar ficava abaixo da borda e, com overflow
+     * hidden, ninguem alcancava. */
+    display:flex;flex-direction:column;max-height:100%;
   }
   .fundo-modal.aberto .modal{transform:none;opacity:1;}
   .modal .topo-modal{
@@ -312,7 +325,7 @@
   }
   .modal .topo-modal h3{font-size:1.2rem;font-weight:800;}
   .modal .topo-modal p{color:#a9c6d3;font-size:.86rem;}
-  .modal .corpo-modal{padding:22px 26px 8px;display:flex;flex-direction:column;gap:16px;}
+  .modal .corpo-modal{padding:22px 26px 8px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;min-height:0;}
   .modal label{display:block;}
   .modal .rot{margin-bottom:5px;}
   /* Saida de excecao: fica visivel, mas nao disputa com o caminho da loja. */
@@ -1256,6 +1269,15 @@
         <span class="rot">Cliente</span>
         <input type="text" id="campoCliente" placeholder="Opcional" autocomplete="off">
       </label>
+      <div class="linha-pasta" id="blocoPasta">
+        <span class="rot">Pasta de destino</span>
+        <div class="pasta-acoes">
+          <button type="button" class="btn pequeno" id="btnEscolherPasta">Escolher pasta</button>
+          <button type="button" class="btn pequeno" id="btnTirarPasta" hidden>Não usar pasta</button>
+          <span class="pasta-nome" id="nomePasta"></span>
+        </div>
+        <small id="dicaPasta">Recomendado: uma pasta da rede da empresa. Cada evidência salva neste projeto também vira um arquivo nessa pasta, fora do navegador, com o backup e as permissões que a sua TI já controla.</small>
+      </div>
       <label class="linha-opcao">
         <input type="checkbox" id="campoIA">
         <span>
@@ -1651,6 +1673,8 @@
     campoCliente.value = projeto ? (projeto.cliente || '') : '';
     // Projeto novo, e projeto antigo sem o campo, nascem desmarcados.
     campoIA.checked = iaLiberada(projeto);
+    pastaEscolhida = pastaValida(projeto && projeto.pasta);
+    mostrarPasta();
     previaLogo.innerHTML = projeto?.logo ? `<img src="${url(projeto.logo)}" alt="">` : 'sem logo';
     textoLogo.textContent = projeto?.logo ? 'Clique para trocar a imagem' : 'Clique para escolher uma imagem';
     fundoModal.classList.add('aberto');
@@ -1729,6 +1753,7 @@
     if(editando){
       editando.nome = nome; editando.cliente = cliente;
       editando.iaPermitida = campoIA.checked;
+      editando.pasta = pastaEscolhida;
       if(logoEscolhida) editando.logo = logoEscolhida;
       await gravarProjetoDB(editando);
       const id = editando.id;
@@ -1751,7 +1776,7 @@
         }
       }
       const id = await criarProjetoDB({nome, cliente, logo:logoEscolhida,
-        iaPermitida: campoIA.checked, criadoEm:Date.now(),
+        iaPermitida: campoIA.checked, pasta: pastaEscolhida, criadoEm:Date.now(),
         cofreProjetoId: noCofre ? noCofre.id : null,
         cofreTenantId: noCofre ? noCofre.tenantId : null});
       fecharFormulario();
@@ -4118,6 +4143,12 @@
   async function salvarNoProjeto(){
     if(!projetoAtual){ avisar('Nenhum projeto selecionado.'); return; }
 
+    /* A permissao da pasta e pedida AQUI, antes de qualquer await: o navegador
+     * so aceita o pedido colado no clique. Depois de encerrar a gravacao e
+     * gravar no banco local, o gesto ja teria expirado e ele recusaria. */
+    const pastaDoProjeto = pastaValida(projetoAtual.pasta);
+    const pasta = pastaDoProjeto ? await pastaLiberada(pastaDoProjeto) : null;
+
     if(estado !== 'parado'){
       avisar('Encerrando a gravação e salvando...');
       await parar(false, true);
@@ -4153,16 +4184,39 @@
     }));
 
     try{
-      await salvarRegistro({
+      const registro = {
         projetoId: projetoAtual.id,
         projetoNome: projetoAtual.nome,
         ficha, passos: dados,
         video: videoBlob || null,
         criadoEm: Date.now()
-      });
+      };
+      await salvarRegistro(registro);
+
+      /* A copia na pasta vem DEPOIS do banco local: se a rede cair no meio, a
+       * evidencia ja esta salva e a pessoa fica sabendo so da copia que faltou. */
+      let naPasta = '';
+      let faltouPasta = '';
+      if(pasta){
+        try{ naPasta = await gravarNaPasta(pasta, registro); }
+        catch(err){ faltouPasta = err.message || String(err); }
+      }else if(pastaDoProjeto){
+        faltouPasta = 'o navegador não recebeu permissão para escrever na pasta';
+      }
+
+      const projeto = projetoAtual;
       await limparGravacao(true);
-      abrirProjeto(projetoAtual.id);
-      avisar('Evidência arquivada em ' + projetoAtual.nome);
+      abrirProjeto(projeto.id);
+      if(faltouPasta){
+        informar('A evidência foi salva no projeto ' + projeto.nome + ', mas a cópia na pasta de destino "'
+          + pastaDoProjeto.name + '" não foi gravada: ' + faltouPasta
+          + '.\n\nConfira se a pasta da rede está acessível e salve de novo, ou exporte o HTML pela evidência.',
+          'Cópia na pasta de destino');
+      }else if(naPasta){
+        avisar('Evidência arquivada em ' + projeto.nome + ' e gravada na pasta ' + pasta.name + '/' + naPasta);
+      }else{
+        avisar('Evidência arquivada em ' + projeto.nome);
+      }
     }catch(err){
       informar('Não foi possível salvar: ' + err.message + '\n\nO espaço do navegador pode estar cheio. Exclua evidências antigas ou desative a gravação de vídeo.', 'Falha ao salvar');
     }
@@ -4390,7 +4444,18 @@
     }
 
     avisar('Montando o arquivo HTML...');
+    const { arquivo, nome } = await montarHtmlEvidencia(r, comVideo);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(arquivo);
+    a.download = nome + '.html';
+    a.click();
+    setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
+    avisar('Arquivo ' + nome + '.html gerado (' + tam(arquivo.size) + ')');
+  }
 
+  /* Um documento so para baixar e para gravar na pasta de destino: montado em
+   * dois lugares, a copia da rede e o download acabariam diferentes. */
+  async function montarHtmlEvidencia(r, comVideo){
     const logo = document.querySelector('.marca .clara').src;
     const imagens = [];
     for(const p of r.passos){
@@ -4489,12 +4554,78 @@
     partes.push('</body></html>');
 
     const arquivo = new Blob([partes.join('')], {type:'text/html;charset=utf-8'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(arquivo);
-    a.download = nome + '.html';
-    a.click();
-    setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
-    avisar('Arquivo ' + nome + '.html gerado (' + tam(arquivo.size) + ')');
+    return { arquivo, nome };
+  }
+
+  /* ============ PASTA DE DESTINO ============ */
+  /* O navegador escolhe e escreve numa pasta de verdade (API de acesso a
+   * arquivos, a mesma do "Salvar como" do Chrome e do Edge). O identificador
+   * da pasta mora no proprio projeto, no banco local: ele sobrevive a fechar
+   * o navegador, mas a permissao de escrita e confirmada de novo pelo
+   * navegador quando preciso. Firefox e Safari nao tem essa API. */
+  const PASTA_SUPORTADA = typeof window.showDirectoryPicker === 'function';
+  let pastaEscolhida = null;
+
+  /* Projeto restaurado de backup em JSON traz a pasta como {}: nao e pasta. */
+  function pastaValida(h){
+    return h && typeof h.getDirectoryHandle === 'function' ? h : null;
+  }
+
+  async function pastaLiberada(h){
+    try{
+      if(await h.queryPermission({ mode:'readwrite' }) === 'granted') return h;
+      return await h.requestPermission({ mode:'readwrite' }) === 'granted' ? h : null;
+    }catch(_){ return null; }
+  }
+
+  function mostrarPasta(){
+    const bloco = document.getElementById('blocoPasta');
+    const nome = document.getElementById('nomePasta');
+    const escolher = document.getElementById('btnEscolherPasta');
+    const tirar = document.getElementById('btnTirarPasta');
+    if(!PASTA_SUPORTADA){
+      escolher.hidden = true;
+      tirar.hidden = true;
+      nome.textContent = 'Disponível no Chrome e no Edge.';
+      return;
+    }
+    nome.textContent = pastaEscolhida ? 'Pasta: ' + pastaEscolhida.name : 'Nenhuma: fica só neste navegador';
+    escolher.textContent = pastaEscolhida ? 'Trocar pasta' : 'Escolher pasta';
+    tirar.hidden = !pastaEscolhida;
+    bloco.hidden = false;
+  }
+
+  document.getElementById('btnEscolherPasta').addEventListener('click', async () => {
+    try{
+      pastaEscolhida = await window.showDirectoryPicker({ id:'audi-print-destino', mode:'readwrite' });
+      mostrarPasta();
+    }catch(err){
+      // Cancelar o seletor nao e erro.
+      if(err && err.name !== 'AbortError') avisar('Não foi possível usar essa pasta: ' + err.message);
+    }
+  });
+  document.getElementById('btnTirarPasta').addEventListener('click', () => {
+    pastaEscolhida = null;
+    mostrarPasta();
+  });
+
+  async function escreverArquivo(dir, nome, blob){
+    const arq = await dir.getFileHandle(nome, { create:true });
+    const w = await arq.createWritable();
+    try{ await w.write(blob); await w.close(); }
+    catch(err){ await w.abort().catch(()=>{}); throw err; }
+  }
+
+  /* Uma subpasta por evidencia, com o nome do registro (EVD-...): o HTML
+   * autossuficiente, com os prints dentro, e a gravacao em arquivo separado
+   * para o HTML nao ficar pesado. Mesmo nome de novo = sobrescreve a mesma. */
+  async function gravarNaPasta(pasta, r){
+    const nome = ((r.ficha && r.ficha.registro) || 'evidencia-' + Date.now()).replace(/[^\w.-]/g, '_');
+    const dir = await pasta.getDirectoryHandle(nome, { create:true });
+    const { arquivo } = await montarHtmlEvidencia(r, false);
+    await escreverArquivo(dir, 'evidencia.html', arquivo);
+    if(r.video) await escreverArquivo(dir, 'gravacao.webm', r.video);
+    return nome;
   }
 
   function estiloExportado(){

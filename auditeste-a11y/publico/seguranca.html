@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Segurança dos prints e gravações · Audi Print</title>
+<!-- Pagina aberta, sem login, para mandar ao cliente antes de ele ter conta.
+     Tudo aqui descreve o que o codigo faz hoje. Quem mudar um controle muda
+     a frase junto: garantia que nao corresponde ao codigo e pior que nenhuma. -->
+<style>
+  :root{--navy:#0d3446;--green:#76c043;--muted:#5b6b75;--linha:#dde5e9;}
+  body{margin:0;font:16px/1.65 system-ui,Segoe UI,Roboto,sans-serif;color:#1b2b33;background:#f6f8f9;}
+  header{background:var(--navy);color:#fff;padding:40px 20px 34px;}
+  header div,main{max-width:800px;margin:0 auto;}
+  header h1{margin:0 0 8px;font-size:1.7rem;line-height:1.25;}
+  header p{margin:0;color:#bcd3dd;font-size:1rem;}
+  main{padding:28px 20px 70px;}
+  h2{color:var(--navy);font-size:1.15rem;margin:34px 0 10px;border-left:4px solid var(--green);padding-left:10px;}
+  p{margin:8px 0;}
+  a{color:#1a6b8a;}
+  code{background:#e8eef1;padding:1px 5px;border-radius:4px;font-size:.9em;}
+  .agora{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:16px 20px;margin:6px 0 10px;}
+  .agora h3{margin:0 0 10px;font-size:.95rem;color:var(--navy);}
+  .agora ul{list-style:none;padding:0;margin:0;display:grid;gap:6px;}
+  .agora li{display:flex;gap:10px;align-items:baseline;}
+  .agora .sinal{font-weight:700;min-width:1.2em;}
+  .agora .ok .sinal{color:#3d8a1f;} .agora .nao .sinal{color:#b3261e;}
+  .agora small{display:block;color:var(--muted);margin-top:10px;font-size:.82rem;}
+  .opcoes{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:12px 0;}
+  .opcao{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:14px 16px;}
+  .opcao b{display:block;color:var(--navy);margin-bottom:4px;}
+  .opcao.recomendada{border-color:var(--green);background:#f4faef;}
+  .opcao .tag{display:inline-block;font-size:.72rem;font-weight:700;color:#3d6b22;background:#dff0d0;
+    border-radius:999px;padding:1px 8px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em;}
+  .garantias{display:grid;gap:10px;margin:12px 0;}
+  .g{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:12px 16px;}
+  .g b{color:var(--navy);}
+  .g p{margin:3px 0 0;color:#33454e;font-size:.95rem;}
+  .confira{background:var(--navy);color:#fff;border-radius:12px;padding:18px 20px;margin:30px 0 0;}
+  .confira h2{color:#fff;border-left-color:var(--green);margin-top:0;}
+  .confira a{color:#bfe79c;}
+  footer{color:var(--muted);font-size:.88rem;border-top:1px solid var(--linha);margin-top:36px;padding-top:16px;}
+</style>
+</head>
+<body>
+<header><div>
+  <h1>Segurança dos prints e gravações</h1>
+  <p>O que protege cada evidência de teste, do momento da captura até o arquivo guardado.</p>
+</div></header>
+<main>
+
+<div class="agora" id="agora">
+  <h3>Conferido agora, neste servidor</h3>
+  <ul id="agoraLista"><li><span class="sinal">…</span><span>Consultando o servidor.</span></li></ul>
+  <small>Estes itens não são texto fixo: a página pergunta ao servidor no momento em que você abre.</small>
+</div>
+
+<h2>Você decide onde a evidência fica</h2>
+<p>O print e a gravação nascem no computador de quem testa. Nada sai de lá sem
+uma escolha explícita. Existem três destinos, e eles podem ser combinados:</p>
+<div class="opcoes">
+  <div class="opcao">
+    <b>Só no navegador</b>
+    Fica no armazenamento local do navegador daquela máquina. Não passa por
+    nenhum servidor.
+  </div>
+  <div class="opcao recomendada">
+    <span class="tag">Recomendado</span>
+    <b>Pasta da rede da sua empresa</b>
+    Em cada projeto dá para escolher uma pasta, por exemplo uma pasta
+    compartilhada da rede. Cada evidência salva vira também um arquivo ali,
+    sob o backup e as permissões que a sua equipe de TI já controla.
+  </div>
+  <div class="opcao">
+    <b>Cofre de evidências</b>
+    Envio feito evidência por evidência, por decisão de quem testa, para o
+    cofre da sua equipe, com as proteções descritas abaixo.
+  </div>
+</div>
+
+<h2>Como o cofre protege os prints</h2>
+<div class="garantias">
+  <div class="g"><b>Cifrados no armazenamento</b>
+    <p>Cada print é gravado cifrado com AES-256-GCM. Quem conseguisse copiar o
+    arquivo do banco veria bytes ilegíveis. A gravação em vídeo não vai para o
+    cofre: ela fica no navegador ou na pasta de destino.</p></div>
+  <div class="g"><b>Adulteração é detectada</b>
+    <p>O SHA-256 de cada imagem original é registrado no momento do envio, e a
+    cifra usada recusa conteúdo alterado. Se um único byte for trocado no
+    disco, o print não é entregue alterado: a leitura falha.</p></div>
+  <div class="g"><b>Nenhum endereço público</b>
+    <p>Não existe link aberto nem listagem de prints. Uma imagem só é entregue a
+    quem está logado na equipe dona dela, ou por um link assinado que vale
+    5 minutos e não pode ser editado para abrir outro print ou outra equipe.</p></div>
+  <div class="g"><b>Uma equipe nunca vê a outra</b>
+    <p>A identificação da equipe faz parte de toda consulta ao banco. Um print
+    de outro cliente simplesmente não existe para quem não é daquela equipe.</p></div>
+  <div class="g"><b>Sem cópia esquecida no caminho</b>
+    <p>As imagens saem com instrução para navegador e proxies não guardarem
+    cópia (<code>Cache-Control: private, no-store</code>).</p></div>
+  <div class="g"><b>Cada acesso fica registrado</b>
+    <p>Toda abertura de print, envio e exclusão entra no registro de auditoria da
+    equipe, com quem fez e quando.</p></div>
+  <div class="g"><b>Prazo de guarda e exclusão de verdade</b>
+    <p>Cada equipe tem um prazo de guarda (90 dias por padrão). Vencido o prazo,
+    a evidência é apagada automaticamente. Excluir uma evidência apaga a imagem
+    junto, na mesma operação, sem deixar arquivo órfão.</p></div>
+</div>
+
+<h2>Antes de qualquer gravação</h2>
+<div class="garantias">
+  <div class="g"><b>Dados digitados sensíveis não entram na evidência</b>
+    <p>Senhas, CPF, CNPJ, número de cartão (conferido pelo dígito verificador),
+    CVV, tokens e chaves são reconhecidos pelo campo e pelo formato. O passo é
+    registrado, mas o valor digitado fica de fora.</p></div>
+  <div class="g"><b>Descrição automática desligada por padrão</b>
+    <p>A descrição automática dos prints usa um serviço externo, listado na
+    <a href="/privacidade.html">política de privacidade</a>. Ela vem desligada
+    em todo projeto e só funciona se alguém autorizar naquele projeto.</p></div>
+</div>
+
+<h2>Quem entra</h2>
+<div class="garantias">
+  <div class="g"><b>Conta, senha e bloqueio</b>
+    <p>A senha é guardada com scrypt, nunca em texto. Com 8 tentativas erradas
+    em 15 minutos, novas tentativas naquela conta são bloqueadas.</p></div>
+  <div class="g"><b>Sessão protegida e com papéis</b>
+    <p>A sessão dura até 12 horas, em cookie que o JavaScript da página não
+    consegue ler, e cai na hora em que a pessoa sai ou perde o acesso à equipe.
+    Leitor, consultor, gestor e administrador têm permissões diferentes, e o
+    servidor confere o papel antes de cada ação.</p></div>
+</div>
+
+<div class="confira">
+  <h2>Não precisa acreditar: dá para testar</h2>
+  <p>Dentro do cofre, na tela <b>Segurança</b>, a seção <b>Prova ao vivo</b>
+  executa os ataques de verdade contra o servidor, na hora, e mostra a resposta
+  real que ele deu: tentar ver o projeto de outro cliente, abrir um print sem
+  login ou com link forjado, trocar um byte de um print guardado, forçar
+  senha, entre outros.</p>
+  <p><a href="/cofre.html">Abrir o cofre</a></p>
+</div>
+
+<footer>Audi Print · <a href="/privacidade.html">Política de privacidade</a></footer>
+</main>
+<script>
+  /* Estado vivo do servidor. /ping e publico e ja expoe estes tres sinais;
+   * aqui eles so ganham uma frase. Se algo estiver desligado, a pagina diz. */
+  (async function(){
+    var lista = document.getElementById('agoraLista');
+    function item(ok, sim, nao){
+      var li = document.createElement('li');
+      li.className = ok ? 'ok' : 'nao';
+      var s = document.createElement('span'); s.className = 'sinal'; s.textContent = ok ? '✓' : '✗';
+      var t = document.createElement('span'); t.textContent = ok ? sim : nao;
+      li.appendChild(s); li.appendChild(t);
+      return li;
+    }
+    try{
+      var r = await fetch('/ping', { cache: 'no-store' });
+      var d = await r.json();
+      lista.innerHTML = '';
+      lista.appendChild(item(location.protocol === 'https:',
+        'Conexão cifrada (HTTPS) nesta página.',
+        'Esta página não está em HTTPS.'));
+      lista.appendChild(item(d.cifra === true,
+        'Cifra dos prints ligada neste servidor.',
+        'Cifra dos prints desligada neste servidor.'));
+      lista.appendChild(item(d.cofre === true && d.semVolume === false,
+        'Armazenamento permanente montado: o que é guardado sobrevive a atualizações.',
+        'Armazenamento permanente não confirmado neste servidor.'));
+    }catch(e){
+      lista.innerHTML = '';
+      lista.appendChild(item(false, '', 'Não foi possível consultar o servidor agora.'));
+    }
+  })();
+</script>
+</body>
+</html>

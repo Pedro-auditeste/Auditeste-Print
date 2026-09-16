@@ -94,6 +94,20 @@ caso('linkAdulterado fica VERMELHO se a validacao aceita tudo', () => {
   const r = provas.rodar('linkAdulterado', { ...deps, assinaturaValida: () => true });
   assert.strictEqual(r.ok, false);
 });
+/* Antes esta prova tinha ok: true fixo. A contraprova e o que garante que ela
+ * nao volta a ser enfeite. */
+caso('naoFicaOnline fica VERMELHO se a rota aceita qualquer assinatura', () => {
+  const r = provas.rodar('naoFicaOnline', { ...deps, assinaturaValida: () => true });
+  assert.strictEqual(r.ok, false);
+});
+caso('printIntegro fica VERMELHO se a leitura aceita print adulterado', () => {
+  const r = provas.rodar('printIntegro', comBanco({ decifrar: (b) => Buffer.from(b) }));
+  assert.strictEqual(r.ok, false);
+});
+caso('printIntegro fica VERMELHO com a cifra desligada', () => {
+  const r = provas.rodar('printIntegro', comBanco({ cifraLigada: () => false }));
+  assert.strictEqual(r.ok, false);
+});
 
 caso('a prova de isolamento realmente mira um id de OUTRO cliente', () => {
   const alheio = banco.projetoDeOutroTenant(minha.id);
