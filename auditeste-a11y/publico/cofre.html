@@ -99,6 +99,11 @@
   .aviso{padding:11px 14px;border-radius:10px;font-size:.87rem;margin-bottom:14px;border:1px solid;}
   .aviso.ruim{background:#fdecea;color:#a3302a;border-color:#f2c4c0;}
   .aviso.bom{background:#eef7e6;color:#3d6b22;border-color:#cbe6b4;}
+  /* Aviso de erro, convite e volume nao somem sozinhos: precisam de um X. */
+  .aviso{position:relative;padding-right:40px;}
+  .aviso-fechar{position:absolute;top:7px;right:8px;background:none;border:0;color:inherit;
+    opacity:.7;font-size:.85rem;width:26px;height:26px;border-radius:6px;cursor:pointer;}
+  .aviso-fechar:hover,.aviso-fechar:focus-visible{opacity:1;background:rgba(0,0,0,.06);}
   .linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
   .lista{display:grid;gap:12px;}
   .item{
@@ -545,6 +550,21 @@
   /* Na tela de login o aviso mora dentro do cartao; logado, no topo do main.
    * Um so avisar() escreve no que estiver a vista. */
   const caixaAviso = () => $('telaEntrar').hidden ? $('aviso') : $('avisoEntrada');
+  /* Um so ouvinte para todo aviso, inclusive os montados direto com innerHTML
+   * (convite, volume): o X entra por aqui, nao em cada lugar que cria aviso. */
+  const X_AVISO = '<button type="button" class="aviso-fechar" aria-label="Fechar aviso" title="Fechar">&#10005;</button>';
+  new MutationObserver(lista => {
+    for(const m of lista) for(const n of m.addedNodes){
+      if(n.nodeType === 1 && n.classList.contains('aviso') && !n.querySelector('.aviso-fechar')){
+        n.insertAdjacentHTML('beforeend', X_AVISO);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.aviso-fechar');
+    if(b) b.closest('.aviso').remove();
+  });
+
   function avisar(texto, ruim){
     const caixa = caixaAviso();
     caixa.innerHTML = texto

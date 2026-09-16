@@ -233,10 +233,18 @@
     position:fixed;left:50%;bottom:26px;transform:translate(-50%,120%);
     background:var(--navy);color:#fff;border-left:5px solid var(--green);
     border-radius:12px;padding:13px 22px;font-size:.92rem;font-weight:600;
-    box-shadow:0 10px 28px rgba(9,40,56,.32);z-index:80;max-width:90vw;
+    box-shadow:0 10px 28px rgba(9,40,56,.32);z-index:230;max-width:90vw;
     transition:transform .32s cubic-bezier(.2,.8,.3,1);
   }
   .aviso-toast.visivel{transform:translate(-50%,0);}
+  /* O X fica dentro do aviso: com 26 passos na tela, esperar 3,6s para o
+   * aviso sair de cima dos botoes e tempo perdido. */
+  /* z-index acima do fundo do modal (90) e da lupa (220): atras deles o X
+   * aparecia escurecido e nao recebia clique. */
+  .aviso-toast{display:flex;align-items:center;gap:14px;}
+  .aviso-fechar{flex:none;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;
+    border-radius:8px;width:28px;height:28px;font-size:.8rem;line-height:1;cursor:pointer;}
+  .aviso-fechar:hover,.aviso-fechar:focus-visible{background:rgba(255,255,255,.14);}
 
   @media (prefers-reduced-motion:no-preference){
     @keyframes surgir{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
@@ -1581,19 +1589,34 @@
     });
   }
 
+  function fecharAviso(){
+    const t = document.querySelector('.aviso-toast');
+    if(!t) return;
+    clearTimeout(t._tempo);
+    t.classList.remove('visivel');
+    /* Fora da tela ele so fica transladado: sem inert, o X continuaria
+     * recebendo Tab mesmo invisivel. */
+    t.inert = true;
+  }
+
   function avisar(texto){
     let t = document.querySelector('.aviso-toast');
     if(!t){
       t = document.createElement('div');
       t.className = 'aviso-toast';
       t.setAttribute('role', 'status');
+      t.innerHTML = '<span class="aviso-texto"></span>'
+        + '<button type="button" class="aviso-fechar" aria-label="Fechar aviso" title="Fechar">&#10005;</button>';
+      t.querySelector('.aviso-fechar').addEventListener('click', fecharAviso);
       document.body.appendChild(t);
     }
-    t.textContent = texto;
+    t.querySelector('.aviso-texto').textContent = texto;
+    t.inert = false;
     requestAnimationFrame(()=> t.classList.add('visivel'));
     clearTimeout(t._tempo);
-    t._tempo = setTimeout(()=> t.classList.remove('visivel'), 3600);
+    t._tempo = setTimeout(fecharAviso, 3600);
   }
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharAviso(); });
 
   document.getElementById('gradeProjetos').addEventListener('click', e => {
     const c = e.target.closest('.cartao');
