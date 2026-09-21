@@ -13,6 +13,7 @@ const banco = require('./banco.js');
 const contas = require('./contas.js');
 const sso = require('./sso.js');
 const provas = require('./provas.js');
+const zephyr = require('./zephyr.js');
 
 const MAX_OBJETO = Number(process.env.COFRE_MAX_OBJETO_MB || 20) * 1024 * 1024;
 const LINK_VALE_MS = Number(process.env.COFRE_LINK_MS) || 5 * 60 * 1000;
@@ -624,6 +625,49 @@ async function tratar(req, res, u, lerCorpo) {
         banco, contas, sessao: s, assinar, assinaturaValida, LINK_VALE_MS
       });
       banco.auditar(s.tenantId, s.usuarioId, 'prova.seguranca', r.id + ':' + (r.ok ? 'ok' : 'falhou'), s.ip);
+      json(res, 200, r);
+      return true;
+    }
+
+    /* ---------- Zephyr Squad ---------- */
+
+    /* O que a tela precisa saber: se da para publicar. Nada de chave aqui:
+     * a resposta diz se esta configurado, e so. */
+    if (p === '/api/zephyr' && req.method === 'GET') {
+      exigirSessao(req);
+      json(res, 200, { configurado: zephyr.configurado() });
+      return true;
+    }
+
+    /* Leitura inofensiva contra o Zephyr de verdade, para conferir credencial
+     * sem publicar nada. Gestor: e diagnostico de integracao, nao rotina. */
+    if (p === '/api/zephyr/conferir' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'gestor');
+      json(res, 200, await zephyr.conferir());
+      return true;
+    }
+
+    if (p === '/api/zephyr/publicar' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'consultor');
+      const c = await lerCorpo(req);
+      const anexo = c.anexoBase64 ? Buffer.from(String(c.anexoBase64), 'base64') : null;
+      if (anexo && anexo.length > MAX_OBJETO) {
+        json(res, 413, { erro: 'anexo acima do limite' });
+        return true;
+      }
+      const r = await zephyr.publicar({
+        caso: c.caso,
+        resultado: c.resultado,
+        comentario: c.comentario,
+        cicloId: c.cicloId,
+        anexoNome: c.anexoNome,
+        anexoTipo: c.anexoTipo,
+        anexoBytes: anexo
+      });
+      banco.auditar(s.tenantId, s.usuarioId, 'zephyr.publicado',
+        String(c.caso) + ' -> execucao ' + r.execucaoId, s.ip);
       json(res, 200, r);
       return true;
     }
