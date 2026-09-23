@@ -130,6 +130,8 @@ const servidor = http.createServer((req, res) => {
     assert.strictEqual(chamadas.length, 1);
     assert.strictEqual(chamadas[0].metodo, 'GET');
     assert.strictEqual(chamadas[0].caminho, '/public/rest/api/1.0/cycles/search');
+    // Os ciclos voltam com id e nome, que e o que falta para configurar.
+    assert.deepStrictEqual(r.ciclos, [{ id: '77', nome: 'Ciclo' }]);
   });
 
   await caso('CRITERIO: publicar segue a sequência que a ZAPI exige', async () => {

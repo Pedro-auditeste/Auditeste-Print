@@ -118,7 +118,11 @@ async function chamar(metodo, caminho, { params, json, corpo, tipo } = {}) {
 async function conferir() {
   const r = await chamar('GET', '/public/rest/api/1.0/cycles/search',
     { params: { projectId: PROJETO_ID, versionId: VERSAO_ID } });
-  const ciclos = r && typeof r === 'object' ? Object.keys(r).length : 0;
+  /* Devolve os ciclos com id e nome: e exatamente o que falta para preencher
+   * ZEPHYR_CICLO_ID, e garimpar isso na interface do Jira e sofrido. */
+  const ciclos = Object.entries(r && typeof r === 'object' ? r : {})
+    .filter(([, v]) => v && typeof v === 'object' && v.name)
+    .map(([id, v]) => ({ id, nome: v.name }));
   return { ok: true, projetoId: PROJETO_ID, versaoId: VERSAO_ID, ciclos };
 }
 
