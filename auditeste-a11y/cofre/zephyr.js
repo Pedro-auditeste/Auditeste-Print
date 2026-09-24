@@ -1,49 +1,54 @@
-/* Publicação de evidência no Zephyr Squad Cloud (a antiga ZAPI).
+/* Publicação de evidência no Zephyr Essential Cloud (API v2).
+ *
+ * HISTÓRICO, porque isto já foi escrito diferente uma vez.
+ *
+ * A primeira versão falava com a ZAPI do Zephyr Squad Cloud: assinatura por
+ * chamada, chave de acesso mais chave secreta. A SmartBear renomeou o Squad
+ * para Zephyr Essential e trocou a API junto. A nova é mais simples: um
+ * token só, num cabeçalho, e endpoints de verdade em vez de ids numéricos.
+ * Fonte: a especificação pública "Zephyr Essential Cloud API 2.8".
  *
  * POR QUE ISTO MORA NO SERVIDOR, e não no Print.
  *
- * O Squad na nuvem não usa token fixo: cada requisição leva um JWT assinado
- * com a CHAVE SECRETA da conta, e esse JWT amarra o método, o caminho e a
- * query daquela chamada (o "qsh"). Assinar no navegador significaria colocar
- * a chave secreta dentro de uma página, onde qualquer pessoa com o console
- * aberto a copia. Então a página manda a evidência para cá, e quem fala com
- * o Zephyr é este processo.
+ * O token dá acesso à API com as permissões de quem o gerou. Numa página, ele
+ * estaria visível para qualquer pessoa com o console aberto. Então a página
+ * manda a evidência para cá, e quem fala com o Zephyr é este processo.
+ *
+ * O QUE ESTA API NÃO FAZ: anexar arquivo. A especificação 2.8 não tem nenhum
+ * endpoint de anexo, upload ou arquivo. A execução sai com resultado e
+ * comentário; a evidência em si continua no Print, na pasta de destino e no
+ * cofre. Se um dia aparecer endpoint de anexo, o lugar de mexer é aqui.
  *
  * CONFIGURAÇÃO (variáveis de ambiente, nunca no git):
- *   ZEPHYR_ACCESS_KEY    chave de acesso, da aba de API keys do Zephyr
- *   ZEPHYR_SECRET_KEY    chave secreta, do mesmo lugar
- *   ZEPHYR_ACCOUNT_ID    accountId da conta Atlassian que vai assinar
- *   ZEPHYR_PROJETO_ID    id numérico do projeto no Jira
- *   ZEPHYR_VERSAO_ID     opcional, padrão -1 ("Unscheduled")
- *   ZEPHYR_CICLO_ID      opcional, ciclo de destino; sem ele usa o ad hoc
- *   ZEPHYR_BASE          opcional, para apontar a um ambiente de teste
- *   ZEPHYR_STATUS_*      opcional, se a equipe renomeou os status
- *   ZEPHYR_JIRA_URL / ZEPHYR_JIRA_EMAIL / ZEPHYR_JIRA_TOKEN
- *       opcionais, e só servem para traduzir "ABC-123" no id numérico que a
- *       ZAPI exige. Sem eles, quem publica informa o id numérico direto.
+ *   ZEPHYR_API_TOKEN   token gerado em Configurações pessoais > Apps >
+ *                      Zephyr Essential API Access Tokens
+ *   ZEPHYR_PROJETO     chave do projeto no Jira (ex.: GOV)
+ *   ZEPHYR_CICLO       opcional, chave do ciclo de destino (ex.: GOV-R1)
+ *   ZEPHYR_BASE        opcional, para apontar a outro ambiente
+ *   ZEPHYR_STATUS_*    opcional, se a equipe renomeou os status
  */
-const crypto = require('crypto');
+const BASE = (process.env.ZEPHYR_BASE || 'https://prod-api.zephyrforjiracloud.com/v2').replace(/\/+$/, '');
+const TOKEN = (process.env.ZEPHYR_API_TOKEN || '').trim();
+const PROJETO = (process.env.ZEPHYR_PROJETO || '').trim().toUpperCase();
+const CICLO = (process.env.ZEPHYR_CICLO || '').trim();
 
-const BASE = (process.env.ZEPHYR_BASE || 'https://prod-api.zephyr4jiracloud.com/connect').replace(/\/+$/, '');
-const ACCESS_KEY = (process.env.ZEPHYR_ACCESS_KEY || '').trim();
-const SECRET_KEY = (process.env.ZEPHYR_SECRET_KEY || '').trim();
-const ACCOUNT_ID = (process.env.ZEPHYR_ACCOUNT_ID || '').trim();
-const PROJETO_ID = (process.env.ZEPHYR_PROJETO_ID || '').trim();
-const VERSAO_ID = (process.env.ZEPHYR_VERSAO_ID || '-1').trim();
-const CICLO_ID = (process.env.ZEPHYR_CICLO_ID || '-1').trim();
-
-/* Ids padrão do Squad. Equipe que criou status próprio troca pelo ambiente,
- * em vez de alguém descobrir em produção que "Aprovado" virou "Reprovado". */
+/* Nomes de status, não ids: a API v2 recebe o nome. Equipe que renomeou
+ * troca pelo ambiente, em vez de descobrir em produção que "Pass" não existe. */
 const STATUS = {
-  passou: Number(process.env.ZEPHYR_STATUS_PASSOU || 1),
-  reprovou: Number(process.env.ZEPHYR_STATUS_REPROVOU || 2),
-  andamento: Number(process.env.ZEPHYR_STATUS_ANDAMENTO || 3),
-  bloqueado: Number(process.env.ZEPHYR_STATUS_BLOQUEADO || 4)
+  passou: process.env.ZEPHYR_STATUS_PASSOU || 'Pass',
+  reprovou: process.env.ZEPHYR_STATUS_REPROVOU || 'Fail',
+  andamento: process.env.ZEPHYR_STATUS_ANDAMENTO || 'In Progress',
+  bloqueado: process.env.ZEPHYR_STATUS_BLOQUEADO || 'Blocked'
 };
 
 const TEMPO_MS = Number(process.env.ZEPHYR_TIMEOUT_MS || 20000);
 
-const configurado = () => !!(ACCESS_KEY && SECRET_KEY && ACCOUNT_ID && PROJETO_ID);
+/* Chave de caso de teste do Zephyr: PROJ-T12. Não confundir com a chave de
+ * uma issue do Jira (PROJ-12): são coisas diferentes, e trocar uma pela
+ * outra dá um 404 que não explica nada. */
+const CHAVE_CASO = /^[A-Z][A-Z0-9_]*-T\d+$/;
+
+const configurado = () => !!(TOKEN && PROJETO);
 
 function erro(msg, status) {
   const e = new Error(msg);
@@ -51,51 +56,22 @@ function erro(msg, status) {
   return e;
 }
 
-const b64url = (buf) => Buffer.from(buf).toString('base64')
-  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-/* A query entra no qsh ORDENADA por nome. Fora de ordem o Zephyr recusa com
- * um erro que não diz "ordem": diz só que a assinatura não confere. */
-function queryCanonica(params) {
-  return Object.keys(params || {}).filter(k => params[k] !== undefined && params[k] !== null)
-    .sort()
-    .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])))
-    .join('&');
+function query(params) {
+  const p = Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== '');
+  return p.length ? '?' + p.map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(String(v))).join('&') : '';
 }
 
-/** JWT HS256 com o qsh do pedido, no formato que a ZAPI Cloud espera. */
-function gerarJwt(metodo, caminho, params, agoraMs) {
-  const agora = Math.floor((agoraMs || Date.now()) / 1000);
-  const canonico = [metodo.toUpperCase(), caminho, queryCanonica(params)].join('&');
-  const carga = {
-    sub: ACCOUNT_ID,
-    qsh: crypto.createHash('sha256').update(canonico).digest('hex'),
-    iss: ACCESS_KEY,
-    iat: agora,
-    exp: agora + 3600
-  };
-  const cabecalho = { alg: 'HS256', typ: 'JWT' };
-  const base = b64url(JSON.stringify(cabecalho)) + '.' + b64url(JSON.stringify(carga));
-  return base + '.' + b64url(crypto.createHmac('sha256', SECRET_KEY).update(base).digest());
-}
-
-async function chamar(metodo, caminho, { params, json, corpo, tipo } = {}) {
+async function chamar(metodo, caminho, { params, json } = {}) {
   if (!configurado()) throw erro('Zephyr não configurado neste servidor.', 503);
-  const query = queryCanonica(params);
-  const url = BASE + caminho + (query ? '?' + query : '');
-  const cabecalhos = {
-    Authorization: 'JWT ' + gerarJwt(metodo, caminho, params),
-    zapiAccessKey: ACCESS_KEY
-  };
-  if (json !== undefined) cabecalhos['Content-Type'] = 'application/json';
-  if (tipo) cabecalhos['Content-Type'] = tipo;
-
   let r;
   try {
-    r = await fetch(url, {
+    r = await fetch(BASE + caminho + query(params), {
       method: metodo,
-      headers: cabecalhos,
-      body: json !== undefined ? JSON.stringify(json) : corpo,
+      headers: Object.assign(
+        { AccessToken: TOKEN, Accept: 'application/json' },
+        json !== undefined ? { 'Content-Type': 'application/json' } : {}
+      ),
+      body: json !== undefined ? JSON.stringify(json) : undefined,
       signal: AbortSignal.timeout(TEMPO_MS)
     });
   } catch (err) {
@@ -106,55 +82,37 @@ async function chamar(metodo, caminho, { params, json, corpo, tipo } = {}) {
   let dados = null;
   try { dados = texto ? JSON.parse(texto) : null; } catch (_) { /* nem tudo volta JSON */ }
   if (!r.ok) {
-    /* A mensagem do Zephyr vai inteira: é ela que diz se foi assinatura,
-     * permissão ou id errado. O que NUNCA pode sair daqui é a chave. */
-    const detalhe = (dados && (dados.errorDesc || dados.message)) || texto.slice(0, 300) || '';
-    throw erro('Zephyr recusou (' + r.status + ')' + (detalhe ? ': ' + detalhe : ''), 502);
+    /* A mensagem do Zephyr vai inteira: é ela que diz se foi token, permissão
+     * ou chave errada. O que NUNCA pode sair daqui é o token. */
+    const detalhe = (dados && (dados.message || dados.errorMessages || dados.error)) || texto.slice(0, 300) || '';
+    throw erro('Zephyr recusou (' + r.status + ')'
+      + (detalhe ? ': ' + (typeof detalhe === 'string' ? detalhe : JSON.stringify(detalhe)) : ''), 502);
   }
   return dados;
 }
 
-/** Leitura inofensiva, só para conferir credencial sem publicar nada. */
-async function conferir() {
-  const r = await chamar('GET', '/public/rest/api/1.0/cycles/search',
-    { params: { projectId: PROJETO_ID, versionId: VERSAO_ID } });
-  /* Devolve os ciclos com id e nome: e exatamente o que falta para preencher
-   * ZEPHYR_CICLO_ID, e garimpar isso na interface do Jira e sofrido. */
-  const ciclos = Object.entries(r && typeof r === 'object' ? r : {})
-    .filter(([, v]) => v && typeof v === 'object' && v.name)
-    .map(([id, v]) => ({ id, nome: v.name }));
-  return { ok: true, projetoId: PROJETO_ID, versaoId: VERSAO_ID, ciclos };
-}
+const lista = (r) => (r && Array.isArray(r.values) ? r.values : []);
 
-/* "ABC-123" não serve para a ZAPI, que quer o id numérico. Traduzir exige o
- * Jira, não o Zephyr, então é opcional: sem credencial do Jira, quem publica
- * informa o id numérico e nada disto roda. */
-async function idDoCaso(chave) {
-  if (/^\d+$/.test(String(chave).trim())) return String(chave).trim();
-  const url = (process.env.ZEPHYR_JIRA_URL || '').replace(/\/+$/, '');
-  const email = process.env.ZEPHYR_JIRA_EMAIL || '';
-  const token = process.env.ZEPHYR_JIRA_TOKEN || '';
-  if (!url || !email || !token) {
-    throw erro('Informe o id numérico do caso: a tradução de "' + chave
-      + '" precisa das credenciais do Jira (ZEPHYR_JIRA_URL, ZEPHYR_JIRA_EMAIL, ZEPHYR_JIRA_TOKEN).', 400);
-  }
-  let r;
+/* Leitura inofensiva, para conferir o token sem publicar nada. Devolve os
+ * ciclos e os status que ESTE projeto aceita: são os dois valores que a
+ * pessoa precisa para configurar, e garimpar isso na tela é sofrido. */
+async function conferir() {
+  const ciclos = await chamar('GET', '/testcycles', { params: { projectKey: PROJETO, maxResults: 20 } });
+  let status = [];
   try {
-    r = await fetch(url + '/rest/api/3/issue/' + encodeURIComponent(chave) + '?fields=id', {
-      headers: {
-        Authorization: 'Basic ' + Buffer.from(email + ':' + token).toString('base64'),
-        Accept: 'application/json'
-      },
-      signal: AbortSignal.timeout(TEMPO_MS)
+    const s = await chamar('GET', '/statuses', {
+      params: { projectKey: PROJETO, statusType: 'TEST_EXECUTION', maxResults: 50 }
     });
-  } catch (err) {
-    throw erro('Não alcancei o Jira: ' + (err && err.message), 504);
-  }
-  if (r.status === 404) throw erro('O caso ' + chave + ' não existe no Jira.', 400);
-  if (!r.ok) throw erro('O Jira recusou a consulta do caso ' + chave + ' (' + r.status + ').', 502);
-  const d = await r.json().catch(() => null);
-  if (!d || !d.id) throw erro('O Jira respondeu sem o id do caso ' + chave + '.', 502);
-  return String(d.id);
+    status = lista(s).map(x => x.name).filter(Boolean);
+  } catch (_) { /* status é extra: token válido já foi provado pelos ciclos */ }
+
+  return {
+    ok: true,
+    projeto: PROJETO,
+    ciclos: lista(ciclos).map(c => ({ chave: c.key, nome: c.name })),
+    statusDisponiveis: status,
+    statusEmUso: STATUS
+  };
 }
 
 function statusDe(resultado) {
@@ -165,69 +123,44 @@ function statusDe(resultado) {
   return STATUS.andamento;
 }
 
-/* Multipart montado na mão: é um corpo de 3 partes, e trazer uma dependência
- * para isso custaria mais manutenção do que as 12 linhas abaixo. */
-function multipart(nome, tipo, bytes) {
-  const limite = '----audiprint' + crypto.randomBytes(12).toString('hex');
-  const cabeca = Buffer.from(
-    '--' + limite + '\r\n'
-    + 'Content-Disposition: form-data; name="file"; filename="' + nome.replace(/["\r\n]/g, '') + '"\r\n'
-    + 'Content-Type: ' + tipo + '\r\n\r\n');
-  const pe = Buffer.from('\r\n--' + limite + '--\r\n');
-  return { tipo: 'multipart/form-data; boundary=' + limite, corpo: Buffer.concat([cabeca, bytes, pe]) };
-}
-
-/* Publica UMA evidência contra um caso de teste que já existe no Jira.
+/* Cria a execução de um caso que já existe no Zephyr.
  *
- * Criar o caso do zero é outra história (no Squad um caso é uma issue do
- * Jira, com os passos por outra rota), e fazer as duas coisas de uma vez
- * daria um botão que falha pela metade. Aqui a execução é o que interessa:
- * o caso já existe, o que faltava era o resultado e a prova. */
-async function publicar({ caso, resultado, comentario, anexoNome, anexoTipo, anexoBytes, cicloId }) {
-  if (!String(caso || '').trim()) throw erro('Informe o caso de teste do Zephyr.', 400);
-  const issueId = await idDoCaso(caso);
-  const ciclo = String(cicloId || CICLO_ID);
-
-  /* 1. o caso entra no ciclo. Se ja estiver la, o Zephyr nao duplica. */
-  await chamar('POST', '/public/rest/api/1.0/executions/add/cycle/' + encodeURIComponent(ciclo),
-    { json: { issues: [issueId], method: '1', projectId: PROJETO_ID, versionId: VERSAO_ID } });
-
-  /* 2. descobre a execucao recem criada para este caso. */
-  const busca = await chamar('GET', '/public/rest/api/1.0/executions/search/cycle/' + encodeURIComponent(ciclo),
-    { params: { projectId: PROJETO_ID, versionId: VERSAO_ID, action: 'expand' } });
-  const lista = (busca && (busca.searchObjectList || busca.executions)) || [];
-  const achada = lista.find(e => String(
-    (e.execution && (e.execution.issueId || e.execution.issueKey)) || e.issueId || '') === String(issueId));
-  const execucaoId = achada && ((achada.execution && achada.execution.id) || achada.id);
-  if (!execucaoId) throw erro('O caso entrou no ciclo, mas não achei a execução dele para gravar o resultado.', 502);
-
-  /* 3. grava o resultado. */
-  await chamar('PUT', '/public/rest/api/1.0/executions/' + encodeURIComponent(execucaoId), {
-    json: {
-      status: { id: statusDe(resultado) },
-      cycleId: ciclo, projectId: PROJETO_ID, versionId: VERSAO_ID, issueId,
-      comment: String(comentario || '').slice(0, 5000)
-    }
-  });
-
-  /* 4. anexa a evidencia. O anexo e o ponto do produto: sem ele o Zephyr fica
-   *    com "reprovado" e ninguem consegue ver o que aconteceu na tela. */
-  let anexado = false;
-  if (anexoBytes && anexoBytes.length) {
-    const m = multipart(anexoNome || 'evidencia.html', anexoTipo || 'text/html', anexoBytes);
-    await chamar('POST', '/public/rest/api/1.0/attachment', {
-      params: { entityId: execucaoId, entityName: 'execution' },
-      corpo: m.corpo, tipo: m.tipo
-    });
-    anexado = true;
+ * Criar o caso do zero é outra história (passos, pasta, prioridade), e um
+ * botão que faz as duas coisas falha pela metade. Aqui o caso já existe: o
+ * que faltava era o resultado do teste chegar lá com a mão do QA. */
+async function publicar({ caso, resultado, comentario, ciclo }) {
+  const chave = String(caso || '').trim().toUpperCase();
+  if (!chave) throw erro('Informe o caso de teste do Zephyr.', 400);
+  if (!CHAVE_CASO.test(chave)) {
+    throw erro('"' + chave + '" não é uma chave de caso de teste do Zephyr. '
+      + 'O formato é PROJETO-T + número, por exemplo ' + PROJETO + '-T1. '
+      + 'A chave de uma issue do Jira (' + PROJETO + '-1) é outra coisa.', 400);
   }
 
-  return { ok: true, execucaoId: String(execucaoId), issueId, cicloId: ciclo,
-    status: statusDe(resultado), anexado };
+  const corpo = {
+    projectKey: PROJETO,
+    testCaseKey: chave,
+    statusName: statusDe(resultado)
+  };
+  const alvo = String(ciclo || CICLO || '').trim();
+  if (alvo) corpo.testCycleKey = alvo;
+  if (comentario) corpo.comment = String(comentario).slice(0, 5000);
+
+  const r = await chamar('POST', '/testexecutions', { json: corpo });
+  return {
+    ok: true,
+    execucao: (r && (r.key || r.id)) ? String(r.key || r.id) : '',
+    caso: chave,
+    ciclo: alvo || null,
+    status: corpo.statusName,
+    /* Dito na resposta, não escondido: a API 2.8 não tem endpoint de anexo,
+     * então a evidência não sobe junto. Quem chama decide o que mostrar. */
+    anexado: false
+  };
 }
 
 module.exports = {
   configurado, conferir, publicar, statusDe,
-  // expostos para o teste conseguir conferir a assinatura sem rede:
-  gerarJwt, queryCanonica, multipart, STATUS, BASE
+  // expostos para o teste:
+  query, CHAVE_CASO, STATUS, BASE, PROJETO
 };

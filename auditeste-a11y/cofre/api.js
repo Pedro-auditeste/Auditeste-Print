@@ -652,22 +652,16 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
       const c = await lerCorpo(req);
-      const anexo = c.anexoBase64 ? Buffer.from(String(c.anexoBase64), 'base64') : null;
-      if (anexo && anexo.length > MAX_OBJETO) {
-        json(res, 413, { erro: 'anexo acima do limite' });
-        return true;
-      }
+      /* A API v2 do Essential nao tem endpoint de anexo: so resultado e
+       * comentario sobem. A evidencia continua no Print, na pasta e no cofre. */
       const r = await zephyr.publicar({
         caso: c.caso,
         resultado: c.resultado,
         comentario: c.comentario,
-        cicloId: c.cicloId,
-        anexoNome: c.anexoNome,
-        anexoTipo: c.anexoTipo,
-        anexoBytes: anexo
+        ciclo: c.ciclo
       });
       banco.auditar(s.tenantId, s.usuarioId, 'zephyr.publicado',
-        String(c.caso) + ' -> execucao ' + r.execucaoId, s.ip);
+        String(c.caso) + ' -> execucao ' + r.execucao, s.ip);
       json(res, 200, r);
       return true;
     }

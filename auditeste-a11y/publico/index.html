@@ -4288,10 +4288,10 @@
     if(!eu){ avisar('Entre no cofre para publicar no Zephyr.'); return; }
 
     const f = r.ficha || {};
-    /* A demanda costuma ser a chave do Jira; serve de sugestao, nao de
-     * verdade: quem publica confirma qual caso recebe este resultado. */
-    const sugestao = /^[A-Z][A-Z0-9]+-\d+$/.test(String(f.demanda || '').trim()) ? f.demanda.trim() : '';
-    const caso = (prompt('Caso de teste no Zephyr (chave do Jira, ex.: ABC-123, ou o id numérico):', sugestao) || '').trim();
+    /* Chave de CASO DE TESTE do Zephyr (GOV-T12), que nao e a chave de uma
+     * issue do Jira (GOV-12). A demanda so vira sugestao quando tem o "-T". */
+    const sugestao = /^[A-Z][A-Z0-9_]*-T\d+$/i.test(String(f.demanda || '').trim()) ? f.demanda.trim() : '';
+    const caso = (prompt('Caso de teste no Zephyr (ex.: GOV-T12):', sugestao) || '').trim();
     if(!caso) return;
 
     const resultado = f.resultado || '';
@@ -4299,7 +4299,8 @@
       titulo: 'Publicar no Zephyr',
       subtitulo: 'Caso ' + caso,
       texto: 'Vai ser criada a execução deste caso no ciclo configurado, com o resultado '
-        + '<b>' + esc(resultado || 'em andamento') + '</b>, e esta evidência vai anexada.',
+        + '<b>' + esc(resultado || 'em andamento') + '</b> e um comentário identificando a evidência.'
+        + '<br><br>A API do Zephyr não aceita anexo: o arquivo continua aqui, na pasta de destino e no cofre.',
       botao: 'Publicar', tipo: 'aviso'
     });
     if(!ok) return;
@@ -4307,20 +4308,15 @@
     const rotulo = botao ? botao.textContent : '';
     if(botao){ botao.disabled = true; botao.textContent = 'Publicando...'; }
     try{
-      const { arquivo } = await montarHtmlEvidencia(r, false);
-      const anexoBase64 = (await blobParaTexto(arquivo)).split(',').pop();
       const passos = (r.passos || []).length;
       const d = await cofrePedir('/api/zephyr/publicar', {
         caso,
         resultado,
         comentario: 'Audi Print · ' + (f.registro || 'evidência') + ' · ' + passos + ' passo(s)'
           + (f.ambiente ? ' · ambiente ' + f.ambiente : '')
-          + (f.versao ? ' · versão ' + f.versao : ''),
-        anexoNome: ((f.registro || 'evidencia').replace(/[^\w.-]/g, '_')) + '.html',
-        anexoTipo: 'text/html',
-        anexoBase64
+          + (f.versao ? ' · versão ' + f.versao : '')
       });
-      avisar('Publicado no Zephyr: execução ' + d.execucaoId + (d.anexado ? ' com a evidência anexada.' : '.'));
+      avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.');
     }catch(err){
       informar('Não publiquei no Zephyr: ' + err.message
         + '\n\nA evidência continua salva aqui. Confira o caso informado e as chaves do Zephyr no servidor.',
