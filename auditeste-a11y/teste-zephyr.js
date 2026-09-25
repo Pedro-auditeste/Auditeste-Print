@@ -29,6 +29,8 @@ async function caso(nome, fn) {
 
 const chamadas = [];
 let proximaFalha = null;
+/* Servidor que so entende o cabecalho antigo, para provar a segunda tentativa. */
+let soCabecalhoAntigo = false;
 
 const servidor = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
@@ -42,11 +44,13 @@ const servidor = http.createServer((req, res) => {
       res.end(JSON.stringify(obj));
     };
 
-    /* A API inteira depende deste cabeçalho. Sem ele, 401. */
-    if (req.headers.accesstoken !== TOKEN) {
-      return responder(401, { message: 'token ausente ou inválido' });
-    }
-    chamadas.push({ metodo: req.method, caminho, query: u.search, corpo });
+    /* A 2.8 autentica com Authorization: Bearer; o ZAPI antigo, com AccessToken. */
+    const bearer = req.headers.authorization === 'Bearer ' + TOKEN;
+    const antigo = req.headers.accesstoken === TOKEN;
+    const aceito = soCabecalhoAntigo ? antigo : bearer;
+    chamadas.push({ metodo: req.method, caminho, query: u.search, corpo, aceito,
+      auth: req.headers.authorization || '', accessToken: req.headers.accesstoken || '' });
+    if (!aceito) return responder(401, { message: 'token ausente ou inválido' });
 
     if (proximaFalha && proximaFalha.caminho === caminho) {
       const f = proximaFalha; proximaFalha = null;
@@ -81,12 +85,26 @@ const servidor = http.createServer((req, res) => {
       '?projectKey=GOV&maxResults=20');
   });
 
-  await caso('CRITERIO: toda chamada leva o cabeçalho AccessToken', async () => {
+  await caso('CRITERIO: toda chamada autentica com Authorization: Bearer', async () => {
     chamadas.length = 0;
     await zephyr.conferir();
     assert.ok(chamadas.length >= 1, 'não chamou');
-    // o servidor de mentira devolve 401 sem o cabeçalho, entao chegar aqui ja prova
     assert.strictEqual(chamadas[0].caminho, '/testcycles');
+    assert.strictEqual(chamadas[0].auth, 'Bearer ' + TOKEN);
+    assert.ok(chamadas.every(c => c.aceito), 'alguma chamada foi recusada');
+  });
+
+  await caso('CRITERIO: servidor que só entende o cabeçalho antigo ainda funciona', async () => {
+    /* Era isto que dava "Zephyr recusou (401): Unauthorized" em produção: o
+     * esquema de autenticação, não o token. */
+    soCabecalhoAntigo = true;
+    chamadas.length = 0;
+    try {
+      const c = await zephyr.casos();
+      assert.strictEqual(c[0].chave, 'GOV-T1');
+      assert.strictEqual(chamadas[0].aceito, false, 'a primeira tentativa devia ser a nova');
+      assert.strictEqual(chamadas[1].accessToken, TOKEN, 'a segunda devia trocar o esquema');
+    } finally { soCabecalhoAntigo = false; }
   });
 
   await caso('conferir devolve os ciclos e os status do projeto', async () => {
@@ -168,7 +186,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (21 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (22 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 

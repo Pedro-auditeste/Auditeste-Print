@@ -113,11 +113,23 @@ async function caso(nome, fn) {
     if (quantos !== 1) throw new Error('esperava 1 X, veio ' + quantos);
   });
 
+  await caso('Print: aviso comum nao mostra a lista de escolha vazia', async () => {
+    /* A lista so existe para escolher o caso do Zephyr. Ela nasce com [hidden],
+     * mas ".modal label{display:block}" vencia isso e ela aparecia vazia em
+     * todo aviso, com um seletor sem nenhuma opcao. */
+    await pagina.goto(BASE + '/index.html', { waitUntil: 'domcontentloaded' });
+    const como = await pagina.$eval('#campoEscolhaConfirma', el => ({
+      escondido: el.hidden, display: getComputedStyle(el).display
+    }));
+    if (!como.escondido) throw new Error('a lista nao nasce com hidden');
+    if (como.display !== 'none') throw new Error('escondida no HTML, mas visivel na tela: display ' + como.display);
+  });
+
   await caso('nenhum erro de script nas duas paginas', async () => {
     if (erros.length) throw new Error(erros.join(' | '));
   });
 
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (8 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (9 casos)\n');
 })().catch(e => { falhas++; console.error('FALHOU:', e.message); })
   .finally(async () => {
     if (navegador) await navegador.close().catch(() => {});

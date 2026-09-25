@@ -327,6 +327,9 @@
   .modal .topo-modal p{color:#a9c6d3;font-size:.86rem;}
   .modal .corpo-modal{padding:22px 26px 8px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;min-height:0;}
   .modal label{display:block;}
+  /* display:block em label vence o [hidden] do navegador, e a lista opcional
+   * da confirmacao aparecia vazia em todo aviso comum. */
+  .modal label[hidden]{display:none;}
   .modal .rot{margin-bottom:5px;}
   /* Saida de excecao: fica visivel, mas nao disputa com o caminho da loja. */
   .btn.discreto{opacity:.6;font-size:.75rem;padding-left:9px;padding-right:9px;}

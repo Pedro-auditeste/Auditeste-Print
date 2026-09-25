@@ -71,20 +71,30 @@ function query(params) {
 
 async function chamar(metodo, caminho, { params, json } = {}) {
   if (!configurado()) throw erro('Zephyr não configurado neste servidor.', 503);
-  let r;
-  try {
-    r = await fetch(BASE + caminho + query(params), {
-      method: metodo,
-      headers: Object.assign(
-        { AccessToken: TOKEN, Accept: 'application/json' },
-        json !== undefined ? { 'Content-Type': 'application/json' } : {}
-      ),
-      body: json !== undefined ? JSON.stringify(json) : undefined,
-      signal: AbortSignal.timeout(TEMPO_MS)
-    });
-  } catch (err) {
-    throw erro('Não alcancei o Zephyr: ' + (err && err.message), 504);
-  }
+  const url = BASE + caminho + query(params);
+  const corpo = json !== undefined ? JSON.stringify(json) : undefined;
+
+  const enviar = async (auth) => {
+    try {
+      return await fetch(url, {
+        method: metodo,
+        headers: Object.assign({ Accept: 'application/json' }, auth,
+          json !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        body: corpo,
+        signal: AbortSignal.timeout(TEMPO_MS)
+      });
+    } catch (err) {
+      throw erro('Não alcancei o Zephyr: ' + (err && err.message), 504);
+    }
+  };
+
+  /* A especificação 2.8 autentica com "Authorization: Bearer". O cabeçalho
+   * "AccessToken" solto é do ZAPI antigo, e foi com ele que esta integração
+   * nasceu: o Zephyr respondia 401 sem dizer que o problema era o cabeçalho,
+   * e 401 sozinho não distingue token inválido de esquema errado. Por isso a
+   * segunda tentativa troca o esquema antes de acusar o token. */
+  let r = await enviar({ Authorization: 'Bearer ' + TOKEN });
+  if (r.status === 401) r = await enviar({ AccessToken: TOKEN });
 
   const texto = await r.text().catch(() => '');
   let dados = null;
