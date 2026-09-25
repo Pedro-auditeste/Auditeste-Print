@@ -883,6 +883,8 @@
   .modal.confirmacao .topo-modal{background:linear-gradient(135deg,#7c1d1d 0%,#b23a3a 130%);}
   .modal.confirmacao.aviso .topo-modal{background:linear-gradient(135deg,#0d3446 0%,#16603f 130%);}
   .modal.confirmacao .texto{padding:22px 26px 4px;color:var(--ink);font-size:.96rem;white-space:pre-line;}
+  .modal.confirmacao .escolha-confirma{padding:14px 26px 0;}
+  .modal.confirmacao .escolha-confirma select{width:100%;}
   .modal.confirmacao .icone{
     width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);
     display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex:none;
@@ -1247,6 +1249,10 @@
       </div>
     </div>
     <div class="texto" id="textoConfirma"></div>
+    <label class="escolha-confirma" id="campoEscolhaConfirma" hidden>
+      <span class="rot" id="rotuloEscolhaConfirma">Escolha</span>
+      <select id="escolhaConfirma"></select>
+    </label>
     <div class="acoes-modal">
       <button class="btn escuro" id="btnNao">Cancelar</button>
       <button class="btn solido" id="btnSim">Confirmar</button>
@@ -1820,10 +1826,14 @@
   const btnNao = document.getElementById('btnNao');
   let resolverConfirma = null;
 
+  const campoEscolha = document.getElementById('campoEscolhaConfirma');
+  const rotuloEscolha = document.getElementById('rotuloEscolhaConfirma');
+  const escolha = document.getElementById('escolhaConfirma');
+
   function fecharConfirma(valor){
     fundoConfirma.classList.remove('aberto');
     const r = resolverConfirma; resolverConfirma = null;
-    if(r) r(valor);
+    if(r) r(valor && !campoEscolha.hidden ? escolha.value : valor);
   }
 
   function perguntar(opcoes){
@@ -1847,8 +1857,17 @@
     btnSim.classList.toggle('solido', o.tipo !== 'aviso');
     btnSim.classList.toggle('primario', o.tipo === 'aviso');
     btnNao.hidden = !!o.so;
+    /* Lista opcional: quando existe, o modal devolve o valor escolhido no
+     * lugar de true. Digitar chave de cor e como o erro do Zephyr nascia. */
+    campoEscolha.hidden = !o.escolhas;
+    if(o.escolhas){
+      rotuloEscolha.textContent = o.rotulo || 'Escolha';
+      escolha.innerHTML = o.escolhas
+        .map(e => '<option value="' + esc(e.valor) + '">' + esc(e.texto) + '</option>').join('');
+      escolha.value = o.escolhas[0].valor;
+    }
     fundoConfirma.classList.add('aberto');
-    setTimeout(()=> btnSim.focus(), 90);
+    setTimeout(()=> (o.escolhas ? escolha : btnSim).focus(), 90);
     return new Promise(r => { resolverConfirma = r; });
   }
 
@@ -4288,22 +4307,38 @@
     if(!eu){ avisar('Entre no cofre para publicar no Zephyr.'); return; }
 
     const f = r.ficha || {};
-    /* Chave de CASO DE TESTE do Zephyr (GOV-T12), que nao e a chave de uma
-     * issue do Jira (GOV-12). A demanda so vira sugestao quando tem o "-T". */
-    const sugestao = /^[A-Z][A-Z0-9_]*-T\d+$/i.test(String(f.demanda || '').trim()) ? f.demanda.trim() : '';
-    const caso = (prompt('Caso de teste no Zephyr (ex.: GOV-T12):', sugestao) || '').trim();
-    if(!caso) return;
+    /* A chave do caso vem do Zephyr, nao da memoria de quem publica. Digitada,
+     * saia o nome do caso ("TESTE2") em vez da chave (GOV-T2), e a resposta era
+     * uma reclamacao de formato. Chave de CASO DE TESTE (GOV-T12) tambem nao e
+     * a chave de uma issue do Jira (GOV-12), e a tela nao tem como cobrar isso
+     * de ninguem. */
+    let casos;
+    try{
+      casos = (await cofrePedir('/api/zephyr/casos')).casos || [];
+    }catch(err){
+      informar('Não consegui listar os casos de teste do Zephyr: ' + err.message
+        + '\n\nA evidência continua salva aqui.', 'Zephyr');
+      return;
+    }
+    if(!casos.length){
+      informar('O projeto configurado no Zephyr não tem nenhum caso de teste ainda.'
+        + '\n\nCrie o caso lá e publique de novo: esta tela registra o resultado de um caso que já existe.',
+        'Zephyr');
+      return;
+    }
 
     const resultado = f.resultado || '';
-    const ok = await perguntar({
+    const caso = await perguntar({
       titulo: 'Publicar no Zephyr',
-      subtitulo: 'Caso ' + caso,
-      texto: 'Vai ser criada a execução deste caso no ciclo configurado, com o resultado '
+      subtitulo: f.registro || 'Evidência',
+      texto: 'Vai ser criada a execução do caso escolhido no ciclo configurado, com o resultado '
         + '<b>' + esc(resultado || 'em andamento') + '</b> e um comentário identificando a evidência.'
         + '<br><br>A API do Zephyr não aceita anexo: o arquivo continua aqui, na pasta de destino e no cofre.',
+      rotulo: 'Caso de teste',
+      escolhas: casos.map(c => ({ valor: c.chave, texto: c.chave + (c.nome ? ' · ' + c.nome : '') })),
       botao: 'Publicar', tipo: 'aviso'
     });
-    if(!ok) return;
+    if(!caso) return;
 
     const rotulo = botao ? botao.textContent : '';
     if(botao){ botao.disabled = true; botao.textContent = 'Publicando...'; }

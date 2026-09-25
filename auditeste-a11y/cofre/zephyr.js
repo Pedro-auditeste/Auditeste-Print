@@ -123,6 +123,16 @@ async function conferir() {
   };
 }
 
+/* Os casos que EXISTEM no projeto, para a pessoa escolher em vez de digitar
+ * uma chave que ela não tem como saber. Quem tenta de cabeça manda o nome do
+ * caso ("TESTE2") e leva um erro de formato que não ajuda em nada. */
+async function casos() {
+  const r = await chamar('GET', '/testcases', { params: { projectKey: PROJETO, maxResults: 200 } });
+  return lista(r)
+    .map(c => ({ chave: String(c.key || ''), nome: String(c.name || '') }))
+    .filter(c => c.chave);
+}
+
 function statusDe(resultado) {
   const t = String(resultado || '').toLowerCase();
   if (/reprov|falh|erro|fail/.test(t)) return STATUS.reprovou;
@@ -168,7 +178,7 @@ async function publicar({ caso, resultado, comentario, ciclo }) {
 }
 
 module.exports = {
-  configurado, conferir, publicar, statusDe,
+  configurado, conferir, casos, publicar, statusDe,
   // expostos para o teste:
   query, CHAVE_CASO, STATUS, BASE, PROJETO
 };

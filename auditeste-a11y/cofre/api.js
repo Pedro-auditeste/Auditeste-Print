@@ -648,6 +648,16 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
+    /* A lista de casos do projeto. Leitura pura, e quem publica precisa dela
+     * para escolher a chave: sem isso a pessoa digita o nome do caso e o
+     * Zephyr recusa. Mesmo nivel de quem publica, entao. */
+    if (p === '/api/zephyr/casos' && req.method === 'GET') {
+      const s2 = exigirSessao(req);
+      contas.podeOuErro(s2, 'consultor');
+      json(res, 200, { projeto: zephyr.PROJETO, casos: await zephyr.casos() });
+      return true;
+    }
+
     if (p === '/api/zephyr/publicar' && req.method === 'POST') {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');

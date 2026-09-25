@@ -55,6 +55,13 @@ const servidor = http.createServer((req, res) => {
     if (caminho === '/testcycles' && req.method === 'GET') {
       return responder(200, { values: [{ key: 'GOV-R1', name: 'Regressão' }, { key: 'GOV-R2', name: 'Sprint 42' }] });
     }
+    if (caminho === '/testcases' && req.method === 'GET') {
+      return responder(200, { values: [
+        { key: 'GOV-T1', name: 'Login com senha certa' },
+        { key: 'GOV-T2', name: 'TESTE2' },
+        { name: 'caso sem chave, que nao serve para escolher' }
+      ] });
+    }
     if (caminho === '/statuses' && req.method === 'GET') {
       return responder(200, { values: [{ name: 'Pass' }, { name: 'Fail' }, { name: 'In Progress' }, { name: 'Blocked' }] });
     }
@@ -145,14 +152,23 @@ const servidor = http.createServer((req, res) => {
       (e) => /test case not found/.test(e.message) && e.status === 502);
   });
 
+  await caso('CRITERIO: casos() lista o que existe, para ninguém digitar a chave', async () => {
+    const c = await zephyr.casos();
+    assert.deepStrictEqual(c, [
+      { chave: 'GOV-T1', nome: 'Login com senha certa' },
+      { chave: 'GOV-T2', nome: 'TESTE2' }
+    ], 'entrada sem chave nao pode virar opcao');
+  });
+
   await caso('CRITERIO: a resposta diz que o anexo NÃO foi, porque a API não anexa', async () => {
     const r = await zephyr.publicar({ caso: 'GOV-T4', resultado: 'Aprovado' });
     assert.strictEqual(r.anexado, false);
   });
 
+  await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (16 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (21 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -216,6 +232,13 @@ async function pelaRota() {
       assert.ok(!JSON.stringify(r.corpo).includes(TOKEN), 'vazou o token: ' + JSON.stringify(r.corpo));
     });
 
+    await caso('CRITERIO: a rota entrega os casos para a tela montar a lista', async () => {
+      const r = await pedir('/api/zephyr/casos');
+      assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
+      assert.deepStrictEqual(r.corpo.casos.map(c => c.chave), ['GOV-T1', 'GOV-T2']);
+      assert.strictEqual(r.corpo.projeto, 'GOV');
+    });
+
     await caso('rota: publica de verdade e devolve a execucao', async () => {
       chamadas.length = 0;
       const r = await pedir('/api/zephyr/publicar', {
@@ -243,4 +266,35 @@ async function pelaRota() {
   } finally {
     proc.kill();
   }
+}
+
+/* ---------- a tela ---------- */
+/* Leitura do arquivo, nao navegador: a lista so aparece com sessao no cofre e
+ * um registro aberto, e montar isso custa mais que o que se prova. O que quebra
+ * de verdade aqui e id trocado e volta do prompt, e isso a leitura pega. */
+function naTela() {
+  const html = require('fs').readFileSync(require('path').join(__dirname, 'publico', 'index.html'), 'utf8');
+  const zona = html.slice(html.indexOf('async function publicarNoZephyr'));
+  const bloco = zona.slice(0, zona.indexOf(String.fromCharCode(10) + '  }'));
+
+  return (async () => {
+    await caso('CRITERIO: a tela pede a lista ao servidor, e nao digitacao', async () => {
+      assert.ok(/api\/zephyr\/casos/.test(bloco), 'nao busca a lista');
+      assert.ok(!/prompt\(/.test(bloco), 'voltou a pedir a chave digitada');
+      assert.ok(/escolhas:/.test(bloco), 'nao monta as opcoes do modal');
+    });
+
+    await caso('a lista do modal existe no HTML e nasce escondida', async () => {
+      assert.ok(/<select id="escolhaConfirma">/.test(html), 'select sumiu');
+      assert.ok(/id="campoEscolhaConfirma" hidden/.test(html), 'nasce visivel na confirmacao comum');
+      for (const id of ['campoEscolhaConfirma', 'rotuloEscolhaConfirma', 'escolhaConfirma']) {
+        assert.ok(html.includes("getElementById('" + id + "')"), 'o script nao usa ' + id);
+      }
+    });
+
+    await caso('CRITERIO: confirmacao com lista devolve a escolha, sem lista devolve true', async () => {
+      assert.ok(/r\(valor && !campoEscolha\.hidden \? escolha\.value : valor\)/.test(html),
+        'fecharConfirma parou de devolver a chave escolhida');
+    });
+  })();
 }
