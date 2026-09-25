@@ -152,7 +152,7 @@ const servidor = http.createServer((req, res) => {
 
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (15 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (16 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -223,6 +223,16 @@ async function pelaRota() {
       });
       assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
       assert.strictEqual(r.corpo.execucao, 'GOV-E7');
+    });
+
+    await caso('CRITERIO: erro do Zephyr chega inteiro pela rota, sem virar "falha interna"', async () => {
+      /* Era assim que ficava antes: 504 mascarado como "informe o codigo ao
+       * suporte", escondendo que o endereco da API estava errado. */
+      proximaFalha = { caminho: '/testexecutions', status: 400, msg: 'projeto nao encontrado' };
+      const r = await pedir('/api/zephyr/publicar', { caso: 'GOV-T1', resultado: 'Aprovado' });
+      assert.ok(/projeto nao encontrado/.test(JSON.stringify(r.corpo)),
+        'a mensagem do Zephyr foi mascarada: ' + JSON.stringify(r.corpo));
+      assert.ok(!/falha interna|informe o c/i.test(JSON.stringify(r.corpo)));
     });
 
     await caso('rota: a publicacao fica na auditoria da equipe', async () => {

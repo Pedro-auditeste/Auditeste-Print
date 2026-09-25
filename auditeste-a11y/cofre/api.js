@@ -688,7 +688,10 @@ async function tratar(req, res, u, lerCorpo) {
     return true;
   } catch (err) {
     const status = err.status || 500;
-    if (status < 500) {
+    /* err.externo marca falha de um serviço de fora (o Zephyr, por exemplo).
+     * A mensagem dele não carrega detalhe do nosso servidor, e é ela que diz
+     * se foi token, projeto ou rede. Mascarar atrapalha quem está configurando. */
+    if (status < 500 || err.externo) {
       /* 4xx e conversa com quem chamou: a mensagem existe para a pessoa
        * corrigir o que fez, entao vai inteira. */
       json(res, status, { erro: err.message });

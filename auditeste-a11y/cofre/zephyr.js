@@ -27,7 +27,10 @@
  *   ZEPHYR_BASE        opcional, para apontar a outro ambiente
  *   ZEPHYR_STATUS_*    opcional, se a equipe renomeou os status
  */
-const BASE = (process.env.ZEPHYR_BASE || 'https://prod-api.zephyrforjiracloud.com/v2').replace(/\/+$/, '');
+/* O endereço que a especificação publica (zephyrforjiracloud) NÃO existe:
+ * não resolve. Quem atende o /v2 é o host antigo, com "4", conferido na mão:
+ * /v2/testcycles devolve 401 pedindo token, e sem o /v2 devolve 404. */
+const BASE = (process.env.ZEPHYR_BASE || 'https://prod-api.zephyr4jiracloud.com/v2').replace(/\/+$/, '');
 const TOKEN = (process.env.ZEPHYR_API_TOKEN || '').trim();
 const PROJETO = (process.env.ZEPHYR_PROJETO || '').trim().toUpperCase();
 const CICLO = (process.env.ZEPHYR_CICLO || '').trim();
@@ -50,9 +53,14 @@ const CHAVE_CASO = /^[A-Z][A-Z0-9_]*-T\d+$/;
 
 const configurado = () => !!(TOKEN && PROJETO);
 
+/* externo: a falha é do Zephyr ou da rede até ele, não do nosso servidor.
+ * Sem esta marca a mensagem virava "falha interna, informe o código", que
+ * esconde justamente o que explica o problema (host errado, token inválido,
+ * projeto inexistente). Esconder isso custou uma hora de investigação. */
 function erro(msg, status) {
   const e = new Error(msg);
   e.status = status || 502;
+  e.externo = true;
   return e;
 }
 
