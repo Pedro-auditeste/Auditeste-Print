@@ -9,6 +9,7 @@ const pegar = (re, nome) => {
   return m[0];
 };
 const fnMarcar = pegar(/  function marcarQa\(passo, dados\)\{[\s\S]*?\n  \}/, 'marcarQa');
+const fnIdDoXpath = pegar(/  function idDoXpath\(xp\)\{[\s\S]*?\n  \}/, 'idDoXpath');
 // esc() ocupa mais de uma linha desde que passou a escapar aspas.
 const fnEsc = pegar(/  const esc = t => [\s\S]*?\}\[c\]\)\);/, 'esc');
 // Ancorado no molde que realmente tem meta-qa: ha varios innerHTML no arquivo.
@@ -20,9 +21,10 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
   const p = await nav.newPage();
   await p.setContent('<body></body>');
 
-  const r = await p.evaluate((fnMarcar, fnEsc, molde) => {
+  const r = await p.evaluate((fnMarcar, fnEsc, fnIdDoXpath, molde) => {
     const api = new Function(
       fnEsc + '\n'
+      + fnIdDoXpath + '\n'
       + 'function aplicarAnaliseQa(){}\n'
       + 'function mostrarCapturaNoPasso(){}\n'
       + fnMarcar + '\n'
@@ -71,7 +73,7 @@ const molde = pegar(/el\.innerHTML = `[^`]*meta-qa[^`]*`;/, 'molde do passo')
     api(c, {});
     out.manualVazio = { visivel: !c.querySelector('.meta-qa').hidden };
     return out;
-  }, fnMarcar, fnEsc, molde);
+  }, fnMarcar, fnEsc, fnIdDoXpath, molde);
 
   await nav.close();
   console.log(JSON.stringify(r, null, 2));

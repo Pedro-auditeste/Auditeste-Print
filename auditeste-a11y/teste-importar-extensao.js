@@ -108,9 +108,10 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     await pagina.waitForSelector('.passo', { timeout: 10000 });
     console.log('  ok   CRITERIO: o passo do arquivo entrou na tela');
 
-    const xpath = await pagina.$eval('.passo .meta-qa code', (el) => el.textContent);
-    assert.strictEqual(xpath, '//*[@id="btn-finalizar"]', 'o xpath do arquivo importado não chegou certo');
-    console.log('  ok   CRITERIO: o xpath do elemento veio junto');
+    // Desde 8e26d45 a caixa mostra o id (tirado do xpath) antes do xpath.
+    const codigos = await pagina.$$eval('.passo .meta-qa code', (els) => els.map((el) => el.textContent));
+    assert.deepStrictEqual(codigos, ['btn-finalizar', '//*[@id="btn-finalizar"]'], 'o id e o xpath do arquivo importado não chegaram certos');
+    console.log('  ok   CRITERIO: o id e o xpath do elemento vieram juntos');
 
     const titulo = await pagina.$eval('.passo .titulo', (el) => el.textContent);
     assert.ok(/Finalizar compra/.test(titulo), 'o título do passo não veio');
