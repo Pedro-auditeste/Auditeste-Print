@@ -114,8 +114,15 @@ const lista = (r) => (r && Array.isArray(r.values) ? r.values : []);
 /* Leitura inofensiva, para conferir o token sem publicar nada. Devolve os
  * ciclos e os status que ESTE projeto aceita: são os dois valores que a
  * pessoa precisa para configurar, e garimpar isso na tela é sofrido. */
+async function ciclos() {
+  const r = await chamar('GET', '/testcycles', { params: { projectKey: PROJETO, maxResults: 50 } });
+  return lista(r)
+    .map(c => ({ chave: String(c.key || ''), nome: String(c.name || '') }))
+    .filter(c => c.chave);
+}
+
 async function conferir() {
-  const ciclos = await chamar('GET', '/testcycles', { params: { projectKey: PROJETO, maxResults: 20 } });
+  const todos = await ciclos();
   let status = [];
   try {
     const s = await chamar('GET', '/statuses', {
@@ -127,7 +134,7 @@ async function conferir() {
   return {
     ok: true,
     projeto: PROJETO,
-    ciclos: lista(ciclos).map(c => ({ chave: c.key, nome: c.name })),
+    ciclos: todos,
     statusDisponiveis: status,
     statusEmUso: STATUS
   };
@@ -170,8 +177,14 @@ async function publicar({ caso, resultado, comentario, ciclo }) {
     testCaseKey: chave,
     statusName: statusDe(resultado)
   };
+  /* O Zephyr Essential recusa execucao sem ciclo ("testCycleKey: must not be
+   * null"). A mensagem dele nao diz o que fazer; esta diz. */
   const alvo = String(ciclo || CICLO || '').trim();
-  if (alvo) corpo.testCycleKey = alvo;
+  if (!alvo) {
+    throw erro('Escolha o ciclo de teste: o Zephyr só registra execução dentro de um ciclo. '
+      + 'Se o projeto ainda não tem nenhum, crie em Zephyr > Ciclos de Teste.', 400);
+  }
+  corpo.testCycleKey = alvo;
   if (comentario) corpo.comment = String(comentario).slice(0, 5000);
 
   const r = await chamar('POST', '/testexecutions', { json: corpo });
@@ -188,7 +201,7 @@ async function publicar({ caso, resultado, comentario, ciclo }) {
 }
 
 module.exports = {
-  configurado, conferir, casos, publicar, statusDe,
-  // expostos para o teste:
-  query, CHAVE_CASO, STATUS, BASE, PROJETO
+  configurado, conferir, casos, ciclos, publicar, statusDe,
+  // expostos para o teste e para a tela:
+  query, CHAVE_CASO, STATUS, BASE, PROJETO, CICLO
 };

@@ -4315,9 +4315,12 @@
      * uma reclamacao de formato. Chave de CASO DE TESTE (GOV-T12) tambem nao e
      * a chave de uma issue do Jira (GOV-12), e a tela nao tem como cobrar isso
      * de ninguem. */
-    let casos;
+    let casos, ciclos, ciclo;
     try{
-      casos = (await cofrePedir('/api/zephyr/casos')).casos || [];
+      const d = await cofrePedir('/api/zephyr/casos');
+      casos = d.casos || [];
+      ciclos = d.ciclos || [];
+      ciclo = d.cicloPadrao || '';
     }catch(err){
       informar('Não consegui listar os casos de teste do Zephyr: ' + err.message
         + '\n\nA evidência continua salva aqui.', 'Zephyr');
@@ -4330,11 +4333,37 @@
       return;
     }
 
+    /* Sem ciclo o Zephyr recusa a execucao ("testCycleKey: must not be null").
+     * Configurado no servidor, vale ele; senao, um so vai direto, e com mais
+     * de um a pessoa escolhe. Nenhum: diz onde criar, em vez do erro cru. */
+    if(!ciclo){
+      if(!ciclos.length){
+        informar('O projeto no Zephyr não tem nenhum ciclo de teste ainda.'
+          + '\n\nO Zephyr só registra execução dentro de um ciclo. Crie um em Zephyr > Ciclos de Teste e publique de novo.',
+          'Zephyr');
+        return;
+      }
+      if(ciclos.length === 1) ciclo = ciclos[0].chave;
+      else{
+        ciclo = await perguntar({
+          titulo: 'Publicar no Zephyr',
+          subtitulo: f.registro || 'Evidência',
+          texto: 'Em qual ciclo de teste esta execução entra?',
+          rotulo: 'Ciclo de teste',
+          escolhas: ciclos.map(c => ({ valor: c.chave, texto: c.chave + (c.nome ? ' · ' + c.nome : '') })),
+          botao: 'Continuar', tipo: 'aviso'
+        });
+        if(!ciclo) return;
+      }
+    }
+    const nomeCiclo = (ciclos.find(c => c.chave === ciclo) || {}).nome || '';
+
     const resultado = f.resultado || '';
     const caso = await perguntar({
       titulo: 'Publicar no Zephyr',
       subtitulo: f.registro || 'Evidência',
-      texto: 'Vai ser criada a execução do caso escolhido no ciclo configurado, com o resultado '
+      texto: 'Vai ser criada a execução do caso escolhido no ciclo <b>' + ciclo + (nomeCiclo ? ' · ' + nomeCiclo : '')
+        + '</b>, com o resultado '
         + '<b>' + esc(resultado || 'em andamento') + '</b> e um comentário identificando a evidência.'
         + '<br><br>A API do Zephyr não aceita anexo: o arquivo continua aqui, na pasta de destino e no cofre.',
       rotulo: 'Caso de teste',
@@ -4349,6 +4378,7 @@
       const passos = (r.passos || []).length;
       const d = await cofrePedir('/api/zephyr/publicar', {
         caso,
+        ciclo,
         resultado,
         comentario: 'Audi Print · ' + (f.registro || 'evidência') + ' · ' + passos + ' passo(s)'
           + (f.ambiente ? ' · ambiente ' + f.ambiente : '')

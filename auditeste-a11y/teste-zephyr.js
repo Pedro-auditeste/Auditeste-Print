@@ -178,6 +178,27 @@ const servidor = http.createServer((req, res) => {
     ], 'entrada sem chave nao pode virar opcao');
   });
 
+  await caso('CRITERIO: sem ciclo, recusa antes de chamar e diz onde criar', async () => {
+    /* Era "Zephyr recusou (400): createTestExecution.testCycleKey: must not be
+     * null" em producao: ninguem tinha configurado ciclo. Modulo novo, sem o
+     * ZEPHYR_CICLO, porque ele e lido na carga. */
+    const caminho = require.resolve('./cofre/zephyr.js');
+    const antes = process.env.ZEPHYR_CICLO;
+    delete require.cache[caminho];
+    process.env.ZEPHYR_CICLO = '';
+    const semCiclo = require('./cofre/zephyr.js');
+    process.env.ZEPHYR_CICLO = antes;
+    delete require.cache[caminho];
+    chamadas.length = 0;
+    await assert.rejects(() => semCiclo.publicar({ caso: 'GOV-T1', resultado: 'Aprovado' }),
+      (e) => e.status === 400 && /ciclo/i.test(e.message) && /Ciclos de Teste/.test(e.message));
+    assert.strictEqual(chamadas.length, 0, 'nao podia ter falado com o Zephyr');
+  });
+
+  await caso('ciclos() lista os ciclos do projeto', async () => {
+    assert.deepStrictEqual((await zephyr.ciclos()).map(c => c.chave), ['GOV-R1', 'GOV-R2']);
+  });
+
   await caso('CRITERIO: a resposta diz que o anexo NÃO foi, porque a API não anexa', async () => {
     const r = await zephyr.publicar({ caso: 'GOV-T4', resultado: 'Aprovado' });
     assert.strictEqual(r.anexado, false);
@@ -186,7 +207,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (22 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (24 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -255,6 +276,8 @@ async function pelaRota() {
       assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
       assert.deepStrictEqual(r.corpo.casos.map(c => c.chave), ['GOV-T1', 'GOV-T2']);
       assert.strictEqual(r.corpo.projeto, 'GOV');
+      assert.deepStrictEqual(r.corpo.ciclos.map(c => c.chave), ['GOV-R1', 'GOV-R2'], 'faltam os ciclos');
+      assert.strictEqual(r.corpo.cicloPadrao, 'GOV-R1');
     });
 
     await caso('rota: publica de verdade e devolve a execucao', async () => {
@@ -300,6 +323,8 @@ function naTela() {
       assert.ok(/api\/zephyr\/casos/.test(bloco), 'nao busca a lista');
       assert.ok(!/prompt\(/.test(bloco), 'voltou a pedir a chave digitada');
       assert.ok(/escolhas:/.test(bloco), 'nao monta as opcoes do modal');
+      assert.ok(/ciclos\.length/.test(bloco), 'nao decide o ciclo');
+      assert.ok(/caso,\s*ciclo,/.test(bloco), 'nao manda o ciclo para o servidor');
     });
 
     await caso('a lista do modal existe no HTML e nasce escondida', async () => {

@@ -654,7 +654,10 @@ async function tratar(req, res, u, lerCorpo) {
     if (p === '/api/zephyr/casos' && req.method === 'GET') {
       const s2 = exigirSessao(req);
       contas.podeOuErro(s2, 'consultor');
-      json(res, 200, { projeto: zephyr.PROJETO, casos: await zephyr.casos() });
+      /* Casos e ciclos juntos: a execucao precisa dos dois, e a tela escolhe
+       * os dois de uma vez. cicloPadrao vem do ZEPHYR_CICLO, se houver. */
+      const [casos, ciclos] = await Promise.all([zephyr.casos(), zephyr.ciclos()]);
+      json(res, 200, { projeto: zephyr.PROJETO, casos, ciclos, cicloPadrao: zephyr.CICLO || null });
       return true;
     }
 
