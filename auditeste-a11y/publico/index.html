@@ -4364,8 +4364,9 @@
       subtitulo: f.registro || 'Evidência',
       texto: 'Vai ser criada a execução do caso escolhido no ciclo <b>' + ciclo + (nomeCiclo ? ' · ' + nomeCiclo : '')
         + '</b>, com o resultado '
-        + '<b>' + esc(resultado || 'em andamento') + '</b> e um comentário identificando a evidência.'
-        + '<br><br>A API do Zephyr não aceita anexo: o arquivo continua aqui, na pasta de destino e no cofre.',
+        + '<b>' + esc(resultado || 'em andamento') + '</b> e os <b>' + (r.passos || []).length
+        + ' passo(s) gravados</b> no comentário da execução.'
+        + '<br><br>Os prints não sobem, porque a API do Zephyr não aceita anexo: eles continuam aqui, na pasta de destino e no cofre.',
       rotulo: 'Caso de teste',
       escolhas: casos.map(c => ({ valor: c.chave, texto: c.chave + (c.nome ? ' · ' + c.nome : '') })),
       botao: 'Publicar', tipo: 'aviso'
@@ -4380,6 +4381,11 @@
         caso,
         ciclo,
         resultado,
+        /* So texto: os prints nao sobem, a API do Zephyr nao tem anexo. */
+        passos: (r.passos || []).map(p => ({
+          titulo: p.titulo || '', obs: p.obs || '', elemento: p.elemento || '',
+          url: p.urlDepois || p.urlAntes || ''
+        })),
         comentario: 'Audi Print · ' + (f.registro || 'evidência') + ' · ' + passos + ' passo(s)'
           + (f.ambiente ? ' · ambiente ' + f.ambiente : '')
           + (f.versao ? ' · versão ' + f.versao : '')

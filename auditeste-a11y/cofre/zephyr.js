@@ -163,7 +163,44 @@ function statusDe(resultado) {
  * Criar o caso do zero é outra história (passos, pasta, prioridade), e um
  * botão que faz as duas coisas falha pela metade. Aqui o caso já existe: o
  * que faltava era o resultado do teste chegar lá com a mão do QA. */
-async function publicar({ caso, resultado, comentario, ciclo }) {
+/* Os passos gravados vão no comentário da execução, em lista numerada.
+ *
+ * Por que no comentário e não nos passos do caso: o script do caso é o plano
+ * escrito pelo QA, e a gravação é o que aconteceu nesta execução. Sobrescrever
+ * o plano com a gravação apagaria o caso; casar passo a passo exigiria que o
+ * caso tivesse exatamente os mesmos passos. O comentário aceita HTML e não
+ * depende de nada disso. Os prints não vão: a API não tem endpoint de anexo. */
+// ponytail: limite chutado, a SmartBear não publica o máximo do comentário; se o Zephyr recusar, baixar aqui
+const LIMITE_COMENTARIO = 20000;
+const escHtml = t => String(t == null ? '' : t)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function comentarioCom(cabecalho, passos) {
+  let html = escHtml(cabecalho);
+  const itens = (Array.isArray(passos) ? passos : []).map(p => {
+    const partes = [escHtml((p && p.titulo) || 'Passo sem descrição')];
+    if (p && p.obs) partes.push(escHtml(p.obs));
+    if (p && p.elemento) partes.push('Elemento: ' + escHtml(p.elemento));
+    if (p && p.url) partes.push('Página: ' + escHtml(p.url));
+    return '<li>' + partes.join('<br>') + '</li>';
+  });
+  if (!itens.length) return html.slice(0, LIMITE_COMENTARIO);
+
+  html += (html ? '<br><br>' : '') + '<b>Passos gravados</b><ol>';
+  let usados = 0;
+  for (const item of itens) {
+    if (html.length + item.length + 120 > LIMITE_COMENTARIO) break;
+    html += item;
+    usados++;
+  }
+  html += '</ol>';
+  if (usados < itens.length) {
+    html += 'E mais ' + (itens.length - usados) + ' passo(s): a lista completa está na evidência do Print.';
+  }
+  return html;
+}
+
+async function publicar({ caso, resultado, comentario, ciclo, passos }) {
   const chave = String(caso || '').trim().toUpperCase();
   if (!chave) throw erro('Informe o caso de teste do Zephyr.', 400);
   if (!CHAVE_CASO.test(chave)) {
@@ -185,7 +222,8 @@ async function publicar({ caso, resultado, comentario, ciclo }) {
       + 'Se o projeto ainda não tem nenhum, crie em Zephyr > Ciclos de Teste.', 400);
   }
   corpo.testCycleKey = alvo;
-  if (comentario) corpo.comment = String(comentario).slice(0, 5000);
+  const texto = comentarioCom(comentario, passos);
+  if (texto) corpo.comment = texto;
 
   const r = await chamar('POST', '/testexecutions', { json: corpo });
   return {
@@ -203,5 +241,5 @@ async function publicar({ caso, resultado, comentario, ciclo }) {
 module.exports = {
   configurado, conferir, casos, ciclos, publicar, statusDe,
   // expostos para o teste e para a tela:
-  query, CHAVE_CASO, STATUS, BASE, PROJETO, CICLO
+  query, CHAVE_CASO, STATUS, BASE, PROJETO, CICLO, comentarioCom
 };

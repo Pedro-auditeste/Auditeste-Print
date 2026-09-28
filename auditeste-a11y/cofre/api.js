@@ -671,7 +671,8 @@ async function tratar(req, res, u, lerCorpo) {
         caso: c.caso,
         resultado: c.resultado,
         comentario: c.comentario,
-        ciclo: c.ciclo
+        ciclo: c.ciclo,
+        passos: c.passos
       });
       banco.auditar(s.tenantId, s.usuarioId, 'zephyr.publicado',
         String(c.caso) + ' -> execucao ' + r.execucao, s.ip);

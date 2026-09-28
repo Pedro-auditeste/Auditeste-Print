@@ -199,6 +199,31 @@ const servidor = http.createServer((req, res) => {
     assert.deepStrictEqual((await zephyr.ciclos()).map(c => c.chave), ['GOV-R1', 'GOV-R2']);
   });
 
+  await caso('CRITERIO: os passos gravados vão na execução, em ordem', async () => {
+    chamadas.length = 0;
+    await zephyr.publicar({
+      caso: 'GOV-T1', resultado: 'Reprovado', comentario: 'Audi Print · EVD-9',
+      passos: [
+        { titulo: 'Clicou em Entrar', obs: 'Botão azul do topo', elemento: '#entrar', url: 'https://app/login' },
+        { titulo: 'Digitou <script>alert(1)</script> no campo', obs: '' }
+      ]
+    });
+    const c = JSON.parse(chamadas.find(x => x.metodo === 'POST').corpo).comment;
+    assert.ok(c.startsWith('Audi Print · EVD-9'), 'o cabecalho sumiu: ' + c.slice(0, 60));
+    assert.strictEqual((c.match(/<li>/g) || []).length, 2, 'esperava 2 passos: ' + c);
+    assert.ok(c.indexOf('Clicou em Entrar') < c.indexOf('Digitou'), 'fora de ordem');
+    assert.ok(/Elemento: #entrar/.test(c) && /Página: https:\/\/app\/login/.test(c));
+    assert.ok(!/<script>/.test(c) && /&lt;script&gt;/.test(c), 'texto do passo nao foi escapado');
+  });
+
+  await caso('gravacao enorme e cortada com aviso, sem estourar o comentario', () => {
+    const muitos = Array.from({ length: 600 }, (_, i) => ({ titulo: 'Passo ' + i + ' ' + 'x'.repeat(150) }));
+    const c = zephyr.comentarioCom('cabecalho', muitos);
+    assert.ok(c.length <= 20000, 'passou do limite: ' + c.length);
+    assert.ok(/E mais \d+ passo\(s\)/.test(c), 'cortou sem avisar');
+    assert.ok(c.endsWith('evidência do Print.'));
+  });
+
   await caso('CRITERIO: a resposta diz que o anexo NÃO foi, porque a API não anexa', async () => {
     const r = await zephyr.publicar({ caso: 'GOV-T4', resultado: 'Aprovado' });
     assert.strictEqual(r.anexado, false);
@@ -207,7 +232,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (24 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (26 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -283,10 +308,13 @@ async function pelaRota() {
     await caso('rota: publica de verdade e devolve a execucao', async () => {
       chamadas.length = 0;
       const r = await pedir('/api/zephyr/publicar', {
-        caso: 'GOV-T1', resultado: 'Reprovado', comentario: 'do teste'
+        caso: 'GOV-T1', resultado: 'Reprovado', comentario: 'do teste',
+        passos: [{ titulo: 'Abriu a tela de login' }]
       });
       assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
       assert.strictEqual(r.corpo.execucao, 'GOV-E7');
+      const enviado = JSON.parse(chamadas.find(x => x.metodo === 'POST').corpo).comment;
+      assert.ok(/Abriu a tela de login/.test(enviado), 'a rota perdeu os passos: ' + enviado);
     });
 
     await caso('CRITERIO: erro do Zephyr chega inteiro pela rota, sem virar "falha interna"', async () => {
@@ -325,6 +353,7 @@ function naTela() {
       assert.ok(/escolhas:/.test(bloco), 'nao monta as opcoes do modal');
       assert.ok(/ciclos\.length/.test(bloco), 'nao decide o ciclo');
       assert.ok(/caso,\s*ciclo,/.test(bloco), 'nao manda o ciclo para o servidor');
+      assert.ok(/passos: \(r\.passos/.test(bloco), 'nao manda os passos gravados');
     });
 
     await caso('a lista do modal existe no HTML e nasce escondida', async () => {
