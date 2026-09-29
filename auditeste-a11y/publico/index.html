@@ -4365,7 +4365,7 @@
       texto: 'Vai ser criada a execução do caso escolhido no ciclo <b>' + ciclo + (nomeCiclo ? ' · ' + nomeCiclo : '')
         + '</b>, com o resultado '
         + '<b>' + esc(resultado || 'em andamento') + '</b> e os <b>' + (r.passos || []).length
-        + ' passo(s) gravados</b> no comentário da execução.'
+        + ' passo(s) gravados</b> (elemento, HTML, horários e URLs) no resultado da execução.'
         + '<br><br>Os prints não sobem, porque a API do Zephyr não aceita anexo: eles continuam aqui, na pasta de destino e no cofre.',
       rotulo: 'Caso de teste',
       escolhas: casos.map(c => ({ valor: c.chave, texto: c.chave + (c.nome ? ' · ' + c.nome : '') })),
@@ -4383,14 +4383,23 @@
         resultado,
         /* So texto: os prints nao sobem, a API do Zephyr nao tem anexo. */
         passos: (r.passos || []).map(p => ({
-          titulo: p.titulo || '', obs: p.obs || '', elemento: p.elemento || '',
-          url: p.urlDepois || p.urlAntes || ''
+          titulo: p.titulo || '', obs: p.obs || '', acao: p.acao || '', rotulo: p.rotulo || '',
+          elemento: p.elemento || '', elementoId: p.elementoId || '', html: String(p.html || '').slice(0, 2000),
+          /* Hora formatada aqui, no fuso de quem gravou: o servidor roda em UTC. */
+          antes: p.timestampAntes ? new Date(p.timestampAntes).toLocaleString('pt-BR') : '',
+          depois: p.timestampDepois ? new Date(p.timestampDepois).toLocaleString('pt-BR') : '',
+          urlAntes: p.urlAntes || '', urlDepois: p.urlDepois || ''
         })),
         comentario: 'Audi Print · ' + (f.registro || 'evidência') + ' · ' + passos + ' passo(s)'
           + (f.ambiente ? ' · ambiente ' + f.ambiente : '')
           + (f.versao ? ' · versão ' + f.versao : '')
       });
-      avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.');
+      const ondeFicaram = {
+        'passo-a-passo': ' Cada passo gravado está no Actual Result do passo correspondente.',
+        'primeiro-passo': ' Os passos gravados estão no Actual Result do primeiro passo.',
+        'comentario': ' Os passos gravados estão no comentário da execução.'
+      }[d.passos] || '';
+      avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.' + ondeFicaram);
     }catch(err){
       informar('Não publiquei no Zephyr: ' + err.message
         + '\n\nA evidência continua salva aqui. Confira o caso informado e as chaves do Zephyr no servidor.',

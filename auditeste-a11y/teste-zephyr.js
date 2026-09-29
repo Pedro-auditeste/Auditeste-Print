@@ -31,6 +31,10 @@ const chamadas = [];
 let proximaFalha = null;
 /* Servidor que so entende o cabecalho antigo, para provar a segunda tentativa. */
 let soCabecalhoAntigo = false;
+/* Quantos passos o script de cada caso tem; ausente = a rota devolve 404. */
+const passosDoCaso = { 'GOV-T1': 1, 'GOV-T3': 3 };
+/* Zephyr que recusa testScriptResults, para provar que a evidencia nao se perde. */
+let recusaResultadoPorPasso = false;
 
 const servidor = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
@@ -69,7 +73,16 @@ const servidor = http.createServer((req, res) => {
     if (caminho === '/statuses' && req.method === 'GET') {
       return responder(200, { values: [{ name: 'Pass' }, { name: 'Fail' }, { name: 'In Progress' }, { name: 'Blocked' }] });
     }
+    const passosM = caminho.match(/^\/testcases\/([^/]+)\/teststeps$/);
+    if (passosM && req.method === 'GET') {
+      const n = passosDoCaso[decodeURIComponent(passosM[1])];
+      if (n === undefined) return responder(404, { message: 'caso sem script' });
+      return responder(200, { total: n, values: Array.from({ length: n }, (_, i) => ({ inline: { description: 'passo ' + (i + 1) } })) });
+    }
     if (caminho === '/testexecutions' && req.method === 'POST') {
+      if (recusaResultadoPorPasso && /testScriptResults/.test(corpo)) {
+        return responder(400, { message: 'testScriptResults: invalid' });
+      }
       return responder(201, { id: 9001, key: 'GOV-E7' });
     }
     responder(404, { message: 'rota de mentira desconhecida: ' + caminho });
@@ -199,21 +212,74 @@ const servidor = http.createServer((req, res) => {
     assert.deepStrictEqual((await zephyr.ciclos()).map(c => c.chave), ['GOV-R1', 'GOV-R2']);
   });
 
-  await caso('CRITERIO: os passos gravados vão na execução, em ordem', async () => {
+  const GRAVADOS = [
+    { acao: 'Clicar', rotulo: 'Lista', titulo: 'Clicou em Lista', obs: 'Abriu a lista do projeto',
+      elemento: '//a[normalize-space(.)="Lista"]', elementoId: 'aba-lista',
+      html: '<a data-testid="tab" href="/list">Lista</a>',
+      antes: '23/09/2026, 11:51:41', depois: '23/09/2026, 11:51:42',
+      urlAntes: 'https://gov/boards/1', urlDepois: 'https://gov/list' },
+    { acao: 'Clicar', rotulo: 'Resumo', titulo: 'Digitou <script>alert(1)</script>',
+      elemento: '//a[normalize-space(.)="Resumo"]', urlDepois: 'https://gov/summary' },
+    { acao: 'Clicar', rotulo: 'Calendário', elemento: '//a[normalize-space(.)="Calendário"]' }
+  ];
+  const ultimoPost = () => JSON.parse(chamadas.filter(x => x.metodo === 'POST').pop().corpo);
+
+  await caso('CRITERIO: caso de 1 passo recebe a gravação inteira no Actual Result', async () => {
     chamadas.length = 0;
-    await zephyr.publicar({
-      caso: 'GOV-T1', resultado: 'Reprovado', comentario: 'Audi Print · EVD-9',
-      passos: [
-        { titulo: 'Clicou em Entrar', obs: 'Botão azul do topo', elemento: '#entrar', url: 'https://app/login' },
-        { titulo: 'Digitou <script>alert(1)</script> no campo', obs: '' }
-      ]
-    });
-    const c = JSON.parse(chamadas.find(x => x.metodo === 'POST').corpo).comment;
-    assert.ok(c.startsWith('Audi Print · EVD-9'), 'o cabecalho sumiu: ' + c.slice(0, 60));
-    assert.strictEqual((c.match(/<li>/g) || []).length, 2, 'esperava 2 passos: ' + c);
-    assert.ok(c.indexOf('Clicou em Entrar') < c.indexOf('Digitou'), 'fora de ordem');
-    assert.ok(/Elemento: #entrar/.test(c) && /Página: https:\/\/app\/login/.test(c));
-    assert.ok(!/<script>/.test(c) && /&lt;script&gt;/.test(c), 'texto do passo nao foi escapado');
+    const r = await zephyr.publicar({ caso: 'GOV-T1', resultado: 'Reprovado', comentario: 'Audi Print · EVD-9', passos: GRAVADOS });
+    const b = ultimoPost();
+    assert.strictEqual(b.testScriptResults.length, 1, 'o caso tem 1 passo');
+    const a = b.testScriptResults[0].actualResult;
+    assert.strictEqual(b.testScriptResults[0].statusName, 'Fail');
+    assert.strictEqual((a.match(/<li>/g) || []).length, 3, 'esperava os 3 passos gravados: ' + a);
+    assert.ok(a.indexOf('Lista') < a.indexOf('Resumo') && a.indexOf('Resumo') < a.indexOf('Calendário'), 'fora de ordem');
+    assert.strictEqual(r.passos, 'primeiro-passo');
+    assert.strictEqual(b.comment, 'Audi Print · EVD-9', 'a lista nao devia repetir no comentario');
+  });
+
+  await caso('CRITERIO: o resultado traz o mesmo detalhe do Print', async () => {
+    const a = ultimoPost().testScriptResults[0].actualResult;
+    for (const pedaco of ['<b>Clicar</b> · Lista', 'Clicou em Lista', 'Abriu a lista do projeto',
+      'Elemento: <code>//a[normalize-space(.)="Lista"]</code>', 'id: <code>aba-lista</code>',
+      'HTML do elemento: <code>&lt;a data-testid="tab" href="/list"&gt;Lista&lt;/a&gt;</code>',
+      'Antes: 23/09/2026, 11:51:41 · Depois: 23/09/2026, 11:51:42',
+      'URL antes: https://gov/boards/1', 'URL depois: https://gov/list']) {
+      assert.ok(a.includes(pedaco), 'faltou: ' + pedaco);
+    }
+    assert.ok(!/<script>/.test(a) && /&lt;script&gt;/.test(a), 'texto do passo nao foi escapado');
+  });
+
+  await caso('CRITERIO: mesmo numero de passos casa um a um', async () => {
+    chamadas.length = 0;
+    const r = await zephyr.publicar({ caso: 'GOV-T3', resultado: 'Aprovado', passos: GRAVADOS });
+    const t = ultimoPost().testScriptResults;
+    assert.strictEqual(t.length, 3);
+    assert.ok(/Lista/.test(t[0].actualResult) && /Resumo/.test(t[1].actualResult) && /Calendário/.test(t[2].actualResult));
+    assert.ok(!/<ol>/.test(t[0].actualResult), 'um a um nao leva lista');
+    assert.strictEqual(r.passos, 'passo-a-passo');
+  });
+
+  await caso('caso sem script legivel: a gravação vai no comentário', async () => {
+    chamadas.length = 0;
+    const r = await zephyr.publicar({ caso: 'GOV-T9', resultado: 'Aprovado', comentario: 'cab', passos: GRAVADOS });
+    const b = ultimoPost();
+    assert.ok(!b.testScriptResults, 'sem saber os passos do caso, nao monta resultado por passo');
+    assert.strictEqual((b.comment.match(/<li>/g) || []).length, 3);
+    assert.strictEqual(r.passos, 'comentario');
+  });
+
+  await caso('CRITERIO: Zephyr recusa o resultado por passo e a evidência não se perde', async () => {
+    recusaResultadoPorPasso = true;
+    chamadas.length = 0;
+    try {
+      const r = await zephyr.publicar({ caso: 'GOV-T1', resultado: 'Aprovado', comentario: 'cab', passos: GRAVADOS });
+      const posts = chamadas.filter(x => x.metodo === 'POST');
+      assert.strictEqual(posts.length, 2, 'devia tentar de novo sem o resultado por passo');
+      const b = JSON.parse(posts[1].corpo);
+      assert.ok(!b.testScriptResults && (b.comment.match(/<li>/g) || []).length === 3);
+      assert.strictEqual(r.passos, 'comentario');
+      assert.strictEqual(r.execucao, 'GOV-E7');
+    } finally { recusaResultadoPorPasso = false; }
   });
 
   await caso('gravacao enorme e cortada com aviso, sem estourar o comentario', () => {
@@ -232,7 +298,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (26 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (30 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -313,8 +379,10 @@ async function pelaRota() {
       });
       assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
       assert.strictEqual(r.corpo.execucao, 'GOV-E7');
-      const enviado = JSON.parse(chamadas.find(x => x.metodo === 'POST').corpo).comment;
+      const enviado = chamadas.find(x => x.metodo === 'POST').corpo;
       assert.ok(/Abriu a tela de login/.test(enviado), 'a rota perdeu os passos: ' + enviado);
+      /* 1 passo gravado num caso de 1 passo: casa um a um. */
+      assert.strictEqual(r.corpo.passos, 'passo-a-passo', JSON.stringify(r.corpo));
     });
 
     await caso('CRITERIO: erro do Zephyr chega inteiro pela rota, sem virar "falha interna"', async () => {

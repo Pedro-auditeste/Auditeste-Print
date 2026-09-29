@@ -163,34 +163,55 @@ function statusDe(resultado) {
  * Criar o caso do zero é outra história (passos, pasta, prioridade), e um
  * botão que faz as duas coisas falha pela metade. Aqui o caso já existe: o
  * que faltava era o resultado do teste chegar lá com a mão do QA. */
-/* Os passos gravados vão no comentário da execução, em lista numerada.
+/* Os passos gravados vão para o "Actual Result" da execução, com o mesmo
+ * detalhe que o Print mostra: ação, rótulo, elemento (xpath e id), HTML do
+ * elemento, horários e URLs de antes e depois.
  *
- * Por que no comentário e não nos passos do caso: o script do caso é o plano
- * escrito pelo QA, e a gravação é o que aconteceu nesta execução. Sobrescrever
- * o plano com a gravação apagaria o caso; casar passo a passo exigiria que o
- * caso tivesse exatamente os mesmos passos. O comentário aceita HTML e não
- * depende de nada disso. Os prints não vão: a API não tem endpoint de anexo. */
-// ponytail: limite chutado, a SmartBear não publica o máximo do comentário; se o Zephyr recusar, baixar aqui
-const LIMITE_COMENTARIO = 20000;
+ * Como casar a gravação com o caso: o script do caso é o roteiro do QA, e a
+ * gravação é o que aconteceu. Se os dois têm o mesmo número de passos, cada
+ * passo gravado vai para o passo correspondente. Se não têm (o comum: o caso
+ * tem um passo e a gravação, vinte), a gravação inteira vai para o primeiro.
+ * O roteiro do caso nunca é tocado.
+ *
+ * Se não der para ler os passos do caso, ou o Zephyr recusar o formato, os
+ * passos vão para o comentário da execução: a evidência não pode se perder
+ * por causa do lugar onde ela mora. Os prints não vão: a API não tem anexo. */
+// ponytail: limite chutado, a SmartBear não publica o máximo do campo; se o Zephyr recusar, baixar aqui
+const LIMITE_TEXTO = 20000;
+const LIMITE_HTML_ELEMENTO = 700;
 const escHtml = t => String(t == null ? '' : t)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-function comentarioCom(cabecalho, passos) {
-  let html = escHtml(cabecalho);
-  const itens = (Array.isArray(passos) ? passos : []).map(p => {
-    const partes = [escHtml((p && p.titulo) || 'Passo sem descrição')];
-    if (p && p.obs) partes.push(escHtml(p.obs));
-    if (p && p.elemento) partes.push('Elemento: ' + escHtml(p.elemento));
-    if (p && p.url) partes.push('Página: ' + escHtml(p.url));
-    return '<li>' + partes.join('<br>') + '</li>';
-  });
-  if (!itens.length) return html.slice(0, LIMITE_COMENTARIO);
+function detalheDoPasso(p) {
+  p = p || {};
+  const acao = [p.acao ? '<b>' + escHtml(p.acao) + '</b>' : '', escHtml(p.rotulo)].filter(Boolean).join(' · ');
+  const linhas = [];
+  if (acao) linhas.push(acao);
+  if (p.titulo) linhas.push(escHtml(p.titulo));
+  if (p.obs) linhas.push(escHtml(p.obs));
+  if (p.elemento) linhas.push('Elemento: <code>' + escHtml(p.elemento) + '</code>');
+  if (p.elementoId) linhas.push('id: <code>' + escHtml(p.elementoId) + '</code>');
+  if (p.html) {
+    const h = String(p.html);
+    linhas.push('HTML do elemento: <code>' + escHtml(h.slice(0, LIMITE_HTML_ELEMENTO))
+      + (h.length > LIMITE_HTML_ELEMENTO ? ' [...]' : '') + '</code>');
+  }
+  const horas = [p.antes ? 'Antes: ' + escHtml(p.antes) : '', p.depois ? 'Depois: ' + escHtml(p.depois) : ''].filter(Boolean);
+  if (horas.length) linhas.push(horas.join(' · '));
+  if (p.urlAntes) linhas.push('URL antes: ' + escHtml(p.urlAntes));
+  if (p.urlDepois) linhas.push('URL depois: ' + escHtml(p.urlDepois));
+  return linhas.length ? linhas.join('<br>') : 'Passo sem descrição';
+}
 
-  html += (html ? '<br><br>' : '') + '<b>Passos gravados</b><ol>';
+/* Lista numerada que cabe no limite, dizendo quantos ficaram de fora. */
+function listaDePassos(itens, cabecalho) {
+  let html = cabecalho ? escHtml(cabecalho) + '<br><br>' : '';
+  html += '<b>Passos gravados</b><ol>';
   let usados = 0;
   for (const item of itens) {
-    if (html.length + item.length + 120 > LIMITE_COMENTARIO) break;
-    html += item;
+    const li = '<li>' + item + '</li>';
+    if (html.length + li.length + 120 > LIMITE_TEXTO) break;
+    html += li;
     usados++;
   }
   html += '</ol>';
@@ -198,6 +219,34 @@ function comentarioCom(cabecalho, passos) {
     html += 'E mais ' + (itens.length - usados) + ' passo(s): a lista completa está na evidência do Print.';
   }
   return html;
+}
+
+function comentarioCom(cabecalho, passos) {
+  const itens = (Array.isArray(passos) ? passos : []).map(detalheDoPasso);
+  if (!itens.length) return escHtml(cabecalho).slice(0, LIMITE_TEXTO);
+  return listaDePassos(itens, cabecalho);
+}
+
+/* Quantos passos o script do caso tem. null quando não deu para saber: aí o
+ * resultado não é montado passo a passo e a gravação vai no comentário. */
+async function passosDoCaso(chave) {
+  try {
+    const r = await chamar('GET', '/testcases/' + encodeURIComponent(chave) + '/teststeps', { params: { maxResults: 100 } });
+    if (r && Number.isInteger(r.total)) return r.total;
+    return lista(r).length;
+  } catch (_) {
+    return null;
+  }
+}
+
+function resultadosPorPasso(qtdCaso, itens, status) {
+  const um = qtdCaso === itens.length;
+  return Array.from({ length: qtdCaso }, (_, i) => {
+    const r = { statusName: status };
+    const texto = um ? itens[i] : (i === 0 ? listaDePassos(itens, '') : '');
+    if (texto) r.actualResult = texto.slice(0, LIMITE_TEXTO);
+    return r;
+  });
 }
 
 async function publicar({ caso, resultado, comentario, ciclo, passos }) {
@@ -222,18 +271,42 @@ async function publicar({ caso, resultado, comentario, ciclo, passos }) {
       + 'Se o projeto ainda não tem nenhum, crie em Zephyr > Ciclos de Teste.', 400);
   }
   corpo.testCycleKey = alvo;
-  const texto = comentarioCom(comentario, passos);
-  if (texto) corpo.comment = texto;
 
-  const r = await chamar('POST', '/testexecutions', { json: corpo });
+  const itens = (Array.isArray(passos) ? passos : []).map(detalheDoPasso);
+  const qtdCaso = itens.length ? await passosDoCaso(chave) : null;
+  let ondePassos = itens.length ? 'comentario' : null;
+  if (qtdCaso) {
+    corpo.testScriptResults = resultadosPorPasso(qtdCaso, itens, corpo.statusName);
+    ondePassos = qtdCaso === itens.length ? 'passo-a-passo' : 'primeiro-passo';
+    if (comentario) corpo.comment = escHtml(comentario).slice(0, LIMITE_TEXTO);
+  } else {
+    const texto = comentarioCom(comentario, passos);
+    if (texto) corpo.comment = texto;
+  }
+
+  let r;
+  try {
+    r = await chamar('POST', '/testexecutions', { json: corpo });
+  } catch (e) {
+    /* Formato do resultado por passo recusado: publica de novo com os passos
+     * no comentário, em vez de perder a execução inteira. */
+    if (!corpo.testScriptResults || !/\(400\)/.test(e.message)) throw e;
+    delete corpo.testScriptResults;
+    corpo.comment = comentarioCom(comentario, passos);
+    ondePassos = 'comentario';
+    r = await chamar('POST', '/testexecutions', { json: corpo });
+  }
   return {
     ok: true,
     execucao: (r && (r.key || r.id)) ? String(r.key || r.id) : '',
     caso: chave,
     ciclo: alvo || null,
     status: corpo.statusName,
+    /* Onde os passos gravados ficaram: 'passo-a-passo', 'primeiro-passo',
+     * 'comentario', ou null quando não havia passo. A tela diz isso. */
+    passos: ondePassos,
     /* Dito na resposta, não escondido: a API 2.8 não tem endpoint de anexo,
-     * então a evidência não sobe junto. Quem chama decide o que mostrar. */
+     * então os prints não sobem junto. Quem chama decide o que mostrar. */
     anexado: false
   };
 }
