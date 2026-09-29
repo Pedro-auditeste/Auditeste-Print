@@ -993,6 +993,94 @@
     .passo{break-inside:avoid;page-break-inside:avoid;}
     .passo figure img{max-height:15cm;object-fit:contain;}
   }
+
+  /* ============ POLIMENTO VISUAL ============
+   * So aparencia: nenhuma regra daqui muda o que a tela faz. Fica no fim do
+   * estilo para vencer as regras antigas pela ordem, sem reescreve-las. */
+
+  /* Contraste. Texto branco no verde da marca ficava em ~2,4:1, abaixo do
+   * minimo de leitura. Azul-marinho no mesmo verde passa de 7:1, e e o par que
+   * o site novo da Auditeste usa (verde com texto escuro). */
+  .btn.primario,.btn.primario:hover{color:var(--navy-deep);}
+  .passo .num,.analise-qa .mais-cenario,.cartao.novo:hover .mais{color:var(--navy-deep);}
+
+  /* Caixas de dica e aviso: so o primeiro negrito e titulo. Os outros ficam no
+   * meio da frase; antes cada um quebrava a linha e o texto virava escada. */
+  .dica b,.aviso b{display:inline;margin:0;}
+  .dica > b:first-child,.aviso > b:first-child{display:block;margin-bottom:4px;}
+  .dica,.aviso{line-height:1.55;}
+
+  /* Passo: a linha tecnica (acao, rotulo, id, xpath) deixa de ser um bloco
+   * cinza pesado, e a acao vira um selo. */
+  .passo .meta-qa{background:transparent;border:0;padding:0;margin:2px 0 10px;line-height:1.9;}
+  .passo .meta-qa > b:first-child:not(:empty){
+    display:inline-block;background:#e6f2da;color:#2f5d12;border-radius:999px;padding:1px 10px;
+    font-family:inherit;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;margin-right:4px;
+  }
+  .passo .meta-qa > b:empty{display:none;}
+  .passo .titulo{font-size:.95rem;}
+  .passo .carimbo{font-weight:400;opacity:.85;}
+  .passo .legenda{font-weight:600;color:#6b7c84;font-size:.74rem;letter-spacing:.02em;}
+  .passo img{border-radius:12px;}
+
+  /* Detalhes do cenario: a mesma seta das outras caixas, no lugar do triangulo
+   * padrao do navegador. */
+  .passo details:not(.caixa) > summary{list-style:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    color:var(--navy);font-weight:700;font-size:.82rem;}
+  .passo details:not(.caixa) > summary:hover{color:var(--green-dark);}
+  .passo details:not(.caixa) > summary::-webkit-details-marker{display:none;}
+  .passo details:not(.caixa) > summary::before{content:'\25B8';color:var(--green-dark);display:inline-block;transition:transform .2s ease;}
+  .passo details:not(.caixa)[open] > summary::before{transform:rotate(90deg);}
+
+  /* Estado da descricao abaixo da barra de gravacao: era uma linha cinza solta
+   * entre dois cartoes; vira uma nota discreta, do mesmo desenho das caixas. */
+  #statusIA:not(:empty){background:#f4f7f9;border:1px solid var(--line);border-radius:10px;padding:8px 14px;margin:10px 0 14px !important;}
+
+  /* Ficha arquivada: campo vazio nao dizia nada; agora diz que nao foi informado. */
+  .val:not([contenteditable]):empty::before{content:'Não informado';color:#a9b5ba;font-style:italic;}
+
+  /* Links do conteudo no tom da marca, em vez do azul padrao do navegador. */
+  .tela a:not(.btn){color:#1a6b8a;text-underline-offset:2px;}
+  .tela a:not(.btn):hover{color:var(--navy);}
+
+  /* ============ ANIMACOES (GSAP) ============
+   * Com o GSAP ligado (.com-gsap, posto por animacoes.js), ele assume a
+   * entrada das telas e dos passos; a animacao de CSS dos mesmos elementos
+   * sairia junto e as duas brigariam. Sem o GSAP, tudo fica como era. */
+  .com-gsap .tela.ativa,.com-gsap .passo{animation:none;}
+  .barra-leitura{
+    position:fixed;left:0;top:0;width:100%;height:3px;z-index:240;pointer-events:none;
+    transform-origin:0 50%;transform:scaleX(0);opacity:0;transition:opacity .3s ease;
+    background:linear-gradient(90deg,var(--green),#3cd7ff);
+  }
+  .barra-leitura.ligada{opacity:1;}
+  @media print{
+    .barra-leitura{display:none !important;}
+    /* Passo que ainda esperava a rolagem para aparecer sai no papel inteiro. */
+    .com-gsap .passo,.com-gsap .registro,.com-gsap .tela > *{opacity:1 !important;transform:none !important;}
+  }
+
+  /* ============ RESPONSIVO ============ */
+  /* Toque: sem espera de duplo toque, e botao com altura de dedo. */
+  button,a,summary,[role="button"]{touch-action:manipulation;}
+  @media (pointer:coarse){
+    .btn{min-height:40px;}
+    .btn.pequeno{min-height:36px;}
+    .meta-qa .copiar-sel{padding:4px 10px;}
+  }
+  /* Na gravacao a barra de botoes fica colada embaixo: o aviso sobe para nao
+   * cobrir "Salvar no projeto". */
+  body:has(#telaGravador.ativa) .aviso-toast{bottom:92px;}
+  @media (max-width:640px){
+    /* Aviso de ponta a ponta: estreito, quebrava em tres linhas. */
+    .aviso-toast{left:12px;right:12px;max-width:none;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateY(140%);}
+    .aviso-toast.visivel{transform:none;}
+    body:has(#telaGravador.ativa) .aviso-toast{bottom:150px;}
+    /* Banner: o radar decorativo ocupava uma linha inteira vazia. */
+    .painel-inicio{padding:22px 20px;}
+    .painel-inicio .pulso{display:none;}
+    .painel-inicio h1{font-size:1.5rem;}
+  }
 </style>
 </head>
 <body>
@@ -5720,5 +5808,9 @@
     .catch(err => informar('Não foi possível abrir o arquivo local de evidências: ' + err.message, 'Armazenamento indisponível'));
 })();
 </script>
+<!-- Animacoes: GSAP local (nada vem de fora) e a camada que so observa a pagina. -->
+<script src="vendor/gsap.min.js" defer></script>
+<script src="vendor/ScrollTrigger.min.js" defer></script>
+<script src="animacoes.js" defer></script>
 </body>
 </html>
