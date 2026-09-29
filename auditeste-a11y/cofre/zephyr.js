@@ -311,8 +311,16 @@ async function publicar({ caso, resultado, comentario, ciclo, passos }) {
   };
 }
 
+/* Liga uma issue do Jira a uma execução: o bug aberto a partir da evidência
+ * aparece na execução do Zephyr, e da execução se chega ao bug. */
+async function vincularIssue(execucao, issueId) {
+  const id = Number(issueId);
+  if (!String(execucao || '').trim() || !Number.isInteger(id)) throw erro('Execução ou issue inválida para o vínculo.', 400);
+  return chamar('POST', '/testexecutions/' + encodeURIComponent(String(execucao).trim()) + '/links/issues', { json: { issueId: id } });
+}
+
 module.exports = {
-  configurado, conferir, casos, ciclos, publicar, statusDe,
+  configurado, conferir, casos, ciclos, publicar, statusDe, vincularIssue,
   // expostos para o teste e para a tela:
   query, CHAVE_CASO, STATUS, BASE, PROJETO, CICLO, comentarioCom
 };

@@ -14,6 +14,7 @@ const contas = require('./contas.js');
 const sso = require('./sso.js');
 const provas = require('./provas.js');
 const zephyr = require('./zephyr.js');
+const jira = require('./jira.js');
 
 const MAX_OBJETO = Number(process.env.COFRE_MAX_OBJETO_MB || 20) * 1024 * 1024;
 const LINK_VALE_MS = Number(process.env.COFRE_LINK_MS) || 5 * 60 * 1000;
@@ -676,6 +677,34 @@ async function tratar(req, res, u, lerCorpo) {
       });
       banco.auditar(s.tenantId, s.usuarioId, 'zephyr.publicado',
         String(c.caso) + ' -> execucao ' + r.execucao, s.ip);
+      json(res, 200, r);
+      return true;
+    }
+
+    /* ---------- Jira: bug a partir da evidência ---------- */
+
+    /* Mesma regra do Zephyr: a tela só sabe se está configurado, nunca a chave. */
+    if (p === '/api/jira' && req.method === 'GET') {
+      exigirSessao(req);
+      json(res, 200, { configurado: jira.configurado() });
+      return true;
+    }
+
+    if (p === '/api/jira/bug' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'consultor');
+      const c = await lerCorpo(req);
+      const r = await jira.criarBug({
+        titulo: c.titulo,
+        esperado: c.esperado,
+        observado: c.observado,
+        ficha: c.ficha,
+        passos: c.passos,
+        execucaoZephyr: c.execucaoZephyr,
+        anexos: c.anexos
+      });
+      banco.auditar(s.tenantId, s.usuarioId, 'jira.bug',
+        r.chave + ' (' + r.anexados + ' anexo(s))' + (c.ficha && c.ficha.registro ? ' de ' + String(c.ficha.registro) : ''), s.ip);
       json(res, 200, r);
       return true;
     }

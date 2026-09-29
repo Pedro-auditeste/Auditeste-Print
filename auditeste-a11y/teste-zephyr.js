@@ -421,7 +421,7 @@ function naTela() {
       assert.ok(/escolhas:/.test(bloco), 'nao monta as opcoes do modal');
       assert.ok(/ciclos\.length/.test(bloco), 'nao decide o ciclo');
       assert.ok(/caso,\s*ciclo,/.test(bloco), 'nao manda o ciclo para o servidor');
-      assert.ok(/passos: \(r\.passos/.test(bloco), 'nao manda os passos gravados');
+      assert.ok(/passos: passosParaEnvio\(r\)/.test(bloco), 'nao manda os passos gravados');
     });
 
     await caso('a lista do modal existe no HTML e nasce escondida', async () => {

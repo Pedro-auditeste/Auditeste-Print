@@ -888,6 +888,15 @@
   .modal.confirmacao .texto{padding:22px 26px 4px;color:var(--ink);font-size:.96rem;white-space:pre-line;}
   .modal.confirmacao .escolha-confirma{padding:14px 26px 0;}
   .modal.confirmacao .escolha-confirma select{width:100%;}
+  /* Campos de texto opcionais da confirmacao (titulo, esperado, observado). */
+  .modal.confirmacao .campos-confirma{padding:14px 26px 0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;min-height:0;}
+  .modal.confirmacao .campos-confirma[hidden]{display:none;}
+  .modal.confirmacao .campos-confirma textarea{
+    width:100%;font-family:inherit;font-size:.95rem;color:var(--ink);resize:vertical;
+    border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:#fff;
+  }
+  .modal.confirmacao .campos-confirma textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(118,192,67,.2);}
+  .modal.confirmacao:has(.campos-confirma:not([hidden])){max-width:560px;}
   .modal.confirmacao .icone{
     width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);
     display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex:none;
@@ -1256,6 +1265,7 @@
       <span class="rot" id="rotuloEscolhaConfirma">Escolha</span>
       <select id="escolhaConfirma"></select>
     </label>
+    <div class="campos-confirma" id="camposConfirma" hidden></div>
     <div class="acoes-modal">
       <button class="btn escuro" id="btnNao">Cancelar</button>
       <button class="btn solido" id="btnSim">Confirmar</button>
@@ -1833,10 +1843,20 @@
   const rotuloEscolha = document.getElementById('rotuloEscolhaConfirma');
   const escolha = document.getElementById('escolhaConfirma');
 
+  const camposConfirma = document.getElementById('camposConfirma');
+
+  /* Com campos, confirmar devolve {nome: valor}; com lista, o valor escolhido;
+   * sem nenhum dos dois, true. Cancelar e sempre false. */
   function fecharConfirma(valor){
     fundoConfirma.classList.remove('aberto');
     const r = resolverConfirma; resolverConfirma = null;
-    if(r) r(valor && !campoEscolha.hidden ? escolha.value : valor);
+    if(!r) return;
+    if(valor && !camposConfirma.hidden){
+      const dados = {};
+      camposConfirma.querySelectorAll('[data-campo]').forEach(el => { dados[el.dataset.campo] = el.value; });
+      return r(dados);
+    }
+    r(valor && !campoEscolha.hidden ? escolha.value : valor);
   }
 
   function perguntar(opcoes){
@@ -1869,8 +1889,23 @@
         .map(e => '<option value="' + esc(e.valor) + '">' + esc(e.texto) + '</option>').join('');
       escolha.value = o.escolhas[0].valor;
     }
+    camposConfirma.hidden = !o.campos;
+    camposConfirma.innerHTML = '';
+    (o.campos || []).forEach(c => {
+      const rotulo = document.createElement('label');
+      const nome = document.createElement('span');
+      nome.className = 'rot';
+      nome.textContent = c.rotulo;
+      const campo = document.createElement(c.linhas ? 'textarea' : 'input');
+      if(c.linhas) campo.rows = c.linhas; else campo.type = 'text';
+      campo.dataset.campo = c.nome;
+      campo.value = c.valor || '';
+      if(c.dica) campo.placeholder = c.dica;
+      rotulo.append(nome, campo);
+      camposConfirma.appendChild(rotulo);
+    });
     fundoConfirma.classList.add('aberto');
-    setTimeout(()=> (o.escolhas ? escolha : btnSim).focus(), 90);
+    setTimeout(()=> (o.campos ? camposConfirma.querySelector('[data-campo]') : o.escolhas ? escolha : btnSim).focus(), 90);
     return new Promise(r => { resolverConfirma = r; });
   }
 
@@ -1905,7 +1940,7 @@
   document.addEventListener('keydown', e => {
     if(!fundoConfirma.classList.contains('aberto')) return;
     if(e.key === 'Escape') fecharConfirma(false);
-    if(e.key === 'Enter'){ e.preventDefault(); fecharConfirma(true); }
+    if(e.key === 'Enter' && e.target.tagName !== 'TEXTAREA'){ e.preventDefault(); fecharConfirma(true); }
   });
 
   /* ============ BOTAO DE EXCLUIR ============ */
@@ -4299,6 +4334,122 @@
     return zephyrLigado;
   }
 
+  /* Passos no formato que o servidor manda ao Zephyr e ao Jira: o mesmo
+   * detalhe que a tela mostra. Hora formatada aqui, no fuso de quem gravou:
+   * o servidor roda em UTC. */
+  function passosParaEnvio(r){
+    return (r.passos || []).map(p => ({
+      titulo: p.titulo || '', obs: p.obs || '', acao: p.acao || '', rotulo: p.rotulo || '',
+      elemento: p.elemento || '', elementoId: p.elementoId || '', html: String(p.html || '').slice(0, 2000),
+      antes: p.timestampAntes ? new Date(p.timestampAntes).toLocaleString('pt-BR') : '',
+      depois: p.timestampDepois ? new Date(p.timestampDepois).toLocaleString('pt-BR') : '',
+      urlAntes: p.urlAntes || '', urlDepois: p.urlDepois || ''
+    }));
+  }
+
+  /* ============ BUG NO JIRA ============ */
+  /* Mesma regra do Zephyr: o botao so aparece se o SERVIDOR disser que o
+   * Jira esta configurado. O token nunca passa por esta pagina. */
+  let jiraLigado = null;
+  async function temJira(){
+    if(jiraLigado !== null) return jiraLigado;
+    try{ jiraLigado = !!(await cofrePedir('/api/jira')).configurado; }
+    catch(e){ return false; }
+    return jiraLigado;
+  }
+  async function mostrarBotaoJira(){
+    const b = document.querySelector('[data-acao="abrirBugJira"]');
+    if(b) b.hidden = !(await temJira());
+  }
+
+  const ORCAMENTO_PRINTS = 12 * 1024 * 1024;
+
+  /* O HTML da evidencia sempre vai. Os prints vao do ultimo passo para o
+   * primeiro (o fim da gravacao costuma ser onde a falha aparece) ate o
+   * orcamento; o que nao couber continua dentro do HTML. */
+  async function anexosDoBug(r){
+    const f = r.ficha || {};
+    const base = (f.registro || 'evidencia').replace(/[^\w.-]/g, '_');
+    const { arquivo } = await montarHtmlEvidencia(r, false);
+    const anexos = [{ nome: base + '.html', tipo: 'text/html', base64: (await blobParaTexto(arquivo)).split(',').pop() }];
+    let gasto = 0;
+    const passos = r.passos || [];
+    for(let i = passos.length - 1; i >= 0; i--){
+      for(const im of (passos[i].imagens || [])){
+        if(!im.blob) continue;
+        if(gasto + im.blob.size > ORCAMENTO_PRINTS) return anexos;
+        gasto += im.blob.size;
+        const ext = /png/.test(im.blob.type) ? 'png' : 'jpg';
+        const legenda = String(im.legenda || 'print').replace(/[^\w-]+/g, '_').slice(0, 30);
+        anexos.push({ nome: base + '-passo-' + (i + 1) + '-' + legenda + '.' + ext, tipo: im.blob.type || 'image/jpeg',
+          base64: (await blobParaTexto(im.blob)).split(',').pop() });
+      }
+    }
+    return anexos;
+  }
+
+  async function abrirBugNoJira(r, botao){
+    if(!r) return;
+    const eu = await cofreEu();
+    if(!eu){ avisar('Entre no cofre para abrir o bug no Jira.'); return; }
+
+    const f = r.ficha || {};
+    const passos = r.passos || [];
+    const ultimo = passos.length ? (passos[passos.length - 1].titulo || '') : '';
+    const vinculos = [];
+    if(/^[A-Z][A-Z0-9_]*-\d+$/i.test(String(f.demanda || '').trim())) vinculos.push('à demanda <b>' + f.demanda.trim() + '</b>');
+    if(r.zephyr && r.zephyr.execucao) vinculos.push('à execução <b>' + r.zephyr.execucao + '</b> do Zephyr');
+
+    const dados = await perguntar({
+      titulo: 'Abrir bug no Jira',
+      subtitulo: f.registro || 'Evidência',
+      texto: 'O bug leva os <b>' + passos.length + ' passo(s) gravados</b>, a ficha e o HTML da evidência com os prints anexados.'
+        + (vinculos.length ? '<br>Fica ligado ' + vinculos.join(' e ') + '.' : ''),
+      campos: [
+        { nome: 'titulo', rotulo: 'Título do bug', valor: (f.modulo ? f.modulo + ': ' : '') + ultimo },
+        { nome: 'esperado', rotulo: 'Resultado esperado', linhas: 3, dica: 'O que devia acontecer' },
+        { nome: 'observado', rotulo: 'Resultado observado', linhas: 3, valor: f.observacoes || '', dica: 'O que aconteceu de fato' }
+      ],
+      botao: 'Abrir bug', tipo: 'aviso'
+    });
+    if(!dados) return;
+    if(!String(dados.titulo || '').trim()){ informar('O bug precisa de um título.', 'Jira'); return; }
+
+    const rotulo = botao ? botao.textContent : '';
+    if(botao){ botao.disabled = true; botao.textContent = 'Abrindo bug...'; }
+    try{
+      const anexos = await anexosDoBug(r);
+      const corpo = {
+        titulo: dados.titulo, esperado: dados.esperado, observado: dados.observado,
+        ficha: { registro: f.registro, modulo: f.modulo, ambiente: f.ambiente, versao: f.versao, tipo: f.tipo,
+          executor: f.executor, data: f.data, demanda: f.demanda },
+        passos: passosParaEnvio(r),
+        execucaoZephyr: (r.zephyr && r.zephyr.execucao) || '',
+        anexos
+      };
+      const d = await cofrePedir('/api/jira/bug', corpo);
+      await registrarEnvio('/api/jira/bug', 'Jira ' + d.chave, passos.length, JSON.stringify(corpo).length);
+      r.jira = { chave: d.chave, url: d.url, quando: Date.now() };
+      await gravarRegistroDB(r).catch(()=>{});
+
+      const feito = [d.anexados + ' anexo(s)'];
+      if(d.demanda) feito.push('ligado à demanda ' + d.demanda);
+      if(d.zephyr) feito.push('ligado à execução ' + d.zephyr);
+      const abrir = await perguntar({
+        titulo: 'Bug aberto no Jira',
+        subtitulo: d.chave + (d.tipo ? ' · ' + d.tipo : ''),
+        texto: 'Criado com ' + feito.join(', ') + '.'
+          + ((d.avisos || []).length ? '<br><br>' + d.avisos.join('<br>') : ''),
+        botao: 'Abrir no Jira', tipo: 'aviso'
+      });
+      if(abrir) window.open(d.url, '_blank', 'noopener');
+    }catch(err){
+      informar('Não abri o bug no Jira: ' + err.message + '\n\nA evidência continua salva aqui.', 'Jira');
+    }finally{
+      if(botao){ botao.disabled = false; botao.textContent = rotulo; }
+    }
+  }
+
   async function mostrarBotaoZephyr(){
     const b = document.querySelector('[data-acao="publicarZephyr"]');
     if(b) b.hidden = !(await temZephyr());
@@ -4382,14 +4533,7 @@
         ciclo,
         resultado,
         /* So texto: os prints nao sobem, a API do Zephyr nao tem anexo. */
-        passos: (r.passos || []).map(p => ({
-          titulo: p.titulo || '', obs: p.obs || '', acao: p.acao || '', rotulo: p.rotulo || '',
-          elemento: p.elemento || '', elementoId: p.elementoId || '', html: String(p.html || '').slice(0, 2000),
-          /* Hora formatada aqui, no fuso de quem gravou: o servidor roda em UTC. */
-          antes: p.timestampAntes ? new Date(p.timestampAntes).toLocaleString('pt-BR') : '',
-          depois: p.timestampDepois ? new Date(p.timestampDepois).toLocaleString('pt-BR') : '',
-          urlAntes: p.urlAntes || '', urlDepois: p.urlDepois || ''
-        })),
+        passos: passosParaEnvio(r),
         comentario: 'Audi Print · ' + (f.registro || 'evidência') + ' · ' + passos + ' passo(s)'
           + (f.ambiente ? ' · ambiente ' + f.ambiente : '')
           + (f.versao ? ' · versão ' + f.versao : '')
@@ -4399,6 +4543,11 @@
         'primeiro-passo': ' Os passos gravados estão no Actual Result do primeiro passo.',
         'comentario': ' Os passos gravados estão no comentário da execução.'
       }[d.passos] || '';
+      /* A evidencia lembra a execucao: o bug aberto depois se liga a ela. */
+      if(d.execucao){
+        r.zephyr = { execucao: d.execucao, caso, ciclo, quando: Date.now() };
+        await gravarRegistroDB(r).catch(()=>{});
+      }
       avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.' + ondeFicaram);
     }catch(err){
       informar('Não publiquei no Zephyr: ' + err.message
@@ -5244,7 +5393,8 @@
           <button class="btn escuro pequeno" data-acao="salvarPdf">Salvar em PDF</button>
           <button class="btn escuro pequeno" data-acao="gerarCenariosIA" title="Gera Gherkin e mapeamento a partir dos passos">Gerar cenários</button>
           ${ENVIO_AO_COFRE ? '<button class="btn escuro pequeno" data-acao="publicarCofre" title="Guarda esta evidência no servidor, sob o cliente da sua conta">Enviar ao cofre</button>' : ''}
-          <button class="btn escuro pequeno" data-acao="publicarZephyr" title="Cria a execução no Zephyr Squad com o resultado e anexa esta evidência" hidden>Publicar no Zephyr</button>
+          <button class="btn escuro pequeno" data-acao="publicarZephyr" title="Cria a execução no Zephyr com o resultado e os passos gravados" hidden>Publicar no Zephyr</button>
+          <button class="btn escuro pequeno" data-acao="abrirBugJira" title="Abre o bug no Jira com os passos, a ficha, o HTML da evidência e os prints" hidden>Abrir bug no Jira</button>
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
       </div>
@@ -5302,6 +5452,7 @@
     if(r.cenarios) mostrarCenarios(r.cenarios);
     // Quem decide se o botao do Zephyr aparece e o servidor, nao a pagina.
     mostrarBotaoZephyr();
+    mostrarBotaoJira();
     irPara('telaRegistro');
   }
 
@@ -5315,6 +5466,7 @@
     if(b.dataset.acao === 'gerarCenariosIA') gerarCenariosIA(registroAberto);
     if(b.dataset.acao === 'publicarCofre') publicarNoCofre(registroAberto, b);
     if(b.dataset.acao === 'publicarZephyr') publicarNoZephyr(registroAberto, b);
+    if(b.dataset.acao === 'abrirBugJira') abrirBugNoJira(registroAberto, b);
     if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
     if(b.dataset.acao === 'copiarGherkinRegistro') copiarTextoQa(normalizarAnaliseQa(registroAberto?.passos?.[Number(b.dataset.passo)]?.analiseQa).gherkin, 'Gherkin copiado.');
     if(b.dataset.acao === 'copiarCapturaRegistro') copiarCapturaDe(registroAberto?.passos?.[Number(b.dataset.passo)]);
