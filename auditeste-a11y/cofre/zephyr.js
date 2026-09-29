@@ -311,6 +311,60 @@ async function publicar({ caso, resultado, comentario, ciclo, passos }) {
   };
 }
 
+/* ---------- caso de teste a partir da gravação ----------
+ * Quando o caso ainda não existe no Zephyr, a gravação vira o roteiro: cada
+ * passo gravado vira um passo do caso, com a ação e o elemento na descrição,
+ * o valor digitado nos dados de teste e o que aconteceu no resultado
+ * esperado. Senha, CPF, cartão e token nunca chegam aqui: a extensão já apaga
+ * esses valores no momento da captura. */
+const LIMITE_PASSOS_CASO = 200;
+
+function roteiroDoPasso(p) {
+  p = p || {};
+  const cab = [p.acao ? '<b>' + escHtml(p.acao) + '</b>' : '', escHtml(p.rotulo)].filter(Boolean).join(' · ');
+  const descricao = [cab, escHtml(p.titulo),
+    p.elemento ? 'Elemento: <code>' + escHtml(p.elemento) + '</code>' : '',
+    p.elementoId ? 'id: <code>' + escHtml(p.elementoId) + '</code>' : '',
+    p.urlAntes ? 'Página: ' + escHtml(p.urlAntes) : ''
+  ].filter(Boolean).join('<br>') || 'Passo sem descrição';
+  const mudouDePagina = p.urlDepois && p.urlDepois !== p.urlAntes;
+  const esperado = p.obs ? escHtml(p.obs) : (mudouDePagina ? 'Abre ' + escHtml(p.urlDepois) : '');
+  const passo = { description: descricao.slice(0, LIMITE_TEXTO) };
+  if (p.valor) passo.testData = escHtml(p.valor).slice(0, 2000);
+  if (esperado) passo.expectedResult = esperado.slice(0, 2000);
+  return { inline: passo };
+}
+
+async function criarCaso({ nome, objetivo, passos }) {
+  const n = String(nome || '').replace(/\s+/g, ' ').trim();
+  if (!n) throw erro('Informe o nome do caso de teste.', 400);
+  const lista = (Array.isArray(passos) ? passos : []).slice(0, LIMITE_PASSOS_CASO);
+
+  const corpo = { projectKey: PROJETO, name: n.slice(0, 255), labels: ['audi-print'] };
+  const obj = String(objetivo || '').trim();
+  if (obj) corpo.objective = escHtml(obj).slice(0, 5000);
+  const c = await chamar('POST', '/testcases', { json: corpo });
+  const chave = String((c && c.key) || '');
+  if (!CHAVE_CASO.test(chave)) throw erro('O Zephyr não devolveu a chave do caso criado.', 502);
+
+  /* O caso já existe daqui em diante: roteiro recusado vira aviso, e a
+   * evidência ainda pode ser publicada nele. */
+  let comPassos = 0, aviso = null;
+  if (lista.length) {
+    try {
+      await chamar('POST', '/testcases/' + encodeURIComponent(chave) + '/teststeps', {
+        json: { mode: 'OVERWRITE', items: lista.map(roteiroDoPasso) } });
+      comPassos = lista.length;
+    } catch (e) {
+      aviso = 'O caso ' + chave + ' foi criado, mas o roteiro não entrou: ' + e.message;
+    }
+  }
+  if (Array.isArray(passos) && passos.length > LIMITE_PASSOS_CASO) {
+    aviso = (aviso ? aviso + ' ' : '') + 'O roteiro ficou com os primeiros ' + LIMITE_PASSOS_CASO + ' passos.';
+  }
+  return { ok: true, chave, id: c.id, passos: comPassos, aviso };
+}
+
 /* Liga uma issue do Jira a uma execução: o bug aberto a partir da evidência
  * aparece na execução do Zephyr, e da execução se chega ao bug. */
 async function vincularIssue(execucao, issueId) {
@@ -320,7 +374,7 @@ async function vincularIssue(execucao, issueId) {
 }
 
 module.exports = {
-  configurado, conferir, casos, ciclos, publicar, statusDe, vincularIssue,
+  configurado, conferir, casos, ciclos, publicar, statusDe, vincularIssue, criarCaso, roteiroDoPasso,
   // expostos para o teste e para a tela:
   query, CHAVE_CASO, STATUS, BASE, PROJETO, CICLO, comentarioCom
 };

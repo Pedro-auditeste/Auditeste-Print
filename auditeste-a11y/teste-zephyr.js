@@ -35,6 +35,9 @@ let soCabecalhoAntigo = false;
 const passosDoCaso = { 'GOV-T1': 1, 'GOV-T3': 3 };
 /* Zephyr que recusa testScriptResults, para provar que a evidencia nao se perde. */
 let recusaResultadoPorPasso = false;
+/* Caso criado pela tela: o que chegou, e um roteiro que pode ser recusado. */
+const casosCriados = [];
+let recusaRoteiro = false;
 
 const servidor = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
@@ -72,6 +75,16 @@ const servidor = http.createServer((req, res) => {
     }
     if (caminho === '/statuses' && req.method === 'GET') {
       return responder(200, { values: [{ name: 'Pass' }, { name: 'Fail' }, { name: 'In Progress' }, { name: 'Blocked' }] });
+    }
+    if (caminho === '/testcases' && req.method === 'POST') {
+      casosCriados.push({ caso: JSON.parse(corpo), roteiro: null });
+      return responder(201, { id: 777, key: 'GOV-T20' });
+    }
+    const roteiroM = caminho.match(/^\/testcases\/([^/]+)\/teststeps$/);
+    if (roteiroM && req.method === 'POST') {
+      if (recusaRoteiro) return responder(400, { message: 'items: invalid' });
+      casosCriados[casosCriados.length - 1].roteiro = JSON.parse(corpo);
+      return responder(201, {});
     }
     const passosM = caminho.match(/^\/testcases\/([^/]+)\/teststeps$/);
     if (passosM && req.method === 'GET') {
@@ -282,7 +295,53 @@ const servidor = http.createServer((req, res) => {
     } finally { recusaResultadoPorPasso = false; }
   });
 
-  await caso('gravacao enorme e cortada com aviso, sem estourar o comentario', () => {
+  await caso('CRITERIO: caso novo nasce com a gravacao como roteiro, na ordem', async () => {
+    casosCriados.length = 0;
+    const r = await zephyr.criarCaso({ nome: '  Governança:  abrir a lista ', objetivo: 'A lista <abre>',
+      passos: [
+        { acao: 'Digitar', rotulo: 'Busca', titulo: 'Digitou <b>', elemento: '//*[@id="busca"]', valor: 'contrato 42',
+          urlAntes: 'https://gov/a', urlDepois: 'https://gov/a' },
+        { acao: 'Clicar', rotulo: 'Lista', elemento: '//a[1]', urlAntes: 'https://gov/a', urlDepois: 'https://gov/list' },
+        { acao: 'Clicar', rotulo: 'Salvar', obs: 'Mostra "salvo"' }
+      ] });
+    assert.deepStrictEqual(r, { ok: true, chave: 'GOV-T20', id: 777, passos: 3, aviso: null });
+    const c = casosCriados[0];
+    assert.deepStrictEqual(c.caso, { projectKey: 'GOV', name: 'Governança: abrir a lista', labels: ['audi-print'], objective: 'A lista &lt;abre&gt;' });
+    assert.strictEqual(c.roteiro.mode, 'OVERWRITE');
+    const [a, b, d] = c.roteiro.items.map(i => i.inline);
+    assert.ok(/<b>Digitar<\/b> · Busca/.test(a.description) && /Digitou &lt;b&gt;/.test(a.description));
+    assert.ok(/Elemento: <code>\/\/\*\[@id="busca"\]<\/code>/.test(a.description), a.description);
+    assert.strictEqual(a.testData, 'contrato 42');
+    assert.strictEqual(a.expectedResult, undefined, 'mesma pagina e sem observacao: nao inventa esperado');
+    assert.strictEqual(b.expectedResult, 'Abre https://gov/list');
+    assert.strictEqual(d.expectedResult, 'Mostra "salvo"');
+  });
+
+  await caso('caso sem nome e recusado antes de chamar', async () => {
+    casosCriados.length = 0;
+    await assert.rejects(() => zephyr.criarCaso({ nome: '  ', passos: [{}] }), e => e.status === 400);
+    assert.strictEqual(casosCriados.length, 0);
+  });
+
+  await caso('roteiro recusado vira aviso: o caso ja existe e ainda recebe a execucao', async () => {
+    casosCriados.length = 0;
+    recusaRoteiro = true;
+    try {
+      const r = await zephyr.criarCaso({ nome: 'x', passos: [{ titulo: 'a' }] });
+      assert.strictEqual(r.chave, 'GOV-T20');
+      assert.strictEqual(r.passos, 0);
+      assert.ok(/roteiro não entrou/.test(r.aviso) && /items: invalid/.test(r.aviso), r.aviso);
+    } finally { recusaRoteiro = false; }
+  });
+
+  await caso('gravacao acima de 200 passos entra cortada, com aviso', async () => {
+    casosCriados.length = 0;
+    const r = await zephyr.criarCaso({ nome: 'longo', passos: Array.from({ length: 230 }, (_, i) => ({ titulo: 'p' + i })) });
+    assert.strictEqual(casosCriados[0].roteiro.items.length, 200);
+    assert.ok(/primeiros 200 passos/.test(r.aviso), r.aviso);
+  });
+
+  await caso('gravacao enorme e cortada com aviso, sem estourar o comentario', async () => {
     const muitos = Array.from({ length: 600 }, (_, i) => ({ titulo: 'Passo ' + i + ' ' + 'x'.repeat(150) }));
     const c = zephyr.comentarioCom('cabecalho', muitos);
     assert.ok(c.length <= 20000, 'passou do limite: ' + c.length);
@@ -298,7 +357,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (30 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (35 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -371,6 +430,16 @@ async function pelaRota() {
       assert.strictEqual(r.corpo.cicloPadrao, 'GOV-R1');
     });
 
+    await caso('rota: cria o caso a partir da gravacao e registra na auditoria', async () => {
+      casosCriados.length = 0;
+      const r = await pedir('/api/zephyr/caso', { nome: 'Pela rota', passos: [{ titulo: 'a' }, { titulo: 'b' }] });
+      assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
+      assert.strictEqual(r.corpo.chave, 'GOV-T20');
+      assert.strictEqual(casosCriados[0].roteiro.items.length, 2);
+      const a = await pedir('/api/auditoria');
+      assert.ok((a.corpo.eventos || []).some(e => e.acao === 'zephyr.caso'), 'nao auditou a criacao');
+    });
+
     await caso('rota: publica de verdade e devolve a execucao', async () => {
       chamadas.length = 0;
       const r = await pedir('/api/zephyr/publicar', {
@@ -422,6 +491,8 @@ function naTela() {
       assert.ok(/ciclos\.length/.test(bloco), 'nao decide o ciclo');
       assert.ok(/caso,\s*ciclo,/.test(bloco), 'nao manda o ciclo para o servidor');
       assert.ok(/passos: passosParaEnvio\(r\)/.test(bloco), 'nao manda os passos gravados');
+      assert.ok(/api\/zephyr\/caso'/.test(bloco) && /Criar caso novo a partir desta gravação/.test(bloco), 'sem a opcao de caso novo');
+      assert.ok(!/Crie o caso lá/.test(bloco), 'projeto sem caso voltou a ser beco sem saida');
     });
 
     await caso('a lista do modal existe no HTML e nasce escondida', async () => {

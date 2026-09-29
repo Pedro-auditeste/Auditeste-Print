@@ -4341,6 +4341,8 @@
     return (r.passos || []).map(p => ({
       titulo: p.titulo || '', obs: p.obs || '', acao: p.acao || '', rotulo: p.rotulo || '',
       elemento: p.elemento || '', elementoId: p.elementoId || '', html: String(p.html || '').slice(0, 2000),
+      /* Senha, CPF, cartao e token ja chegam vazios: a extensao apaga na captura. */
+      valor: p.valor || '',
       antes: p.timestampAntes ? new Date(p.timestampAntes).toLocaleString('pt-BR') : '',
       depois: p.timestampDepois ? new Date(p.timestampDepois).toLocaleString('pt-BR') : '',
       urlAntes: p.urlAntes || '', urlDepois: p.urlDepois || ''
@@ -4549,13 +4551,6 @@
         + '\n\nA evidência continua salva aqui.', 'Zephyr');
       return;
     }
-    if(!casos.length){
-      informar('O projeto configurado no Zephyr não tem nenhum caso de teste ainda.'
-        + '\n\nCrie o caso lá e publique de novo: esta tela registra o resultado de um caso que já existe.',
-        'Zephyr');
-      return;
-    }
-
     /* Sem ciclo o Zephyr recusa a execucao ("testCycleKey: must not be null").
      * Configurado no servidor, vale ele; senao, um so vai direto, e com mais
      * de um a pessoa escolhe. Nenhum: diz onde criar, em vez do erro cru. */
@@ -4582,7 +4577,13 @@
     const nomeCiclo = (ciclos.find(c => c.chave === ciclo) || {}).nome || '';
 
     const resultado = f.resultado || '';
-    const caso = await perguntar({
+    const qtd = (r.passos || []).length;
+    /* Caso novo a partir da gravacao: fica no fim da lista (o padrao continua
+     * sendo um caso que ja existe, para ninguem duplicar caso sem querer) e e
+     * o caminho direto quando o projeto ainda nao tem caso nenhum. */
+    const NOVO = '__novo__';
+    let caso = NOVO;
+    if(casos.length) caso = await perguntar({
       titulo: 'Publicar no Zephyr',
       subtitulo: f.registro || 'Evidência',
       texto: 'Vai ser criada a execução do caso escolhido no ciclo <b>' + ciclo + (nomeCiclo ? ' · ' + nomeCiclo : '')
@@ -4591,14 +4592,41 @@
         + ' passo(s) gravados</b> (elemento, HTML, horários e URLs) no resultado da execução.'
         + '<br><br>Os prints não sobem, porque a API do Zephyr não aceita anexo: eles continuam aqui, na pasta de destino e no cofre.',
       rotulo: 'Caso de teste',
-      escolhas: casos.map(c => ({ valor: c.chave, texto: c.chave + (c.nome ? ' · ' + c.nome : '') })),
+      escolhas: casos.map(c => ({ valor: c.chave, texto: c.chave + (c.nome ? ' · ' + c.nome : '') }))
+        .concat([{ valor: NOVO, texto: '+ Criar caso novo a partir desta gravação' }]),
       botao: 'Publicar', tipo: 'aviso'
     });
     if(!caso) return;
 
+    let novoCaso = null, criado = null;
+    if(caso === NOVO){
+      const ultimo = qtd ? (r.passos[qtd - 1].titulo || '') : '';
+      const dados = await perguntar({
+        titulo: 'Criar caso de teste no Zephyr',
+        subtitulo: f.registro || 'Evidência',
+        texto: (casos.length ? '' : 'O projeto ainda não tem caso de teste. ')
+          + 'O Zephyr ganha um caso novo com os <b>' + qtd + ' passo(s) gravados</b> como roteiro, e esta evidência'
+          + ' vira a primeira execução dele, no ciclo <b>' + ciclo + (nomeCiclo ? ' · ' + nomeCiclo : '') + '</b>,'
+          + ' com o resultado <b>' + (resultado || 'em andamento') + '</b>.',
+        campos: [
+          { nome: 'nome', rotulo: 'Nome do caso', valor: (f.modulo ? f.modulo + ': ' : '') + ultimo },
+          { nome: 'objetivo', rotulo: 'Objetivo', linhas: 2, valor: f.observacoes || '', dica: 'O que este caso confere' }
+        ],
+        botao: 'Criar e publicar', tipo: 'aviso'
+      });
+      if(!dados) return;
+      if(!String(dados.nome || '').trim()){ informar('O caso precisa de um nome.', 'Zephyr'); return; }
+      novoCaso = { nome: dados.nome, objetivo: dados.objetivo };
+    }
+
     const rotulo = botao ? botao.textContent : '';
-    if(botao){ botao.disabled = true; botao.textContent = 'Publicando...'; }
+    if(botao){ botao.disabled = true; botao.textContent = novoCaso ? 'Criando caso...' : 'Publicando...'; }
     try{
+      if(novoCaso){
+        criado = await cofrePedir('/api/zephyr/caso', { nome: novoCaso.nome, objetivo: novoCaso.objetivo, passos: passosParaEnvio(r) });
+        caso = criado.chave;
+        if(botao) botao.textContent = 'Publicando...';
+      }
       const passos = (r.passos || []).length;
       const d = await cofrePedir('/api/zephyr/publicar', {
         caso,
@@ -4622,12 +4650,14 @@
         r.zephyr = { execucao: d.execucao, caso, ciclo, demanda: d.demanda || null, quando: Date.now() };
         await gravarRegistroDB(r).catch(()=>{});
       }
-      avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.' + ondeFicaram
+      avisar((criado ? 'Caso ' + criado.chave + ' criado com ' + criado.passos + ' passo(s). ' + (criado.aviso ? criado.aviso + ' ' : '') : '')
+        + 'Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.' + ondeFicaram
         + (d.demanda ? ' Ligada à demanda ' + d.demanda + '.' : '')
         + (d.avisoDemanda ? ' ' + d.avisoDemanda : ''));
     }catch(err){
       informar('Não publiquei no Zephyr: ' + err.message
-        + '\n\nA evidência continua salva aqui. Confira o caso informado e as chaves do Zephyr no servidor.',
+        + (criado ? '\n\nO caso ' + criado.chave + ' já foi criado: publique de novo escolhendo ele na lista.' : '')
+        + '\n\nA evidência continua salva aqui.',
         'Zephyr');
     }finally{
       if(botao){ botao.disabled = false; botao.textContent = rotulo; }

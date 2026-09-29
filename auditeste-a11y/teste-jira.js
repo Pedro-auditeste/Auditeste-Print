@@ -34,7 +34,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- Jira e Zephyr de mentira ---------- */
 
-const recebido = { issues: [], anexos: [], links: [], zephyr: [], comentarios: [], execucoes: [] };
+const recebido = { issues: [], anexos: [], links: [], zephyr: [], comentarios: [], execucoes: [], casos: [], roteiros: [] };
 let semBug = false, falhaAnexo = false, falhaComentario = false;
 const zerar = () => { Object.keys(recebido).forEach(k => { recebido[k] = []; }); };
 
@@ -54,7 +54,12 @@ const servidor = http.createServer((req, res) => {
         recebido.execucoes.push(JSON.parse(bruto.toString()));
         return responder(201, { id: 9002, key: 'GOV-E8' });
       }
-      if (/^\/v2\/testcases\/[^/]+\/teststeps$/.test(u.pathname)) return responder(200, { total: 1, values: [{}] });
+      if (u.pathname === '/v2/testcases' && req.method === 'GET') return responder(200, { values: [{ key: 'GOV-T1', name: 'Login com senha certa' }] });
+      if (u.pathname === '/v2/testcycles' && req.method === 'GET') return responder(200, { values: [{ key: 'GOV-R1', name: 'Audi Print' }] });
+      if (u.pathname === '/v2/testcases' && req.method === 'POST') { recebido.casos.push(JSON.parse(bruto.toString())); return responder(201, { id: 777, key: 'GOV-T20' }); }
+      const roteiro = u.pathname.match(/^\/v2\/testcases\/([^/]+)\/teststeps$/);
+      if (roteiro && req.method === 'POST') { recebido.roteiros.push({ caso: roteiro[1], corpo: JSON.parse(bruto.toString()) }); return responder(201, {}); }
+      if (roteiro && req.method === 'GET') return responder(200, { total: roteiro[1] === 'GOV-T20' ? recebido.roteiros.length && recebido.roteiros[0].corpo.items.length : 1, values: [] });
       return responder(404, { message: 'zephyr: rota desconhecida' });
     }
 
@@ -257,7 +262,7 @@ function textos(no, saida = []) {
 
   await pelaTela();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (23 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (24 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -416,6 +421,30 @@ async function pelaTela() {
       assert.strictEqual(recebido.anexos[0].chave, 'GOV-12');
       assert.ok(nomes.some(n => /\.html$/.test(n)) && nomes.filter(n => /-passo-\d+-/.test(n)).length >= 6, 'anexos: ' + nomes);
       assert.strictEqual(recebido.comentarios.length, 1);
+    });
+
+    await caso('CRITERIO: pela tela, caso novo nasce da gravacao e recebe a execucao', async () => {
+      zerar();
+      await pg.click('[data-acao="publicarZephyr"]');
+      await pg.waitForFunction(() => document.getElementById('fundoConfirma').classList.contains('aberto')
+        && !document.getElementById('campoEscolhaConfirma').hidden, { timeout: 10000 });
+      const opcoes = await pg.$$eval('#escolhaConfirma option', os => os.map(o => o.textContent));
+      assert.strictEqual(opcoes[0], 'GOV-T1 · Login com senha certa', 'o padrao tem de ser um caso que ja existe');
+      assert.strictEqual(opcoes[opcoes.length - 1], '+ Criar caso novo a partir desta gravação');
+      await pg.select('#escolhaConfirma', '__novo__');
+      await pg.click('#btnSim');
+      await pg.waitForFunction(() => /Criar caso de teste no Zephyr/.test(document.getElementById('tituloConfirma').textContent));
+      const nome = await pg.$eval('#camposConfirma [data-campo="nome"]', el => el.value);
+      assert.ok(nome.length > 0, 'o nome do caso devia vir sugerido');
+      await pg.click('#btnSim');
+      await pg.waitForFunction(() => /Caso GOV-T20 criado/.test(document.querySelector('.aviso-toast .aviso-texto')?.textContent || ''), { timeout: 20000 });
+
+      const naEvidencia = await pg.$$eval('#conteudoRegistro .passo', els => els.length);
+      assert.strictEqual(recebido.casos[0].name, nome);
+      assert.strictEqual(recebido.roteiros[0].caso, 'GOV-T20');
+      assert.strictEqual(recebido.roteiros[0].corpo.items.length, naEvidencia, 'o roteiro devia ter todos os passos gravados');
+      assert.strictEqual(recebido.execucoes[0].testCaseKey, 'GOV-T20', 'a evidencia devia virar a execucao do caso novo');
+      assert.strictEqual(recebido.execucoes[0].testScriptResults.length, naEvidencia, 'caso e gravacao casam passo a passo');
     });
 
     await caso('a evidencia lembra o bug aberto', async () => {

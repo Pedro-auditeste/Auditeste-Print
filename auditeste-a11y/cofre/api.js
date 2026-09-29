@@ -662,6 +662,19 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
+    /* Caso novo a partir da gravação: a tela chama isto quando o QA escolhe
+     * "Criar caso novo" e depois publica a evidência no caso criado. */
+    if (p === '/api/zephyr/caso' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'consultor');
+      const c = await lerCorpo(req);
+      const r = await zephyr.criarCaso({ nome: c.nome, objetivo: c.objetivo, passos: c.passos });
+      banco.auditar(s.tenantId, s.usuarioId, 'zephyr.caso',
+        r.chave + ' (' + r.passos + ' passo(s))', s.ip);
+      json(res, 200, r);
+      return true;
+    }
+
     if (p === '/api/zephyr/publicar' && req.method === 'POST') {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
