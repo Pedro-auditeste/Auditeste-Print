@@ -253,8 +253,73 @@ async function criarBug({ titulo: resumo, esperado, observado, ficha, passos, ex
   };
 }
 
+/* ---------- evidência na demanda ----------
+ * A história da demanda (GOV-12) recebe o HTML da evidência e os prints, e um
+ * comentário dizendo de que teste eles são. Quem abre a história vê a prova
+ * sem sair dela, e a execução do Zephyr fica ligada à mesma história. */
+
+async function issue(chave) {
+  const k = String(chave || '').trim().toUpperCase();
+  if (!CHAVE_ISSUE.test(k)) throw erro('"' + (chave || '') + '" não é a chave de uma issue do Jira (formato GOV-12).', 400);
+  try {
+    const r = await chamar('GET', '/rest/api/3/issue/' + encodeURIComponent(k) + '?fields=summary');
+    return { id: String(r.id), chave: String(r.key || k), titulo: String((r.fields && r.fields.summary) || '') };
+  } catch (e) {
+    if (/\(404\)/.test(e.message)) throw erro('A demanda ' + k + ' não existe no Jira, ou esta conta não enxerga ela.', 404);
+    throw e;
+  }
+}
+
+function comentarioDaEvidencia({ ficha, passos, resultado, arquivos, execucaoZephyr }) {
+  const f = ficha || {};
+  const n = Array.isArray(passos) ? passos.length : 0;
+  const campos = [
+    ['Resultado', resultado], ['Passos gravados', String(n)], ['Módulo', f.modulo],
+    ['Ambiente', f.ambiente], ['Versão / build', f.versao], ['Executado por', f.executor],
+    ['Data', f.data], ['Execução no Zephyr', execucaoZephyr]
+  ].filter(([, v]) => v && String(v).trim());
+  const conteudo = [
+    paragrafo([negrito('Evidência de teste ' + (f.registro || '') + ' (Audi Print)')]),
+    linhas(campos)
+  ];
+  if (arquivos.length) {
+    conteudo.push(paragrafo([texto('Anexos: ' + arquivos.map(a => a.nome).join(', '))]));
+  }
+  return { type: 'doc', version: 1, content: conteudo };
+}
+
+async function anexarNaDemanda({ demanda, ficha, passos, resultado, execucaoZephyr, anexos }) {
+  const arquivos = arquivosValidos(anexos);
+  if (!arquivos.length) throw erro('Nada para anexar: a evidência veio sem arquivo.', 400);
+  const alvo = await issue(demanda);
+  const exec = String(execucaoZephyr || '').trim();
+  const avisos = [];
+
+  /* O anexo é o que importa aqui: se ele falhar, é erro, não aviso. */
+  const anexados = await anexar(alvo.chave, arquivos);
+  if (arquivos.length < (Array.isArray(anexos) ? anexos.length : 0)) {
+    avisos.push('Parte dos prints ficou de fora para caber no limite de envio; todos estão no HTML anexado.');
+  }
+
+  let comentado = false;
+  try {
+    await chamar('POST', '/rest/api/3/issue/' + encodeURIComponent(alvo.chave) + '/comment', {
+      json: { body: comentarioDaEvidencia({ ficha, passos, resultado, arquivos, execucaoZephyr: exec }) } });
+    comentado = true;
+  } catch (e) { avisos.push('Os anexos subiram, mas o comentário não: ' + e.message); }
+
+  let zephyrLigado = null;
+  if (exec && zephyr.configurado()) {
+    try { await zephyr.vincularIssue(exec, alvo.id); zephyrLigado = exec; }
+    catch (e) { avisos.push('Não liguei a execução ' + exec + ' do Zephyr: ' + e.message); }
+  }
+
+  return { ok: true, chave: alvo.chave, titulo: alvo.titulo, url: BASE + '/browse/' + alvo.chave,
+    anexados, comentado, zephyr: zephyrLigado, avisos };
+}
+
 module.exports = {
-  configurado, criarBug,
+  configurado, criarBug, anexarNaDemanda, issue,
   // expostos para o teste:
   tipoDoBug, descricao, arquivosValidos, PROJETO, LIMITE_DESCRICAO
 };

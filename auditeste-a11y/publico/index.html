@@ -4358,8 +4358,9 @@
     return jiraLigado;
   }
   async function mostrarBotaoJira(){
-    const b = document.querySelector('[data-acao="abrirBugJira"]');
-    if(b) b.hidden = !(await temJira());
+    const ligado = await temJira();
+    document.querySelectorAll('[data-acao="abrirBugJira"], [data-acao="anexarDemandaJira"]')
+      .forEach(b => { b.hidden = !ligado; });
   }
 
   const ORCAMENTO_PRINTS = 12 * 1024 * 1024;
@@ -4367,7 +4368,7 @@
   /* O HTML da evidencia sempre vai. Os prints vao do ultimo passo para o
    * primeiro (o fim da gravacao costuma ser onde a falha aparece) ate o
    * orcamento; o que nao couber continua dentro do HTML. */
-  async function anexosDoBug(r){
+  async function anexosDaEvidencia(r){
     const f = r.ficha || {};
     const base = (f.registro || 'evidencia').replace(/[^\w.-]/g, '_');
     const { arquivo } = await montarHtmlEvidencia(r, false);
@@ -4386,6 +4387,77 @@
       }
     }
     return anexos;
+  }
+
+  /* A evidencia inteira na historia da demanda: HTML e prints anexados, e um
+   * comentario dizendo de que teste eles sao. Sem demanda valida na ficha, a
+   * janela pede a chave. */
+  async function anexarNaDemanda(r, botao){
+    if(!r) return;
+    const eu = await cofreEu();
+    if(!eu){ avisar('Entre no cofre para anexar a evidência no Jira.'); return; }
+
+    const f = r.ficha || {};
+    const passos = r.passos || [];
+    const chaveOk = v => /^[A-Z][A-Z0-9_]*-\d+$/.test(v);
+    const ligarZephyr = !!(r.zephyr && r.zephyr.execucao && !r.zephyr.demanda);
+    const oQueVai = 'Vai anexar o HTML da evidência e os prints dos <b>' + passos.length + ' passo(s)</b>'
+      + ' na história, com um comentário dizendo de que teste eles são.'
+      + (ligarZephyr ? '<br>A execução <b>' + r.zephyr.execucao + '</b> do Zephyr fica ligada a ela.' : '');
+
+    let demanda = String(f.demanda || '').trim().toUpperCase();
+    if(chaveOk(demanda)){
+      const ok = await perguntar({ titulo: 'Anexar na demanda', subtitulo: demanda, texto: oQueVai, botao: 'Anexar', tipo: 'aviso' });
+      if(!ok) return;
+    } else {
+      const dados = await perguntar({
+        titulo: 'Anexar na demanda',
+        subtitulo: f.registro || 'Evidência',
+        texto: (demanda ? '"' + demanda + '" não é a chave de uma issue do Jira. ' : 'A ficha não tem demanda. ')
+          + 'Informe a história que recebe a evidência.<br><br>' + oQueVai,
+        campos: [{ nome: 'demanda', rotulo: 'Demanda (chave no Jira)', dica: 'GOV-12' }],
+        botao: 'Anexar', tipo: 'aviso'
+      });
+      if(!dados) return;
+      demanda = String(dados.demanda || '').trim().toUpperCase();
+      if(!chaveOk(demanda)){ informar('"' + demanda + '" não é a chave de uma issue do Jira (formato GOV-12).', 'Jira'); return; }
+    }
+
+    const rotulo = botao ? botao.textContent : '';
+    if(botao){ botao.disabled = true; botao.textContent = 'Anexando...'; }
+    try{
+      const anexos = await anexosDaEvidencia(r);
+      const corpo = {
+        demanda,
+        ficha: { registro: f.registro, modulo: f.modulo, ambiente: f.ambiente, versao: f.versao, tipo: f.tipo,
+          executor: f.executor, data: f.data, demanda },
+        passos: passosParaEnvio(r),
+        resultado: f.resultado || '',
+        execucaoZephyr: ligarZephyr ? r.zephyr.execucao : '',
+        anexos
+      };
+      const d = await cofrePedir('/api/jira/demanda', corpo);
+      await registrarEnvio('/api/jira/demanda', 'Jira ' + d.chave, passos.length, JSON.stringify(corpo).length);
+      r.jiraDemanda = { chave: d.chave, quando: Date.now() };
+      if(d.zephyr && r.zephyr) r.zephyr.demanda = d.chave;
+      await gravarRegistroDB(r).catch(()=>{});
+
+      const feito = [d.anexados + ' anexo(s)'];
+      if(d.comentado) feito.push('um comentário com o resumo do teste');
+      if(d.zephyr) feito.push('a execução ' + d.zephyr + ' ligada');
+      const abrir = await perguntar({
+        titulo: 'Evidência anexada na demanda',
+        subtitulo: d.chave + (d.titulo ? ' · ' + d.titulo : ''),
+        texto: 'Foram ' + feito.join(', ') + '.'
+          + ((d.avisos || []).length ? '<br><br>' + d.avisos.join('<br>') : ''),
+        botao: 'Abrir no Jira', tipo: 'aviso'
+      });
+      if(abrir) window.open(d.url, '_blank', 'noopener');
+    }catch(err){
+      informar('Não anexei na demanda: ' + err.message + '\n\nA evidência continua salva aqui.', 'Jira');
+    }finally{
+      if(botao){ botao.disabled = false; botao.textContent = rotulo; }
+    }
   }
 
   async function abrirBugNoJira(r, botao){
@@ -4418,7 +4490,7 @@
     const rotulo = botao ? botao.textContent : '';
     if(botao){ botao.disabled = true; botao.textContent = 'Abrindo bug...'; }
     try{
-      const anexos = await anexosDoBug(r);
+      const anexos = await anexosDaEvidencia(r);
       const corpo = {
         titulo: dados.titulo, esperado: dados.esperado, observado: dados.observado,
         ficha: { registro: f.registro, modulo: f.modulo, ambiente: f.ambiente, versao: f.versao, tipo: f.tipo,
@@ -4532,6 +4604,8 @@
         caso,
         ciclo,
         resultado,
+        /* Com o Jira ligado no servidor, a execucao ja nasce ligada a demanda. */
+        demanda: f.demanda || '',
         /* So texto: os prints nao sobem, a API do Zephyr nao tem anexo. */
         passos: passosParaEnvio(r),
         comentario: 'Audi Print · ' + (f.registro || 'evidência') + ' · ' + passos + ' passo(s)'
@@ -4545,10 +4619,12 @@
       }[d.passos] || '';
       /* A evidencia lembra a execucao: o bug aberto depois se liga a ela. */
       if(d.execucao){
-        r.zephyr = { execucao: d.execucao, caso, ciclo, quando: Date.now() };
+        r.zephyr = { execucao: d.execucao, caso, ciclo, demanda: d.demanda || null, quando: Date.now() };
         await gravarRegistroDB(r).catch(()=>{});
       }
-      avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.' + ondeFicaram);
+      avisar('Publicado no Zephyr: execução ' + (d.execucao || 'criada') + '.' + ondeFicaram
+        + (d.demanda ? ' Ligada à demanda ' + d.demanda + '.' : '')
+        + (d.avisoDemanda ? ' ' + d.avisoDemanda : ''));
     }catch(err){
       informar('Não publiquei no Zephyr: ' + err.message
         + '\n\nA evidência continua salva aqui. Confira o caso informado e as chaves do Zephyr no servidor.',
@@ -5395,6 +5471,7 @@
           ${ENVIO_AO_COFRE ? '<button class="btn escuro pequeno" data-acao="publicarCofre" title="Guarda esta evidência no servidor, sob o cliente da sua conta">Enviar ao cofre</button>' : ''}
           <button class="btn escuro pequeno" data-acao="publicarZephyr" title="Cria a execução no Zephyr com o resultado e os passos gravados" hidden>Publicar no Zephyr</button>
           <button class="btn escuro pequeno" data-acao="abrirBugJira" title="Abre o bug no Jira com os passos, a ficha, o HTML da evidência e os prints" hidden>Abrir bug no Jira</button>
+          <button class="btn escuro pequeno" data-acao="anexarDemandaJira" title="Anexa o HTML da evidência e os prints na história da demanda, no Jira" hidden>Anexar na demanda</button>
           ${r.video ? `<button class="btn escuro pequeno" data-video="${r.id}">Baixar vídeo</button>` : ''}
         </div>
       </div>
@@ -5467,6 +5544,7 @@
     if(b.dataset.acao === 'publicarCofre') publicarNoCofre(registroAberto, b);
     if(b.dataset.acao === 'publicarZephyr') publicarNoZephyr(registroAberto, b);
     if(b.dataset.acao === 'abrirBugJira') abrirBugNoJira(registroAberto, b);
+    if(b.dataset.acao === 'anexarDemandaJira') anexarNaDemanda(registroAberto, b);
     if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
     if(b.dataset.acao === 'copiarGherkinRegistro') copiarTextoQa(normalizarAnaliseQa(registroAberto?.passos?.[Number(b.dataset.passo)]?.analiseQa).gherkin, 'Gherkin copiado.');
     if(b.dataset.acao === 'copiarCapturaRegistro') copiarCapturaDe(registroAberto?.passos?.[Number(b.dataset.passo)]);

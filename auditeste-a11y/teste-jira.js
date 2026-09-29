@@ -34,9 +34,9 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- Jira e Zephyr de mentira ---------- */
 
-const recebido = { issues: [], anexos: [], links: [], zephyr: [] };
-let semBug = false, falhaAnexo = false;
-const zerar = () => { recebido.issues = []; recebido.anexos = []; recebido.links = []; recebido.zephyr = []; };
+const recebido = { issues: [], anexos: [], links: [], zephyr: [], comentarios: [], execucoes: [] };
+let semBug = false, falhaAnexo = false, falhaComentario = false;
+const zerar = () => { Object.keys(recebido).forEach(k => { recebido[k] = []; }); };
 
 const servidor = http.createServer((req, res) => {
   const partes = [];
@@ -50,6 +50,11 @@ const servidor = http.createServer((req, res) => {
       if (req.headers.authorization !== 'Bearer ' + TOKEN_ZEPHYR) return responder(401, { message: 'zephyr sem token' });
       const m = u.pathname.match(/^\/v2\/testexecutions\/([^/]+)\/links\/issues$/);
       if (m && req.method === 'POST') { recebido.zephyr.push({ execucao: m[1], corpo: JSON.parse(bruto.toString()) }); return responder(201, { id: 1 }); }
+      if (u.pathname === '/v2/testexecutions' && req.method === 'POST') {
+        recebido.execucoes.push(JSON.parse(bruto.toString()));
+        return responder(201, { id: 9002, key: 'GOV-E8' });
+      }
+      if (/^\/v2\/testcases\/[^/]+\/teststeps$/.test(u.pathname)) return responder(200, { total: 1, values: [{}] });
       return responder(404, { message: 'zephyr: rota desconhecida' });
     }
 
@@ -63,6 +68,17 @@ const servidor = http.createServer((req, res) => {
         { id: '10003', name: 'Subtarefa', subtask: true },
         ...(semBug ? [] : [{ id: '10004', name: 'Bug', subtask: false }])
       ] });
+    }
+    const umaIssue = cam.match(/^\/rest\/api\/3\/issue\/([A-Z]+-\d+)$/);
+    if (umaIssue && req.method === 'GET') {
+      if (umaIssue[1] !== 'GOV-12') return responder(404, { errorMessages: ['Issue does not exist or you do not have permission to see it.'] });
+      return responder(200, { id: '10012', key: 'GOV-12', fields: { summary: 'História do login' } });
+    }
+    const comentario = cam.match(/^\/rest\/api\/3\/issue\/([^/]+)\/comment$/);
+    if (comentario && req.method === 'POST') {
+      if (falhaComentario) return responder(400, { errorMessages: ['comentario recusado'] });
+      recebido.comentarios.push({ chave: comentario[1], corpo: JSON.parse(bruto.toString()) });
+      return responder(201, { id: '500' });
     }
     if (cam === '/rest/api/3/issue' && req.method === 'POST') {
       recebido.issues.push(JSON.parse(bruto.toString()));
@@ -196,9 +212,52 @@ function textos(no, saida = []) {
     assert.strictEqual(v.length, 2, 'devia caber o HTML e um print de 9 MB');
   });
 
+  console.log('\njira: evidencia na demanda\n');
+
+  await caso('CRITERIO: a historia recebe o HTML e os prints, um comentario e a execucao ligada', async () => {
+    zerar();
+    const print = { nome: 'EVD-passo-1-Depois.png', tipo: 'image/png', base64: Buffer.from('png').toString('base64') };
+    const r = await jira.anexarNaDemanda({ demanda: 'gov-12', ficha: FICHA, passos: PASSOS, resultado: 'Reprovado',
+      execucaoZephyr: 'GOV-E7', anexos: [ANEXO, print] });
+    assert.strictEqual(r.chave, 'GOV-12');
+    assert.strictEqual(r.titulo, 'História do login');
+    assert.strictEqual(r.anexados, 2);
+    assert.deepStrictEqual(recebido.anexos[0], { chave: 'GOV-12', nomes: ['EVD.html', 'EVD-passo-1-Depois.png'] });
+    const c = textos(recebido.comentarios[0].corpo.body).join('\n');
+    for (const t of ['Evidência de teste EVD-20260929-001 (Audi Print)', 'Reprovado', '3', 'Homologação', 'GOV-E7', 'EVD.html'])
+      assert.ok(c.includes(t), 'comentario sem: ' + t);
+    assert.deepStrictEqual(recebido.zephyr[0], { execucao: 'GOV-E7', corpo: { issueId: 10012 } });
+    assert.ok(r.comentado && r.zephyr === 'GOV-E7');
+  });
+
+  await caso('CRITERIO: demanda que nao existe para antes de anexar qualquer coisa', async () => {
+    zerar();
+    await assert.rejects(() => jira.anexarNaDemanda({ demanda: 'GOV-404', ficha: FICHA, anexos: [ANEXO] }),
+      e => e.status === 404 && /GOV-404 não existe/.test(e.message));
+    assert.strictEqual(recebido.anexos.length, 0);
+  });
+
+  await caso('chave que nao e de issue e sem arquivo sao recusados antes de chamar', async () => {
+    zerar();
+    await assert.rejects(() => jira.anexarNaDemanda({ demanda: 'historia do login', anexos: [ANEXO] }), e => e.status === 400);
+    await assert.rejects(() => jira.anexarNaDemanda({ demanda: 'GOV-12', anexos: [] }), e => e.status === 400);
+    assert.strictEqual(recebido.anexos.length + recebido.comentarios.length, 0);
+  });
+
+  await caso('comentario recusado vira aviso: os anexos ja subiram', async () => {
+    zerar();
+    falhaComentario = true;
+    try {
+      const r = await jira.anexarNaDemanda({ demanda: 'GOV-12', ficha: FICHA, anexos: [ANEXO] });
+      assert.strictEqual(r.anexados, 1);
+      assert.strictEqual(r.comentado, false);
+      assert.ok(r.avisos.some(a => /comentário não/.test(a)), JSON.stringify(r.avisos));
+    } finally { falhaComentario = false; }
+  });
+
   await pelaTela();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (16 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (23 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -268,6 +327,24 @@ async function pelaTela() {
       assert.ok(!r.t.includes('token'), 'vazou o token');
     });
 
+    await caso('CRITERIO: publicar no Zephyr com demanda ja liga a execucao a historia', async () => {
+      zerar();
+      const r = await pg.evaluate(async () => (await fetch('/api/zephyr/publicar', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caso: 'GOV-T1', resultado: 'Aprovado', demanda: 'GOV-12', passos: [{ titulo: 'a' }] }) })).json());
+      assert.strictEqual(r.execucao, 'GOV-E8', JSON.stringify(r));
+      assert.strictEqual(r.demanda, 'GOV-12', JSON.stringify(r));
+      assert.deepStrictEqual(recebido.zephyr[0], { execucao: 'GOV-E8', corpo: { issueId: 10012 } });
+    });
+
+    await caso('...e demanda inexistente nao derruba a publicacao', async () => {
+      const r = await pg.evaluate(async () => (await fetch('/api/zephyr/publicar', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caso: 'GOV-T1', resultado: 'Aprovado', demanda: 'GOV-404' }) })).json());
+      assert.strictEqual(r.execucao, 'GOV-E8');
+      assert.ok(/GOV-404/.test(r.avisoDemanda || ''), JSON.stringify(r));
+    });
+
     await caso('CRITERIO: pela tela, o bug nasce com a ficha, os passos e os prints anexados', async () => {
       zerar();
       await pg.goto(COFRE + '/index.html', { waitUntil: 'networkidle0' });
@@ -325,6 +402,22 @@ async function pelaTela() {
       assert.deepStrictEqual(recebido.links[0].outwardIssue, { key: 'GOV-12' });
     });
 
+    await caso('CRITERIO: pela tela, a evidencia vai inteira para a demanda', async () => {
+      zerar();
+      await pg.click('[data-acao="anexarDemandaJira"]');
+      await pg.waitForFunction(() => document.getElementById('fundoConfirma').classList.contains('aberto')
+        && /Anexar na demanda/.test(document.getElementById('tituloConfirma').textContent));
+      assert.strictEqual(await pg.$eval('#subtituloConfirma', el => el.textContent), 'GOV-12');
+      await pg.click('#btnSim');
+      await pg.waitForFunction(() => /Evidência anexada na demanda/.test(document.getElementById('tituloConfirma').textContent), { timeout: 20000 });
+      assert.ok(/GOV-12 · História do login/.test(await pg.$eval('#subtituloConfirma', el => el.textContent)));
+      await pg.click('#btnNao');
+      const nomes = recebido.anexos[0].nomes;
+      assert.strictEqual(recebido.anexos[0].chave, 'GOV-12');
+      assert.ok(nomes.some(n => /\.html$/.test(n)) && nomes.filter(n => /-passo-\d+-/.test(n)).length >= 6, 'anexos: ' + nomes);
+      assert.strictEqual(recebido.comentarios.length, 1);
+    });
+
     await caso('a evidencia lembra o bug aberto', async () => {
       const jiraSalvo = await pg.evaluate(() => new Promise(ok => {
         const req = indexedDB.open('auditeste_evidencias');
@@ -339,7 +432,7 @@ async function pelaTela() {
     await caso('rota: o bug fica na auditoria da equipe, e nenhum erro de script', async () => {
       const r = await pg.evaluate(async () => (await fetch('/api/auditoria')).json());
       const eventos = (r.eventos || []).map(e => e.acao);
-      assert.ok(eventos.includes('jira.bug'), 'nao auditou: ' + eventos.join(','));
+      assert.ok(eventos.includes('jira.bug') && eventos.includes('jira.demanda'), 'nao auditou: ' + eventos.join(','));
       assert.deepStrictEqual(erros, []);
     });
   } catch (e) {

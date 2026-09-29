@@ -675,8 +675,20 @@ async function tratar(req, res, u, lerCorpo) {
         ciclo: c.ciclo,
         passos: c.passos
       });
+      /* Com o Jira configurado e uma demanda na ficha (GOV-12), a execucao ja
+       * nasce ligada a historia. Falhar aqui nao desfaz a publicacao: vira aviso. */
+      const demanda = String(c.demanda || '').trim().toUpperCase();
+      if (r.execucao && demanda && jira.configurado()) {
+        try {
+          const alvo = await jira.issue(demanda);
+          await zephyr.vincularIssue(r.execucao, alvo.id);
+          r.demanda = alvo.chave;
+        } catch (e) {
+          r.avisoDemanda = 'A execução não foi ligada à demanda ' + demanda + ': ' + e.message;
+        }
+      }
       banco.auditar(s.tenantId, s.usuarioId, 'zephyr.publicado',
-        String(c.caso) + ' -> execucao ' + r.execucao, s.ip);
+        String(c.caso) + ' -> execucao ' + r.execucao + (r.demanda ? ' (demanda ' + r.demanda + ')' : ''), s.ip);
       json(res, 200, r);
       return true;
     }
@@ -704,6 +716,26 @@ async function tratar(req, res, u, lerCorpo) {
         anexos: c.anexos
       });
       banco.auditar(s.tenantId, s.usuarioId, 'jira.bug',
+        r.chave + ' (' + r.anexados + ' anexo(s))' + (c.ficha && c.ficha.registro ? ' de ' + String(c.ficha.registro) : ''), s.ip);
+      json(res, 200, r);
+      return true;
+    }
+
+    /* A evidencia inteira (HTML e prints) na historia da demanda, com um
+     * comentario dizendo de que teste ela e. */
+    if (p === '/api/jira/demanda' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'consultor');
+      const c = await lerCorpo(req);
+      const r = await jira.anexarNaDemanda({
+        demanda: c.demanda,
+        ficha: c.ficha,
+        passos: c.passos,
+        resultado: c.resultado,
+        execucaoZephyr: c.execucaoZephyr,
+        anexos: c.anexos
+      });
+      banco.auditar(s.tenantId, s.usuarioId, 'jira.demanda',
         r.chave + ' (' + r.anexados + ' anexo(s))' + (c.ficha && c.ficha.registro ? ' de ' + String(c.ficha.registro) : ''), s.ip);
       json(res, 200, r);
       return true;
