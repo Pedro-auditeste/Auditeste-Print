@@ -963,6 +963,36 @@ async function principal() {
     const r = await (await fetch(BASE + '/ping')).json();
     assert.strictEqual(r.cofre, true);
   });
+
+  console.log('\ncofre · volume na Railway\n');
+
+  /* Cada deploy apagava as contas: COFRE_BANCO em /dados sem volume montado
+   * e o /ping dizendo que estava tudo certo. */
+  const naRailway = (env) => {
+    const { execFileSync } = require('child_process');
+    const codigo = "const b=require('./cofre/banco.js');b.abrir();console.log(JSON.stringify({efemero:b.efemero(),onde:b.onde().replace(/\\\\/g,'/')}))";
+    return JSON.parse(execFileSync(process.execPath, ['-e', codigo],
+      { cwd: __dirname, encoding: 'utf8', env: Object.assign({}, process.env, { RAILWAY_PROJECT_ID: 'p' }, env) }));
+  };
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vol-')).replace(/\\/g, '/');
+
+  await caso('CRITERIO: na Railway sem volume, o /ping admite disco efemero', () => {
+    const r = naRailway({ COFRE_BANCO: tmp + '/dados/cofre.db', RAILWAY_VOLUME_MOUNT_PATH: '' });
+    assert.strictEqual(r.efemero, true, 'sem volume ligado e o cofre diz que esta seguro');
+  });
+
+  await caso('CRITERIO: COFRE_BANCO fora do volume vai para dentro dele', () => {
+    const r = naRailway({ COFRE_BANCO: tmp + '/fora/cofre.db', RAILWAY_VOLUME_MOUNT_PATH: tmp + '/vol' });
+    assert.strictEqual(r.onde, tmp + '/vol/cofre.db');
+    assert.strictEqual(r.efemero, false);
+  });
+
+  await caso('volume em qualquer pasta vale, mesmo sem COFRE_BANCO', () => {
+    fs.mkdirSync(tmp + '/app-data', { recursive: true });
+    const r = naRailway({ COFRE_BANCO: '', RAILWAY_VOLUME_MOUNT_PATH: tmp + '/app-data/' });
+    assert.strictEqual(r.onde, tmp + '/app-data/cofre.db');
+    assert.strictEqual(r.efemero, false);
+  });
 }
 
 principal()

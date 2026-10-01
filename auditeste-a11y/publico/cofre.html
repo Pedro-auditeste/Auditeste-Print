@@ -1304,8 +1304,8 @@
         const ping = await (await fetch('/ping')).json();
         if(ping && ping.semVolume){
           caixaAviso().innerHTML = '<div class="aviso ruim">Este servidor ainda não tem volume. '
-            + 'O cofre funciona, mas <b>o próximo deploy apaga tudo que for guardado</b>. '
-            + 'Monte um volume em <b>/dados</b> antes de usar com cliente de verdade.</div>';
+            + 'O cofre funciona, mas <b>o próximo deploy apaga as contas e tudo que for guardado</b>. '
+            + 'Ligue um volume ao serviço na Railway antes de usar com cliente de verdade.</div>';
         }
       }catch(e){}
       const cfg = await api('/api/cadastro').catch(()=>({ aberto:true }));

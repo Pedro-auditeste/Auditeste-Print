@@ -177,6 +177,16 @@ let semVolume = false;
 const VOLUMES = ['/dados', '/data'];
 let ondeEstou = '';
 
+/* Na Railway, pasta com o nome certo nao prova volume: com COFRE_BANCO em
+ * /dados e nenhum volume montado, o mkdir de abrir() cria /dados no disco do
+ * container, o /ping dizia "com volume" e cada deploy apagava as contas.
+ * Quem sabe a verdade e a propria Railway: ela so poe
+ * RAILWAY_VOLUME_MOUNT_PATH quando ha volume ligado ao servico. */
+const NA_RAILWAY = !!process.env.RAILWAY_PROJECT_ID;
+const MONTADO = (process.env.RAILWAY_VOLUME_MOUNT_PATH || '').replace(/\/+$/, '');
+if (MONTADO) VOLUMES.unshift(MONTADO);
+const dentroDe = (arquivo, pasta) => path.resolve(arquivo).replace(/\\/g, '/').startsWith(pasta + '/');
+
 function caminhoPadrao() {
   for (const v of VOLUMES) {
     try {
@@ -210,13 +220,20 @@ function abrir(caminho) {
     motivoDesligado = 'este Node não tem node:sqlite (precisa de 22 ou mais novo)';
     return null;
   }
-  const arquivo = caminho || process.env.COFRE_BANCO || caminhoPadrao();
+  let arquivo = caminho || process.env.COFRE_BANCO || caminhoPadrao();
+  /* COFRE_BANCO fora do volume que existe: o arquivo ali some no proximo
+   * deploy de qualquer jeito, entao vai para dentro do volume. */
+  if (!caminho && MONTADO && arquivo !== ':memory:' && !dentroDe(arquivo, MONTADO)) {
+    console.warn('cofre: COFRE_BANCO (' + arquivo + ') fora do volume ' + MONTADO + '; usando o volume.');
+    arquivo = path.posix.join(MONTADO, path.basename(arquivo));
+  }
   if (caminho || process.env.COFRE_BANCO) {
     ondeEstou = arquivo;
     // Caminho dado a mao: so e volume se apontar para um dos pontos de
     // montagem conhecidos. Fora deles, tratamos como efemero e avisamos.
-    semVolume = !VOLUMES.some(v => path.resolve(arquivo).replace(/\\/g, '/').startsWith(v + '/'));
+    semVolume = !VOLUMES.some(v => dentroDe(arquivo, v));
   }
+  if (NA_RAILWAY && !caminho) semVolume = !(MONTADO && dentroDe(arquivo, MONTADO));
   try {
     if (arquivo !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(arquivo)), { recursive: true });
     db = new DatabaseSync(arquivo);

@@ -603,11 +603,11 @@ servidor.listen(PORTA, HOST, async () => {
   const st = statusMotores();
   console.log(`ponte ouvindo em http://${HOST}:${PORTA}`);
   if (envs.length) console.log('env: ' + envs.join(', '));
-  console.log(`cofre: ${cofreLigado ? 'ligado (' + (process.env.COFRE_BANCO || '') + ')' : 'desligado — ' + bancoCofre.porque()}`
+  console.log(`cofre: ${cofreLigado ? 'ligado (' + bancoCofre.onde() + ')' : 'desligado — ' + bancoCofre.porque()}`
     + ` · portao do Print: ${PORTAO_DE_PE ? 'exige login' : 'aberto'}`);
   if (cofreLigado && bancoCofre.efemero()) {
-    console.warn('ATENCAO: o cofre esta em disco efemero. Monte um volume em /dados,');
-    console.warn('senao o proximo deploy apaga a evidencia guardada.');
+    console.warn('ATENCAO: o cofre esta em disco efemero. Ligue um volume ao servico na Railway,');
+    console.warn('senao o proximo deploy apaga as contas e a evidencia guardada.');
   }
   console.log(`token: ${TOKEN ? 'exigido' : 'não'} · máx ${MAX} simultâneos`
     + ` · allowlist: ${DOMINIOS.length ? DOMINIOS.join(', ') : 'nenhuma'}`
