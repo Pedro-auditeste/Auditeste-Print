@@ -413,6 +413,11 @@ async function pelaTela() {
       await pg.waitForFunction(() => document.getElementById('fundoConfirma').classList.contains('aberto')
         && /Anexar na demanda/.test(document.getElementById('tituloConfirma').textContent));
       assert.strictEqual(await pg.$eval('#subtituloConfirma', el => el.textContent), 'GOV-12');
+      /* A janela conta os prints que a evidencia tem de verdade: gravacao
+       * sem print dizia "os prints" e so o HTML chegava na historia. */
+      const aviso = await pg.$eval('#textoConfirma', el => el.textContent);
+      const temPrints = await pg.$$eval('#conteudoRegistro .passo img', els => els.length);
+      assert.ok(temPrints ? /\d+ print\(s\)/.test(aviso) : /não tem prints/.test(aviso), 'janela: ' + aviso);
       await pg.click('#btnSim');
       await pg.waitForFunction(() => /Evidência anexada na demanda/.test(document.getElementById('tituloConfirma').textContent), { timeout: 20000 });
       assert.ok(/GOV-12 · História do login/.test(await pg.$eval('#subtituloConfirma', el => el.textContent)));

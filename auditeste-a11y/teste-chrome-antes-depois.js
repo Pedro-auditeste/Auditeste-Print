@@ -184,7 +184,10 @@ async function esperar(pagina, fn, ms, passo = 400) {
     console.log(JSON.stringify(resumo, null, 2));
     await pagina.screenshot({ path: path.join(SAIDA, 'demo-antes-depois.png'), fullPage: true });
 
-    const segundo = resumo[1] || {};
+    /* O gravador nao tira mais um print sozinho ao iniciar: o passo da troca
+     * de cena e o primeiro que nasce com o par Antes e Depois, seja qual for
+     * a posicao dele na lista. */
+    const segundo = resumo.find(p => (p.imagens || 0) >= 2) || resumo[1] || {};
     const okImagens = (segundo.imagens || 0) >= 2;
     const okTexto = /descrevendo|ia não|clic|pesquis|ponto|playstation|abriu|ação/i.test(
       (segundo.titulo || '') + ' ' + (segundo.obs || '')

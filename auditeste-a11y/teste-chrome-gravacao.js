@@ -68,13 +68,15 @@ async function esperar(pagina, fn, ms, passo = 400) {
   const pagina = await navegador.newPage();
   pagina.setDefaultTimeout(45000);
 
-  await pagina.evaluateOnNewDocument(() => {
+  await pagina.evaluateOnNewDocument((usarTelaReal) => {
     const orig = navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia
       ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
       : null;
     navigator.mediaDevices.getDisplayMedia = async (opts) => {
+      /* A tela de verdade so entra com TELA_REAL=1: parada, ela nao muda e
+       * nenhuma captura automatica dispara. O padrao e a tela simulada. */
       try {
-        if (orig) return await orig(opts);
+        if (orig && usarTelaReal) return await orig(opts);
       } catch (e) { /* cai no canvas */ }
       const c = document.createElement('canvas');
       c.width = 1280;
@@ -89,23 +91,26 @@ async function esperar(pagina, fn, ms, passo = 400) {
         ['Dashboard', 'Maria Santos logada']
       ];
       const draw = () => {
-        const cena = cenas[Math.floor(n / 40) % cenas.length];
-        ctx.fillStyle = n % 80 < 40 ? '#0d3446' : '#16603f';
+        const cena = cenas[Math.floor(n / 180) % cenas.length];
+        /* Cores bem diferentes e cena parada por uns 3 s: a captura por
+         * alteracao exige mudanca de pelo menos 8% da tela, e os dois verdes
+         * de antes ficavam exatamente no limite de "pixel igual". */
+        ctx.fillStyle = ['#0d3446', '#f4f6f8', '#b8442f', '#16603f', '#3b2f6b'][Math.floor(n / 180) % 5];
         ctx.fillRect(0, 0, c.width, c.height);
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = Math.floor(n / 180) % 5 === 1 ? '#111' : '#fff';
         ctx.font = 'bold 42px Segoe UI, sans-serif';
         ctx.fillText(cena[0], 80, 220);
         ctx.font = '32px Segoe UI, sans-serif';
         ctx.fillText(cena[1], 80, 290);
         ctx.font = '20px Consolas, monospace';
-        ctx.fillText('frame ' + n + ' · https://app.exemplo.com', 80, 360);
+        ctx.fillText('https://app.exemplo.com', 80, 360);
         n++;
         requestAnimationFrame(draw);
       };
       draw();
       return c.captureStream(8);
     };
-  });
+  }, process.env.TELA_REAL === '1');
 
   try {
     // Sem isto o Print hospedado nao manda o token e a ponte devolve 401.

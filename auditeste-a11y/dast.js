@@ -1,7 +1,7 @@
 /* Varredura dinâmica (DAST): ataca o sistema em execução.
  *
  *   node dast.js                                  sobe um alvo local e roda tudo
- *   node dast.js https://audiprint.up.railway.app  só o que não escreve nada
+ *   node dast.js https://audi-print-production.up.railway.app  só o que não escreve nada
  *
  * Por que existe, sendo que já tem teste-cofre.js: aquele pergunta "o
  * caminho certo funciona?". Este pergunta "o caminho errado é recusado?", e

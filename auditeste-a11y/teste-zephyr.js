@@ -38,6 +38,7 @@ let recusaResultadoPorPasso = false;
 /* Caso criado pela tela: o que chegou, e um roteiro que pode ser recusado. */
 const casosCriados = [];
 let recusaRoteiro = false;
+let execucaoSemChave = false;
 
 const servidor = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
@@ -96,7 +97,12 @@ const servidor = http.createServer((req, res) => {
       if (recusaResultadoPorPasso && /testScriptResults/.test(corpo)) {
         return responder(400, { message: 'testScriptResults: invalid' });
       }
-      return responder(201, { id: 9001, key: 'GOV-E7' });
+      /* Igual ao Zephyr de verdade: o POST devolve so o id numerico. */
+      return responder(201, { id: 9001, self: 'https://zephyr/testexecutions/9001' });
+    }
+    if (caminho === '/testexecutions/9001' && req.method === 'GET') {
+      if (execucaoSemChave) return responder(404, { message: 'nao achei' });
+      return responder(200, { id: 9001, key: 'GOV-E7' });
     }
     responder(404, { message: 'rota de mentira desconhecida: ' + caminho });
   });
@@ -317,6 +323,19 @@ const servidor = http.createServer((req, res) => {
     assert.strictEqual(d.expectedResult, 'Mostra "salvo"');
   });
 
+  await caso('CRITERIO: a execucao volta com a chave (GOV-E7), nao com o id numerico', async () => {
+    const r = await zephyr.publicar({ caso: 'GOV-T1', resultado: 'Aprovado', ciclo: 'GOV-R1' });
+    assert.strictEqual(r.execucao, 'GOV-E7');
+  });
+
+  await caso('sem conseguir a chave, o id ainda serve', async () => {
+    execucaoSemChave = true;
+    try {
+      const r = await zephyr.publicar({ caso: 'GOV-T1', resultado: 'Aprovado', ciclo: 'GOV-R1' });
+      assert.strictEqual(r.execucao, '9001');
+    } finally { execucaoSemChave = false; }
+  });
+
   await caso('caso sem nome e recusado antes de chamar', async () => {
     casosCriados.length = 0;
     await assert.rejects(() => zephyr.criarCaso({ nome: '  ', passos: [{}] }), e => e.status === 400);
@@ -357,7 +376,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (35 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (37 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 

@@ -37,6 +37,12 @@ assert.ok(mapeamento.includes('Ação: Preencher'));
 assert.ok(mapeamento.includes('Step: Quando eu preencho'));
 assert.ok(!cenarios.includes('===MAPEAMENTO==='));
 
+/* Marca em negrito, como o modelo de producao devolve: nao pode sobrar "**"
+ * no comeco nem no fim do Gherkin e do mapeamento. */
+const emNegrito = extrairBlocos(amostra.replace('===GHERKIN===', '**===GHERKIN===**').replace('===MAPEAMENTO===', '**===MAPEAMENTO===**') + String.fromCharCode(10) + '**');
+assert.ok(emNegrito.cenarios.startsWith('# language: pt'), 'Gherkin comeca por: ' + emNegrito.cenarios.slice(0, 12));
+assert.ok(!/\*\*\s*$/.test(emNegrito.cenarios) && !/^\*\*/.test(emNegrito.mapeamento) && !/\*\*\s*$/.test(emNegrito.mapeamento), 'sobrou ** na moldura');
+
 const desc = parseDescricaoTela('Título: Clicou em "Entrar" no centro do formulário\nObservação: Estava na tela de login da loja. Clicou no botão Entrar no centro. Entrou na home logada com o menu no topo.');
 assert.ok(desc.titulo.includes('Entrar'));
 assert.ok(/login|loja/i.test(desc.obs));

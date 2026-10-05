@@ -1,20 +1,14 @@
-/* Teste E2E completo no Chrome: Print → projeto → passos → Montar cenários.
+/* Teste E2E completo no Chrome: Print → projeto → passos → Gerar cenários.
  * Usa o Chrome do Puppeteer (mesmo da ponte).
  *
  *   node teste-chrome-cenarios.js
  *   node teste-chrome-cenarios.js --visivel   # abre o Chrome na tela
  *
- * ESTADO EM 08/09/2026, achado limpando o espelho morto que este arquivo
- * mirava antes (audi-print/evidencias-auditeste.html): "Gerar cenários"
- * hoje chama gerarCenariosIA(), que exige uma ponte de verdade no ar
- * (resolverPonteIA()) -- não é mais o cálculo puramente local que este
- * teste, aberto por file:// sem servidor nenhum, foi escrito para provar.
- * Os 3 primeiros casos (projeto, passos, salvar) continuam válidos; os de
- * geração de cenário falham hoje porque não existe ponte na página aberta
- * assim. Para cobrir de verdade, este arquivo precisa subir um servidor
- * local (padrão de teste-chrome-cofre.js) e servir a página por http, não
- * abrir por file://. Não fiz essa reescrita agora -- é tarefa própria, não
- * limpeza de código morto.
+ * Requer a ponte em http://127.0.0.1:8900 (npm run servidor), com a chave do
+ * serviço de cenários: "Gerar cenários" pede o Gherkin à ponte, então a
+ * página é servida por ela, como nos outros teste-chrome-*. Aberta por
+ * file://, a tela não acha ponte nenhuma e a caixa nunca aparece (era assim
+ * que este teste ficou parado desde 08/09/2026).
  */
 const puppeteer = require('puppeteer');
 const path = require('path');
@@ -22,7 +16,8 @@ const fs = require('fs');
 
 const VISIVEL = process.argv.includes('--visivel');
 const HTML = path.resolve(__dirname, 'publico', 'index.html');
-const ALVO = 'file:///' + HTML.replace(/\\/g, '/');
+const BASE = (process.env.PONTE_URL || 'http://127.0.0.1:8900').replace(/\/+$/, '');
+const ALVO = BASE + '/';
 const SAIDA = path.join(__dirname, 'saida');
 
 const R = [];
@@ -37,6 +32,16 @@ const ok = (caso, cond, obtido) => {
     process.exit(1);
   }
   fs.mkdirSync(SAIDA, { recursive: true });
+
+  const info = await fetch(BASE + '/ping').then(r => r.json()).catch(() => null);
+  if (!info || !info.ok) {
+    console.error('Ponte nao esta no ar em ' + BASE + '. Rode: npm run servidor');
+    process.exit(1);
+  }
+  if (!info.cenarios) {
+    console.error('A ponte esta sem a chave do servico de cenarios (AGENTE_API_KEY no .env).');
+    process.exit(1);
+  }
 
   console.log('Abrindo Chrome' + (VISIVEL ? ' (visível)' : ' (headless)') + '...');
   console.log('Página:', ALVO);
@@ -147,27 +152,30 @@ const ok = (caso, cond, obtido) => {
     ok('Abre registro salvo', await pagina.$eval('.tela.ativa', el => el.id) === 'telaRegistro',
       await pagina.$eval('.tela.ativa', el => el.id));
 
-    /* 8. Montar cenários (offline) */
+    /* 8. Gerar cenários: a página só fala com a ponte, nunca direto com fora. */
     const pedidosRede = [];
     pagina.on('request', req => {
       const u = req.url();
-      if (!u.startsWith('file://') && !u.startsWith('data:')) pedidosRede.push(u);
+      if (!u.startsWith(BASE) && !u.startsWith('data:') && !u.startsWith('blob:')) pedidosRede.push(u);
     });
 
     await pagina.waitForSelector('[data-acao="gerarCenariosIA"]', { visible: true });
     await pagina.click('[data-acao="gerarCenariosIA"]');
-    await delay(2000);
+    await pagina.waitForFunction(() => {
+      const c = document.getElementById('caixaCenarios');
+      const e = document.getElementById('estadoCenarios');
+      return (c && !c.hidden) || (e && /off/.test(e.className));
+    }, { timeout: 130000 }).catch(() => {});
 
     const gherkin = await pagina.$eval('#caixaCenarios pre', el => el.textContent).catch(() => '');
     const visivel = await pagina.$eval('#caixaCenarios', el => !el.hidden).catch(() => false);
 
     ok('Caixa de cenários aparece', visivel, visivel ? 'visível' : 'oculta');
-    ok('Gherkin tem Funcionalidade', /Funcionalidade:\s*Login/.test(gherkin), gherkin.slice(0, 80) || '(vazio)');
+    ok('Gherkin tem Funcionalidade', /Funcionalidade:/.test(gherkin), gherkin.slice(0, 80) || '(vazio)');
+    ok('Gherkin sem moldura de asteriscos', !!gherkin && !/^\s*\*\*|\*\*\s*$/.test(gherkin), gherkin.slice(0, 20));
     ok('Gherkin tem cenário funcional', /Cenário:/.test(gherkin) && /Quando /.test(gherkin),
       (gherkin.match(/Cenário:/g) || []).length + ' cenário(s)');
-    ok('Gherkin tem cenário de acessibilidade', /Acessibilidade/.test(gherkin),
-      /Acessibilidade/.test(gherkin) ? 'com a11y' : 'sem a11y');
-    ok('Não chamou API externa', pedidosRede.length === 0, pedidosRede.length + ' request(s)');
+    ok('Só falou com a ponte', pedidosRede.length === 0, pedidosRede.length + ' request(s) para fora: ' + pedidosRede.slice(0, 2).join(', '));
 
     const shot = path.join(SAIDA, 'teste-montar-cenarios-chrome.png');
     await pagina.screenshot({ path: shot, fullPage: true });

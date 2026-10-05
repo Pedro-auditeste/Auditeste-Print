@@ -76,7 +76,7 @@ Sem rede: `teste-texto`, `teste-cenarios`, `teste-agendamento`, `teste-marca`,
 `teste-inspecao`. Os três últimos abrem um Chrome headless mas não usam a NVIDIA.
 
 Contra a ponte local não precisa de token (o servidor libera loopback). Contra a
-hospedada, passe as duas: `PONTE_URL=https://audiprint.up.railway.app/
+hospedada, passe as duas: `PONTE_URL=https://audi-print-production.up.railway.app/
 PONTE_TOKEN=... node teste-pares-ui.js`. Os testes de Chrome semeiam o
 `localStorage.ponte_token` antes do `goto` — sem isso a página sobe mas a ponte
 devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).

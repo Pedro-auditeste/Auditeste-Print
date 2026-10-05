@@ -31,13 +31,13 @@ cd auditeste-a11y && node dast.js
 A mesma varredura contra o ambiente que está no ar, só com as sondas que não gravam nada:
 
 ```bash
-cd auditeste-a11y && node dast.js https://audiprint.up.railway.app
+cd auditeste-a11y && node dast.js https://audi-print-production.up.railway.app
 ```
 
 Estado de produção, sem autenticação, em qualquer terminal:
 
 ```bash
-curl -s https://audiprint.up.railway.app/ping
+curl -s https://audi-print-production.up.railway.app/ping
 ```
 
 ---
@@ -63,7 +63,7 @@ curl -s https://audiprint.up.railway.app/ping
 | Auditoria não vaza | `teste-cofre.js` | Um cliente não vê evento de outro |
 | Auditoria não guarda segredo | `teste-cofre.js` | Lê a tabela e falha se encontrar cookie ou conteúdo sensível |
 | Segredos fora do git | CI, tarefa `segredos` | Busca padrões de chave em toda a história a cada envio |
-| HTTPS | `curl -I http://audiprint.up.railway.app` | Responde 301 para HTTPS. Cabeçalho HSTS presente |
+| HTTPS | `curl -I http://audi-print-production.up.railway.app` | Responde 301 para HTTPS. Cabeçalho HSTS presente |
 
 ---
 
@@ -154,7 +154,7 @@ Sete tentativas reais de fazer a descrição mentir, todas marcadas.
 **5. O estado real do serviço.**
 
 ```bash
-curl -s https://audiprint.up.railway.app/ping
+curl -s https://audi-print-production.up.railway.app/ping
 ```
 
 `cofre`, `cifra`, `portao`, `semVolume`, `exigeToken`: o sistema declarando a própria configuração.
@@ -163,8 +163,8 @@ curl -s https://audiprint.up.railway.app/ping
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" \
-  -H "Origin: https://audiprint.up.railway.app" \
-  "https://audiprint.up.railway.app/scan?tipo=axe&url=https://example.com"
+  -H "Origin: https://audi-print-production.up.railway.app" \
+  "https://audi-print-production.up.railway.app/scan?tipo=axe&url=https://example.com"
 ```
 
 Responde 401. Esta chamada já respondeu 200 e devolveu resultado: era o furo que originou todo este trabalho, e o comando existe aqui justamente para mostrar que fechou.

@@ -296,9 +296,19 @@ async function publicar({ caso, resultado, comentario, ciclo, passos }) {
     ondePassos = 'comentario';
     r = await chamar('POST', '/testexecutions', { json: corpo });
   }
+  /* O POST devolve só o id numérico (4169534944). A chave (GOV-E7) é o que a
+   * pessoa reconhece na tela e no comentário do Jira, então busca. Sem ela, o
+   * id continua servindo para ligar a execução à demanda. */
+  let execucao = (r && (r.key || r.id)) ? String(r.key || r.id) : '';
+  if (r && !r.key && r.id) {
+    try {
+      const e = await chamar('GET', '/testexecutions/' + encodeURIComponent(r.id));
+      if (e && e.key) execucao = String(e.key);
+    } catch (e) { /* fica o id */ }
+  }
   return {
     ok: true,
-    execucao: (r && (r.key || r.id)) ? String(r.key || r.id) : '',
+    execucao,
     caso: chave,
     ciclo: alvo || null,
     status: corpo.statusName,

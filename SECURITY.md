@@ -26,7 +26,7 @@ Prazo de correção depende da gravidade: crítica no mesmo dia, alta em até 7 
 
 ## Escopo
 
-Vale a aplicação em produção (`https://audiprint.up.railway.app`) e o código deste repositório: autenticação, isolamento entre clientes, o cofre de evidências, o scanner de acessibilidade, o SSO e a extensão do Chrome.
+Vale a aplicação em produção (`https://audi-print-production.up.railway.app`) e o código deste repositório: autenticação, isolamento entre clientes, o cofre de evidências, o scanner de acessibilidade, o SSO e a extensão do Chrome.
 
 Fora do escopo: a infraestrutura de terceiros (Railway, provedor de identidade, NVIDIA), negação de serviço, e engenharia social. Para um teste de segurança contratado, o escopo completo está em [`specs/seguranca-pentest-escopo.md`](specs/seguranca-pentest-escopo.md).
 

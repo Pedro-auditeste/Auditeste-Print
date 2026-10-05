@@ -4458,6 +4458,11 @@
   /* O HTML da evidencia sempre vai. Os prints vao do ultimo passo para o
    * primeiro (o fim da gravacao costuma ser onde a falha aparece) ate o
    * orcamento; o que nao couber continua dentro do HTML. */
+  const printsDaEvidencia = r => (r.passos || []).reduce((n, p) => n + (p.imagens || []).filter(im => im.blob).length, 0);
+  /* Dito antes de enviar: gravacao feita sem print leva so o HTML. */
+  const oQueSobe = r => { const n = printsDaEvidencia(r); return n ? 'o HTML da evidência e <b>' + n + ' print(s)</b>'
+    : 'o HTML da evidência (<b>esta gravação não tem prints</b>)'; };
+
   async function anexosDaEvidencia(r){
     const f = r.ficha || {};
     const base = (f.registro || 'evidencia').replace(/[^\w.-]/g, '_');
@@ -4491,7 +4496,7 @@
     const passos = r.passos || [];
     const chaveOk = v => /^[A-Z][A-Z0-9_]*-\d+$/.test(v);
     const ligarZephyr = !!(r.zephyr && r.zephyr.execucao && !r.zephyr.demanda);
-    const oQueVai = 'Vai anexar o HTML da evidência e os prints dos <b>' + passos.length + ' passo(s)</b>'
+    const oQueVai = 'Vai anexar ' + oQueSobe(r) + ' dos <b>' + passos.length + ' passo(s)</b>'
       + ' na história, com um comentário dizendo de que teste eles são.'
       + (ligarZephyr ? '<br>A execução <b>' + r.zephyr.execucao + '</b> do Zephyr fica ligada a ela.' : '');
 
@@ -4565,7 +4570,7 @@
     const dados = await perguntar({
       titulo: 'Abrir bug no Jira',
       subtitulo: f.registro || 'Evidência',
-      texto: 'O bug leva os <b>' + passos.length + ' passo(s) gravados</b>, a ficha e o HTML da evidência com os prints anexados.'
+      texto: 'O bug leva os <b>' + passos.length + ' passo(s) gravados</b> e a ficha, com ' + oQueSobe(r) + ' em anexo.'
         + (vinculos.length ? '<br>Fica ligado ' + vinculos.join(' e ') + '.' : ''),
       campos: [
         { nome: 'titulo', rotulo: 'Título do bug', valor: (f.modulo ? f.modulo + ': ' : '') + ultimo },

@@ -1,6 +1,6 @@
 /* Prova que /descrever responde de verdade, com print real e token.
  *
- *   PONTE_URL=https://audiprint.up.railway.app PONTE_TOKEN=... node teste-descrever-ponta-a-ponta.js
+ *   PONTE_URL=https://audi-print-production.up.railway.app PONTE_TOKEN=... node teste-descrever-ponta-a-ponta.js
  *
  * Gasta uma chamada da NVIDIA. Nao roda junto com os testes sem rede.
  */

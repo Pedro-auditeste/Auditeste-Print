@@ -14,8 +14,8 @@ aceite dos termos, e nada disso pode ser feito no seu lugar.
 
 ## O pacote
 
-Baixe o .zip pronto em https://audiprint.up.railway.app/extensao.zip
-Ele já tem o `manifest.json` na raiz, os ícones e a versão 2.1.0. É o arquivo que
+Baixe o .zip pronto em https://audi-print-production.up.railway.app/extensao.zip
+Ele já tem o `manifest.json` na raiz, os ícones e a versão atual do complemento (a mesma do `manifest.json` do repositório). É o arquivo que
 você envia em **Novo item → Escolher arquivo**.
 
 ## Ficha da loja
@@ -66,17 +66,17 @@ extensão não tem servidor e não envia nada por conta própria.
 
 **URL da política de privacidade**
 ```
-https://audiprint.up.railway.app/privacidade.html
+https://audi-print-production.up.railway.app/privacidade.html
 ```
 
 **Site oficial**
 ```
-https://audiprint.up.railway.app
+https://audi-print-production.up.railway.app
 ```
 
 **URL de suporte** (não use o mesmo da página inicial, e não cole duas vezes)
 ```
-https://audiprint.up.railway.app/inicio.html
+https://audi-print-production.up.railway.app/inicio.html
 ```
 
 ## Imagens

@@ -218,6 +218,12 @@ function extrairBlocos(texto) {
   mapeamento = mapeamento.replace(/=\s*=\s*=\s*GHERKIN\s*=\s*=\s*=[\s\S]*?(?=Passo\s*:\s*\d+)/i, '').trim();
   cenarios = cenarios.replace(/=\s*=\s*=\s*(GHERKIN|MAPEAMENTO)\s*=\s*=\s*=/gi, '').trim();
   mapeamento = mapeamento.replace(/=\s*=\s*=\s*(GHERKIN|MAPEAMENTO)\s*=\s*=\s*=/gi, '').trim();
+  /* O modelo as vezes escreve a marca em negrito (**===GHERKIN===**): sobra
+   * uma linha so com "**" no comeco e no fim de cada bloco, e o Gherkin
+   * aparecia na tela comecando por asteriscos. */
+  const semMoldura = t => t.replace(/^(?:\s*\*{2,}\s*\n)+/, '').replace(/(?:\n\s*\*{2,}\s*)+$/, '').trim();
+  cenarios = semMoldura(cenarios);
+  mapeamento = semMoldura(mapeamento);
 
   if (!pareceGherkin(cenarios) || cenarios.length < 50) {
     throw new Error('Gherkin inválido na resposta do agente');

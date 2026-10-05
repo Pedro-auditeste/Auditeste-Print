@@ -98,7 +98,12 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     await aba.click('h1');            // sai do campo: e o blur que dispara o change
     await esperar(3000);
 
-    await aba.click('[name="cupom"]', { clickCount: 3 });
+    /* Ctrl+A e nao clique triplo: no Chrome 148 o clickCount: 3 do Puppeteer
+     * nao seleciona o campo, sobrava "PROMO1" e o passo saia como Preencher. */
+    await aba.focus('[name="cupom"]');
+    await aba.keyboard.down('Control');
+    await aba.keyboard.press('KeyA');
+    await aba.keyboard.up('Control');
     await aba.keyboard.press('Backspace');
     await aba.click('h1');
     await esperar(3000);
