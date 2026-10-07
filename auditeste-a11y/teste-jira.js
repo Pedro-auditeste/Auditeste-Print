@@ -231,6 +231,7 @@ function textos(no, saida = []) {
     const c = textos(recebido.comentarios[0].corpo.body).join('\n');
     for (const t of ['Evidência de teste EVD-20260929-001 (Audi Print)', 'Reprovado', '3', 'Homologação', 'GOV-E7', 'EVD.html'])
       assert.ok(c.includes(t), 'comentario sem: ' + t);
+    assert.ok(!/passo-1-Depois/.test(c), 'o comentario voltou a listar os prints: ' + c);
     assert.deepStrictEqual(recebido.zephyr[0], { execucao: 'GOV-E7', corpo: { issueId: 10012 } });
     assert.ok(r.comentado && r.zephyr === 'GOV-E7');
   });

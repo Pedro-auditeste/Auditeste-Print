@@ -282,8 +282,11 @@ function comentarioDaEvidencia({ ficha, passos, resultado, arquivos, execucaoZep
     paragrafo([negrito('Evidência de teste ' + (f.registro || '') + ' (Audi Print)')]),
     linhas(campos)
   ];
-  if (arquivos.length) {
-    conteudo.push(paragrafo([texto('Anexos: ' + arquivos.map(a => a.nome).join(', '))]));
+  /* So o HTML da evidencia e citado. Os prints ja aparecem na area de anexos
+   * da issue; a lista de nomes aqui era texto que nao abria nada. */
+  const documentos = arquivos.filter(a => !/^image/i.test(a.tipo || ''));
+  if (documentos.length) {
+    conteudo.push(paragrafo([texto('Anexo: ' + documentos.map(a => a.nome).join(', '))]));
   }
   return { type: 'doc', version: 1, content: conteudo };
 }
