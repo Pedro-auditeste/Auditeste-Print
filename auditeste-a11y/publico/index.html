@@ -1955,7 +1955,7 @@
      * esses dois: tudo mais é escapado, então nem mensagem de erro vinda de fora
      * consegue injetar marcação. Antes era textContent e o usuário lia as tags. */
     const alvoTexto = document.getElementById('textoConfirma');
-    if(/<(b|br)/i.test(o.texto || '')){
+    if(/<(b|br)\b/i.test(o.texto || '')){
       alvoTexto.innerHTML = esc(o.texto)
         .replace(/&lt;b&gt;/gi, '<b>').replace(/&lt;\/b&gt;/gi, '</b>')
         .replace(/&lt;br\s*\/?&gt;/gi, '<br>');

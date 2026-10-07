@@ -418,6 +418,10 @@ async function pelaTela() {
       const aviso = await pg.$eval('#textoConfirma', el => el.textContent);
       const temPrints = await pg.$$eval('#conteudoRegistro .passo img', els => els.length);
       assert.ok(temPrints ? /\d+ print\(s\)/.test(aviso) : /não tem prints/.test(aviso), 'janela: ' + aviso);
+      /* O negrito tem de virar negrito. Um caractere de controle no lugar do
+       * \b da expressao fazia toda janela mostrar "<b>" escrito, desde agosto. */
+      assert.ok(!/<\/?b>|<br/i.test(aviso), 'a janela mostra a marcacao como texto: ' + aviso);
+      assert.ok(await pg.$eval('#textoConfirma', el => !!el.querySelector('b')), 'o destaque em negrito sumiu');
       await pg.click('#btnSim');
       await pg.waitForFunction(() => /Evidência anexada na demanda/.test(document.getElementById('tituloConfirma').textContent), { timeout: 20000 });
       assert.ok(/GOV-12 · História do login/.test(await pg.$eval('#subtituloConfirma', el => el.textContent)));
