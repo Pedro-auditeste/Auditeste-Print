@@ -376,7 +376,7 @@ const servidor = http.createServer((req, res) => {
   await naTela();
   await pelaRota();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (37 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (39 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -402,7 +402,9 @@ async function pelaRota() {
   const proc = spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
     env: Object.assign({}, process.env, {
       PORT: String(PORTA_COFRE), HOST: '127.0.0.1', COFRE_BANCO: arq,
-      COFRE_SEGREDO: 'segredo-zephyr', AGENTE_API_KEY: '', PONTE_TOKEN: ''
+      COFRE_SEGREDO: 'segredo-zephyr', AGENTE_API_KEY: '', PONTE_TOKEN: '',
+      /* Sem a chave de cifra o servidor recusa guardar token de equipe. */
+      COFRE_CHAVE: '5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a'
     }),
     stdio: 'ignore'
   });
@@ -432,6 +434,20 @@ async function pelaRota() {
     });
 
     await pedir('/api/entrar', { email: 'qa@exemplo.com', senha: 'senha-bem-longa-9' });
+
+    await caso('CRITERIO: equipe sem configuracao nao usa o Zephyr das variaveis do servidor', async () => {
+      const estado = await pedir('/api/zephyr');
+      assert.strictEqual(estado.corpo.configurado, false, 'conta nova ja nasce com o Zephyr de outro');
+      const r = await pedir('/api/zephyr/casos');
+      assert.strictEqual(r.status, 503, JSON.stringify(r.corpo));
+    });
+
+    await caso('a equipe configura o Zephyr dela pela rota', async () => {
+      const r = await pedir('/api/integracoes', { zephyr: { token: TOKEN, projeto: 'gov', ciclo: 'gov-r1' } });
+      assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
+      assert.deepStrictEqual(r.corpo.zephyr, { projeto: 'GOV', ciclo: 'GOV-R1', status: {}, temToken: true });
+      assert.strictEqual(r.corpo.origem, 'equipe');
+    });
 
     await caso('CRITERIO: a rota de estado nao devolve o token', async () => {
       const r = await pedir('/api/zephyr');

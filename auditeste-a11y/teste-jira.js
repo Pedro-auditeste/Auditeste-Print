@@ -56,6 +56,7 @@ const servidor = http.createServer((req, res) => {
       }
       if (u.pathname === '/v2/testcases' && req.method === 'GET') return responder(200, { values: [{ key: 'GOV-T1', name: 'Login com senha certa' }] });
       if (u.pathname === '/v2/testcycles' && req.method === 'GET') return responder(200, { values: [{ key: 'GOV-R1', name: 'Audi Print' }] });
+      if (u.pathname === '/v2/statuses' && req.method === 'GET') return responder(200, { values: [{ name: 'Pass' }, { name: 'Fail' }, { name: 'In Progress' }, { name: 'Blocked' }] });
       if (u.pathname === '/v2/testcases' && req.method === 'POST') { recebido.casos.push(JSON.parse(bruto.toString())); return responder(201, { id: 777, key: 'GOV-T20' }); }
       const roteiro = u.pathname.match(/^\/v2\/testcases\/([^/]+)\/teststeps$/);
       if (roteiro && req.method === 'POST') { recebido.roteiros.push({ caso: roteiro[1], corpo: JSON.parse(bruto.toString()) }); return responder(201, {}); }
@@ -67,6 +68,9 @@ const servidor = http.createServer((req, res) => {
     if (req.headers.authorization !== basic) return responder(401, { errorMessages: ['sem credencial'] });
     const cam = u.pathname.replace(/^\/jira/, '');
 
+    if (cam === '/rest/api/3/myself' && req.method === 'GET') {
+      return responder(200, { displayName: 'QA de Teste', emailAddress: EMAIL });
+    }
     if (cam === '/rest/api/3/project/GOV' && req.method === 'GET') {
       return responder(200, { key: 'GOV', issueTypes: [
         { id: '10001', name: 'Tarefa', subtask: false },
@@ -263,7 +267,7 @@ function textos(no, saida = []) {
 
   await pelaTela();
   servidor.close();
-  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (24 casos)\n');
+  console.log(falhas ? '\nRESULTADO: FALHOU (' + falhas + ')\n' : '\nRESULTADO: PASSOU (26 casos)\n');
   process.exit(falhas ? 1 : 0);
 })();
 
@@ -283,7 +287,9 @@ async function pelaTela() {
 
   const proc = spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
     env: Object.assign({}, process.env, { PORT: String(PORTA_COFRE), HOST: '127.0.0.1', COFRE_BANCO: arq,
-      COFRE_SEGREDO: 'segredo-jira', AGENTE_API_KEY: '', PONTE_TOKEN: '' }),
+      COFRE_SEGREDO: 'segredo-jira', AGENTE_API_KEY: '', PONTE_TOKEN: '',
+      /* Sem a chave de cifra o servidor recusa guardar token de equipe. */
+      COFRE_CHAVE: '5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a' }),
     stdio: 'ignore'
   });
   let nav;
@@ -325,6 +331,39 @@ async function pelaTela() {
     await pg.type('#senha', 'senha-bem-longa-9');
     await pg.click('#btnEntrar');
     await delay(1500);
+
+    await caso('CRITERIO: equipe sem configuracao nao usa o Jira das variaveis do servidor', async () => {
+      const r = await pg.evaluate(async () => ({ j: await (await fetch('/api/jira')).json(), z: await (await fetch('/api/zephyr')).json() }));
+      assert.deepStrictEqual(r, { j: { configurado: false }, z: { configurado: false } }, 'conta nova ja nasce com o Jira de outro');
+    });
+
+    await caso('CRITERIO: pela tela, o administrador configura o Jira e o Zephyr da equipe e testa a conexao', async () => {
+      await pg.waitForSelector('#btnIntegracoes', { visible: true });
+      await pg.click('#btnIntegracoes');
+      await pg.waitForSelector('#telaIntegracoes:not([hidden])');
+      assert.ok(/Nada configurado/.test(await pg.$eval('#intOrigem', el => el.textContent)));
+      await pg.type('#intJiraBase', FALSO + '/jira');
+      await pg.type('#intJiraEmail', EMAIL);
+      await pg.type('#intJiraToken', TOKEN_JIRA);
+      await pg.type('#intJiraProjeto', 'gov');
+      await pg.type('#intZephyrToken', TOKEN_ZEPHYR);
+      await pg.type('#intZephyrProjeto', 'gov');
+      await pg.type('#intZephyrCiclo', 'gov-r1');
+      await pg.click('#btnSalvarIntegracoes');
+      await pg.waitForFunction(() => document.querySelectorAll('#intResultado .int-linha.bom').length === 2, { timeout: 20000 });
+      const linhas = await pg.$$eval('#intResultado .int-linha', els => els.map(e => e.textContent));
+      assert.ok(/Jira: conectado como QA de Teste, projeto GOV\. Os bugs nascem como "Bug"/.test(linhas[0]), linhas[0]);
+      assert.ok(/Zephyr: conectado, projeto GOV\. Ciclos: GOV-R1 \(Audi Print\)/.test(linhas[1]), linhas[1]);
+      /* Depois de salvar: o token some do campo e a tela so sabe que existe. */
+      const depois = await pg.evaluate(() => ({ jira: document.getElementById('intJiraToken').value,
+        dica: document.getElementById('intJiraToken').placeholder, origem: document.getElementById('intOrigem').textContent,
+        projeto: document.getElementById('intJiraProjeto').value, ciclo: document.getElementById('intZephyrCiclo').value }));
+      assert.strictEqual(depois.jira, '');
+      assert.ok(/Já guardado/.test(depois.dica), depois.dica);
+      assert.ok(/usa a configuração dela/.test(depois.origem), depois.origem);
+      assert.deepStrictEqual([depois.projeto, depois.ciclo], ['GOV', 'GOV-R1']);
+      await pg.click('#btnVoltarIntegracoes');
+    });
 
     await caso('rota: com sessao diz que o Jira esta configurado, sem vazar o token', async () => {
       const r = await pg.evaluate(async () => { const x = await fetch('/api/jira'); return { s: x.status, t: await x.text() }; });
@@ -472,6 +511,7 @@ async function pelaTela() {
       const r = await pg.evaluate(async () => (await fetch('/api/auditoria')).json());
       const eventos = (r.eventos || []).map(e => e.acao);
       assert.ok(eventos.includes('jira.bug') && eventos.includes('jira.demanda'), 'nao auditou: ' + eventos.join(','));
+      assert.ok(eventos.includes('integracao.salva'), 'configurar a integracao nao ficou na auditoria');
       assert.deepStrictEqual(erros, []);
     });
   } catch (e) {

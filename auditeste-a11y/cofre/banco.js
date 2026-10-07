@@ -132,6 +132,13 @@ CREATE TABLE IF NOT EXISTS sso (
   criado_em INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS integracoes (
+  tenant_id TEXT PRIMARY KEY,
+  dados BLOB NOT NULL,
+  atualizado_em INTEGER NOT NULL,
+  atualizado_por TEXT
+);
+
 CREATE TABLE IF NOT EXISTS sso_estados (
   state TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
@@ -861,7 +868,7 @@ function apagarTenant(tenantId) {
   const conta = excluirDadosDoTenant(tenantId);
   db.exec('BEGIN');
   try {
-    for (const tb of ['memberships', 'sessoes', 'convites', 'sso', 'auditoria']) {
+    for (const tb of ['memberships', 'sessoes', 'convites', 'sso', 'integracoes', 'auditoria']) {
       db.prepare('DELETE FROM ' + tb + ' WHERE tenant_id = ?').run(tenantId);
     }
     db.prepare('DELETE FROM tenants WHERE id = ?').run(tenantId);
@@ -923,6 +930,35 @@ const ssoSegredo = cfg => decifrar(cfg.client_secret).toString('utf8');
 const listarSso = () => (exigir(), db.prepare(
   `SELECT s.tenant_id, s.issuer, s.client_id, s.dominio, s.papel_padrao, t.nome AS tenant_nome
      FROM sso s JOIN tenants t ON t.id = s.tenant_id ORDER BY s.dominio`).all());
+
+/* ---------- Jira e Zephyr de cada equipe ----------
+ *
+ * Cada equipe fala com o Jira e o Zephyr DELA, e o servidor atende varias ao
+ * mesmo tempo. A configuracao inteira vai cifrada, como o segredo do SSO: os
+ * tokens sao credencial do cliente, e o resto (endereco, e-mail, projeto) diz
+ * de quem ela e. */
+function salvarIntegracao(tenantId, usuarioId, cfg) {
+  exigirTenant(tenantId);
+  exigir();
+  db.prepare(`INSERT OR REPLACE INTO integracoes (tenant_id, dados, atualizado_em, atualizado_por)
+      VALUES (?,?,?,?)`)
+    .run(tenantId, cifrar(Buffer.from(JSON.stringify(cfg || {}), 'utf8')), agora(), usuarioId || null);
+}
+
+function integracaoDoTenant(tenantId) {
+  exigirTenant(tenantId);
+  exigir();
+  const l = db.prepare('SELECT dados FROM integracoes WHERE tenant_id = ?').get(tenantId);
+  if (!l) return null;
+  try { return JSON.parse(decifrar(l.dados).toString('utf8')); }
+  catch (e) { return null; }   // chave trocada ou linha estragada: vale como nao configurado
+}
+
+function removerIntegracao(tenantId) {
+  exigirTenant(tenantId);
+  exigir();
+  return db.prepare('DELETE FROM integracoes WHERE tenant_id = ?').run(tenantId).changes > 0;
+}
 
 /* ---------- retenção ---------- */
 
@@ -1051,6 +1087,7 @@ module.exports = {
   vincular, vinculosDoUsuario, vinculo,
   marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,
   configurarSso, removerSso, ssoPorDominio, ssoDoTenant, ssoSegredo, listarSso,
+  salvarIntegracao, integracaoDoTenant, removerIntegracao,
   criarSessao, obterSessao, revogarSessao, revogarSessoesDoUsuario,
   criarConvite, convitePorHash, marcarConviteUsado, listarConvites, cadastrar,
   criarProjeto, listarProjetos, projetoDeOutroTenant, obterProjeto, excluirProjeto,

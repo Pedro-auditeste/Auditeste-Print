@@ -97,7 +97,7 @@ jobs:
       - name: varredura contra o ambiente publicado
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         working-directory: auditeste-a11y
-        run: node dast.js https://audiprint.up.railway.app
+        run: node dast.js https://audi-print-production.up.railway.app
 
   # Varredura por ferramenta INDEPENDENTE (OWASP ZAP), e nao pela nossa (dast.js).
   #
@@ -117,7 +117,7 @@ jobs:
       - name: OWASP ZAP baseline contra a producao
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: 'https://audiprint.up.railway.app'
+          target: 'https://audi-print-production.up.railway.app'
           fail_action: false
           allow_issue_writing: false
           cmd_options: '-a'
@@ -146,6 +146,7 @@ jobs:
           node teste-ssrf.js
           node teste-convite.js
           node teste-equipes.js
+          node teste-integracoes.js
           node teste-provas.js
           node teste-cors-proprio.js
           node teste-extensao-origens.js

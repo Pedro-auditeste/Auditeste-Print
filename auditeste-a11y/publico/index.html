@@ -4412,14 +4412,14 @@
   }
 
   /* ============ PUBLICAR NO ZEPHYR SQUAD ============ */
-  /* O botao so aparece se o SERVIDOR disser que esta configurado: a chave
-   * secreta do Zephyr assina cada chamada e nunca passa por esta pagina. */
-  let zephyrLigado = null;
+  /* O botao so aparece se o servidor disser que a EQUIPE desta sessao tem o
+   * Zephyr configurado: o token nunca passa por esta pagina. Pergunta a cada
+   * evidencia aberta, sem guardar a resposta: a configuracao e por equipe, e
+   * a pessoa troca de equipe (ou o administrador configura) com esta pagina
+   * aberta. */
   async function temZephyr(){
-    if(zephyrLigado !== null) return zephyrLigado;
-    try{ zephyrLigado = !!(await cofrePedir('/api/zephyr')).configurado; }
-    catch(_){ zephyrLigado = false; }
-    return zephyrLigado;
+    try{ return !!(await cofrePedir('/api/zephyr')).configurado; }
+    catch(_){ return false; }
   }
 
   /* Passos no formato que o servidor manda ao Zephyr e ao Jira: o mesmo
@@ -4438,14 +4438,11 @@
   }
 
   /* ============ BUG NO JIRA ============ */
-  /* Mesma regra do Zephyr: o botao so aparece se o SERVIDOR disser que o
-   * Jira esta configurado. O token nunca passa por esta pagina. */
-  let jiraLigado = null;
+  /* Mesma regra do Zephyr: o botao so aparece se a equipe desta sessao tem
+   * o Jira configurado. O token nunca passa por esta pagina. */
   async function temJira(){
-    if(jiraLigado !== null) return jiraLigado;
-    try{ jiraLigado = !!(await cofrePedir('/api/jira')).configurado; }
+    try{ return !!(await cofrePedir('/api/jira')).configurado; }
     catch(e){ return false; }
-    return jiraLigado;
   }
   async function mostrarBotaoJira(){
     const ligado = await temJira();
@@ -4725,7 +4722,7 @@
         caso,
         ciclo,
         resultado,
-        /* Com o Jira ligado no servidor, a execucao ja nasce ligada a demanda. */
+        /* Com o Jira da equipe configurado, a execucao ja nasce ligada a demanda. */
         demanda: f.demanda || '',
         /* So texto: os prints nao sobem, a API do Zephyr nao tem anexo. */
         passos: passosParaEnvio(r),

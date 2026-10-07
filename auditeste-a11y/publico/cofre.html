@@ -105,6 +105,17 @@
     opacity:.7;font-size:.85rem;width:26px;height:26px;border-radius:6px;cursor:pointer;}
   .aviso-fechar:hover,.aviso-fechar:focus-visible{opacity:1;background:rgba(0,0,0,.06);}
   .linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+
+  /* Jira e Zephyr da equipe: dois blocos lado a lado, um por servico. */
+  .int-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;}
+  .int-bloco{border:1px solid var(--line);border-radius:12px;padding:14px 16px 4px;margin:0;min-width:0;}
+  .int-bloco legend{padding:0 8px;font-weight:700;color:var(--navy);font-size:.95rem;}
+  .int-bloco details{margin:0 0 14px;}
+  .int-bloco summary{cursor:pointer;color:var(--muted);font-size:.85rem;margin-bottom:10px;}
+  .int-bloco input:disabled{background:#f4f6f5;color:var(--muted);}
+  .int-linha{padding:10px 14px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px;font-size:.9rem;}
+  .int-linha.bom{background:#eef7e6;border-color:#cbe6b4;color:#3d6b22;}
+  .int-linha.ruim{background:#fdecea;border-color:#f2c4c0;color:#a3302a;}
   .lista{display:grid;gap:12px;}
   .item{
     display:flex;gap:14px;align-items:center;background:var(--card);
@@ -430,6 +441,7 @@
         <button class="btn" id="btnNovaEquipe">Novo segmento</button>
         <button class="btn" id="btnSeguranca">Segurança</button>
         <button class="btn" id="btnConvidar" hidden>Convidar</button>
+        <button class="btn" id="btnIntegracoes" hidden>Jira e Zephyr</button>
         <button class="btn" id="btnAuditoria" hidden>Auditoria</button>
       </div>
       <form id="formProjeto" class="linha" style="margin-top:14px">
@@ -491,6 +503,57 @@
       <div id="segEstado" class="seg-grade" style="margin-top:16px"></div>
       <div id="segControles" style="margin-top:8px"></div>
       <div id="segProvas" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section id="telaIntegracoes" hidden>
+    <div class="cartao">
+      <div class="linha">
+        <div style="flex:1">
+          <h2>Jira e Zephyr de <b id="intEquipe"></b></h2>
+          <div class="meta" id="intOrigem"></div>
+        </div>
+        <button class="btn" id="btnVoltarIntegracoes">Voltar</button>
+      </div>
+      <form id="formIntegracoes" style="margin-top:16px" autocomplete="off">
+        <div class="int-grade">
+          <fieldset class="int-bloco">
+            <legend>Jira</legend>
+            <label><span>Endereço do Jira</span>
+              <input type="text" id="intJiraBase" placeholder="https://empresa.atlassian.net" maxlength="120" autocomplete="off"></label>
+            <label><span>E-mail da conta</span>
+              <input type="email" id="intJiraEmail" placeholder="qa@empresa.com" maxlength="200" autocomplete="off"></label>
+            <label><span>Token da conta</span>
+              <input type="password" id="intJiraToken" maxlength="4000" autocomplete="new-password"></label>
+            <label><span>Chave do projeto</span>
+              <input type="text" id="intJiraProjeto" placeholder="GOV" maxlength="20" autocomplete="off"></label>
+            <label><span>Tipo do bug (opcional)</span>
+              <input type="text" id="intJiraTipo" placeholder="Bug" maxlength="60" autocomplete="off"></label>
+          </fieldset>
+          <fieldset class="int-bloco">
+            <legend>Zephyr</legend>
+            <label><span>Token do Zephyr</span>
+              <input type="password" id="intZephyrToken" maxlength="4000" autocomplete="new-password"></label>
+            <label><span>Chave do projeto</span>
+              <input type="text" id="intZephyrProjeto" placeholder="GOV" maxlength="20" autocomplete="off"></label>
+            <label><span>Ciclo padrão (opcional)</span>
+              <input type="text" id="intZephyrCiclo" placeholder="GOV-R1" maxlength="60" autocomplete="off"></label>
+            <details>
+              <summary>O projeto usa outros nomes de status?</summary>
+              <label><span>Aprovado</span><input type="text" id="intStPassou" placeholder="Pass" maxlength="60" autocomplete="off"></label>
+              <label><span>Reprovado</span><input type="text" id="intStReprovou" placeholder="Fail" maxlength="60" autocomplete="off"></label>
+              <label><span>Em andamento</span><input type="text" id="intStAndamento" placeholder="In Progress" maxlength="60" autocomplete="off"></label>
+              <label><span>Bloqueado</span><input type="text" id="intStBloqueado" placeholder="Blocked" maxlength="60" autocomplete="off"></label>
+            </details>
+          </fieldset>
+        </div>
+        <div class="linha" style="margin-top:14px">
+          <button class="btn primario" type="submit" id="btnSalvarIntegracoes">Salvar e testar</button>
+          <button class="btn" type="button" id="btnTestarIntegracoes">Testar conexão</button>
+          <span class="meta" id="intDica"></span>
+        </div>
+      </form>
+      <div id="intResultado" style="margin-top:16px"></div>
     </div>
   </section>
 
@@ -604,7 +667,7 @@
     $('telaEntrar').hidden = !noLogin;
     document.querySelector('header').hidden = noLogin;
     document.querySelector('main').hidden = noLogin;
-    for(const t of ['telaProjetos','telaProjeto','telaAuditoria','telaSeguranca','telaSegmentos']) $(t).hidden = t !== qual;
+    for(const t of ['telaProjetos','telaProjeto','telaAuditoria','telaSeguranca','telaIntegracoes','telaSegmentos']) $(t).hidden = t !== qual;
   }
 
   const PODE = { leitor:1, consultor:2, gestor:3, admin:4 };
@@ -919,6 +982,7 @@
             + '.</b> Este acesso fica registrado na auditoria deste cliente.'
           : '');
     $('btnAuditoria').hidden = !pode('gestor');
+    $('btnIntegracoes').hidden = !pode('gestor');
     $('btnConvidar').hidden = !pode('gestor');
     /* Um segmento nao gerencia segmentos: some o atalho do cabecalho. */
     $('btnNovaEquipe').hidden = souSegmento();
@@ -1264,6 +1328,116 @@
       $('nomeSegmento').value = '';
       abrirSegmentos();
     }catch(err){ avisar(err.message, true); }
+  });
+
+  /* ---------- Jira e Zephyr da equipe ----------
+   * Cada equipe aponta para o Jira e o Zephyr dela. O token nunca volta do
+   * servidor: a tela so sabe se ja existe um guardado. */
+  const CAMPOS_INT = ['intJiraBase','intJiraEmail','intJiraToken','intJiraProjeto','intJiraTipo',
+    'intZephyrToken','intZephyrProjeto','intZephyrCiclo','intStPassou','intStReprovou','intStAndamento','intStBloqueado'];
+  const valor = id => $(id).value.trim();
+
+  function preencherIntegracoes(d){
+    const j = d.jira || {}, z = d.zephyr || {}, st = z.status || {};
+    $('intEquipe').textContent = eu.tenantNome;
+    $('intJiraBase').value = j.base || '';
+    $('intJiraEmail').value = j.email || '';
+    $('intJiraProjeto').value = j.projeto || '';
+    $('intJiraTipo').value = j.tipoBug || '';
+    $('intZephyrProjeto').value = z.projeto || '';
+    $('intZephyrCiclo').value = z.ciclo || '';
+    $('intStPassou').value = st.passou || '';
+    $('intStReprovou').value = st.reprovou || '';
+    $('intStAndamento').value = st.andamento || '';
+    $('intStBloqueado').value = st.bloqueado || '';
+    /* Da configuracao do servidor o token nao e herdado: salvar para a equipe
+     * exige colar o token de novo. */
+    const guardado = d.origem === 'equipe';
+    for(const [id, tem] of [['intJiraToken', guardado && j.temToken], ['intZephyrToken', guardado && z.temToken]]){
+      $(id).value = '';
+      $(id).placeholder = tem ? 'Já guardado. Preencha só para trocar.' : 'Cole o token aqui';
+    }
+    $('intOrigem').innerHTML = d.origem === 'equipe'
+      ? 'Esta equipe usa a configuração dela. Os tokens ficam cifrados no servidor e não voltam para esta tela.'
+      : d.origem === 'servidor'
+        ? '<b>Você está usando a configuração padrão do servidor.</b> Ela vale só para a sua conta. '
+          + 'Para a equipe inteira usar, cole os tokens e salve.'
+        : 'Nada configurado ainda. Sem isso, os botões do Zephyr e do Jira não aparecem no Print para esta equipe.';
+    const edita = !!d.podeEditar;
+    for(const id of CAMPOS_INT) $(id).disabled = !edita;
+    $('btnSalvarIntegracoes').hidden = !edita;
+    $('intDica').textContent = !edita ? 'Só o administrador da equipe altera esta configuração.'
+      : d.cifra ? 'Para remover um dos dois, apague todos os campos dele e salve.'
+      : 'Este servidor está sem a chave de cifra: não é possível guardar tokens aqui.';
+  }
+
+  const linhaInt = (bom, texto) => '<div class="int-linha ' + (bom ? 'bom' : 'ruim') + '">' + texto + '</div>';
+
+  function mostrarConferencia(r){
+    const partes = [];
+    const j = r.jira || {}, z = r.zephyr || {};
+    if(!j.configurado) partes.push('<div class="int-linha"><b>Jira:</b> não configurado.</div>');
+    else if(j.ok === false) partes.push(linhaInt(false, '<b>Jira:</b> ' + esc(j.erro)));
+    else partes.push(linhaInt(true, '<b>Jira:</b> conectado como ' + esc(j.conta) + ', projeto ' + esc(j.projeto)
+      + '. Os bugs nascem como "' + esc(j.tipoBug) + '".'));
+
+    if(!z.configurado) partes.push('<div class="int-linha"><b>Zephyr:</b> não configurado.</div>');
+    else if(z.ok === false) partes.push(linhaInt(false, '<b>Zephyr:</b> ' + esc(z.erro)));
+    else {
+      const ciclos = (z.ciclos || []).map(c => c.chave + (c.nome ? ' (' + c.nome + ')' : ''));
+      const aceitos = z.statusDisponiveis || [];
+      const faltam = Object.values(z.statusEmUso || {}).filter(n => aceitos.length && !aceitos.includes(n));
+      partes.push(linhaInt(!faltam.length && ciclos.length > 0, '<b>Zephyr:</b> conectado, projeto ' + esc(z.projeto) + '. '
+        + (ciclos.length ? 'Ciclos: ' + esc(ciclos.slice(0, 6).join(', ')) + (ciclos.length > 6 ? ' e mais ' + (ciclos.length - 6) : '') + '.'
+          : 'O projeto ainda não tem ciclo de teste: crie um no Zephyr, senão a publicação é recusada.')
+        + (faltam.length ? ' O projeto não tem o status ' + esc(faltam.join(', ')) + ': informe os nomes usados, que são '
+          + esc(aceitos.join(', ')) + '.' : '')));
+    }
+    $('intResultado').innerHTML = partes.join('');
+  }
+
+  async function testarIntegracoes(){
+    $('intResultado').innerHTML = '<div class="int-linha">Falando com o Jira e o Zephyr...</div>';
+    try{ mostrarConferencia(await api('/api/integracoes/conferir', { json: {} })); }
+    catch(err){ $('intResultado').innerHTML = linhaInt(false, esc(err.message)); }
+  }
+
+  async function abrirIntegracoes(){
+    try{
+      preencherIntegracoes(await api('/api/integracoes'));
+      $('intResultado').innerHTML = '';
+      mostrar('telaIntegracoes');
+    }catch(err){ avisar(err.message, true); }
+  }
+
+  $('btnIntegracoes').addEventListener('click', abrirIntegracoes);
+  $('btnVoltarIntegracoes').addEventListener('click', abrirProjetos);
+  $('btnTestarIntegracoes').addEventListener('click', testarIntegracoes);
+
+  $('formIntegracoes').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const status = {};
+    for(const [n, id] of [['passou','intStPassou'],['reprovou','intStReprovou'],['andamento','intStAndamento'],['bloqueado','intStBloqueado']]){
+      if(valor(id)) status[n] = valor(id);
+    }
+    /* Bloco todo em branco quer dizer "esta equipe nao usa": vai nulo e o
+     * servidor remove. */
+    const temJira = ['intJiraBase','intJiraEmail','intJiraToken','intJiraProjeto'].some(valor);
+    const temZephyr = ['intZephyrToken','intZephyrProjeto','intZephyrCiclo'].some(valor);
+    const corpo = {
+      jira: temJira ? { base: valor('intJiraBase'), email: valor('intJiraEmail'), token: valor('intJiraToken'),
+        projeto: valor('intJiraProjeto'), tipoBug: valor('intJiraTipo') } : null,
+      zephyr: temZephyr ? { token: valor('intZephyrToken'), projeto: valor('intZephyrProjeto'),
+        ciclo: valor('intZephyrCiclo'), status } : null
+    };
+    const b = $('btnSalvarIntegracoes');
+    b.disabled = true;
+    try{
+      preencherIntegracoes(await api('/api/integracoes', { json: corpo }));
+      avisar('Configuração salva para ' + eu.tenantNome + '.');
+      await testarIntegracoes();
+    }catch(err){ avisar(err.message, true); }
+    finally{ b.disabled = false; }
   });
 
   $('btnSeguranca').addEventListener('click', abrirSeguranca);

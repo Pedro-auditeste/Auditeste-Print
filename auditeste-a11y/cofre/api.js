@@ -13,8 +13,7 @@ const banco = require('./banco.js');
 const contas = require('./contas.js');
 const sso = require('./sso.js');
 const provas = require('./provas.js');
-const zephyr = require('./zephyr.js');
-const jira = require('./jira.js');
+const integracoes = require('./integracoes.js');
 
 const MAX_OBJETO = Number(process.env.COFRE_MAX_OBJETO_MB || 20) * 1024 * 1024;
 const LINK_VALE_MS = Number(process.env.COFRE_LINK_MS) || 5 * 60 * 1000;
@@ -630,13 +629,46 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
-    /* ---------- Zephyr Squad ---------- */
+    /* ---------- Jira e Zephyr da equipe ----------
+     * Cada equipe fala com o Jira e o Zephyr DELA. Daqui para baixo, toda rota
+     * pega a integracao pela sessao (integracoes.de), nunca a do servidor. */
+
+    /* A configuracao como a tela pode ver: sem token nenhum. Gestor le; so
+     * admin grava, porque e credencial do cliente. */
+    if (p === '/api/integracoes' && req.method === 'GET') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'gestor');
+      json(res, 200, Object.assign({ podeEditar: s.papel === 'admin' }, integracoes.ver(s)));
+      return true;
+    }
+
+    /* Vale o que foi enviado: parte ausente (jira ou zephyr nulo) e removida.
+     * Token vazio mantem o que ja estava guardado. */
+    if (p === '/api/integracoes' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'admin');
+      const novo = integracoes.salvar(s, await lerCorpo(req));
+      /* Na auditoria vai para onde a equipe passou a apontar. Token, nunca. */
+      banco.auditar(s.tenantId, s.usuarioId, 'integracao.salva',
+        [novo.jira ? 'Jira ' + novo.jira.base + ' (' + novo.jira.projeto + ')' : 'Jira removido',
+          novo.zephyr ? 'Zephyr ' + novo.zephyr.projeto : 'Zephyr removido'].join(' · '), s.ip);
+      json(res, 200, Object.assign({ ok: true, podeEditar: true }, integracoes.ver(s)));
+      return true;
+    }
+
+    /* Leitura inofensiva nos dois, para conferir credencial sem criar nada. */
+    if (p === '/api/integracoes/conferir' && req.method === 'POST') {
+      const s = exigirSessao(req);
+      contas.podeOuErro(s, 'gestor');
+      json(res, 200, await integracoes.conferir(s));
+      return true;
+    }
 
     /* O que a tela precisa saber: se da para publicar. Nada de chave aqui:
      * a resposta diz se esta configurado, e so. */
     if (p === '/api/zephyr' && req.method === 'GET') {
-      exigirSessao(req);
-      json(res, 200, { configurado: zephyr.configurado() });
+      const s = exigirSessao(req);
+      json(res, 200, { configurado: integracoes.de(s).zephyr.configurado() });
       return true;
     }
 
@@ -645,7 +677,7 @@ async function tratar(req, res, u, lerCorpo) {
     if (p === '/api/zephyr/conferir' && req.method === 'POST') {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'gestor');
-      json(res, 200, await zephyr.conferir());
+      json(res, 200, await integracoes.de(s).zephyr.conferir());
       return true;
     }
 
@@ -656,7 +688,8 @@ async function tratar(req, res, u, lerCorpo) {
       const s2 = exigirSessao(req);
       contas.podeOuErro(s2, 'consultor');
       /* Casos e ciclos juntos: a execucao precisa dos dois, e a tela escolhe
-       * os dois de uma vez. cicloPadrao vem do ZEPHYR_CICLO, se houver. */
+       * os dois de uma vez. cicloPadrao e o da configuracao da equipe, se houver. */
+      const zephyr = integracoes.de(s2).zephyr;
       const [casos, ciclos] = await Promise.all([zephyr.casos(), zephyr.ciclos()]);
       json(res, 200, { projeto: zephyr.PROJETO, casos, ciclos, cicloPadrao: zephyr.CICLO || null });
       return true;
@@ -668,7 +701,7 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
       const c = await lerCorpo(req);
-      const r = await zephyr.criarCaso({ nome: c.nome, objetivo: c.objetivo, passos: c.passos });
+      const r = await integracoes.de(s).zephyr.criarCaso({ nome: c.nome, objetivo: c.objetivo, passos: c.passos });
       banco.auditar(s.tenantId, s.usuarioId, 'zephyr.caso',
         r.chave + ' (' + r.passos + ' passo(s))', s.ip);
       json(res, 200, r);
@@ -681,6 +714,7 @@ async function tratar(req, res, u, lerCorpo) {
       const c = await lerCorpo(req);
       /* A API v2 do Essential nao tem endpoint de anexo: so resultado e
        * comentario sobem. A evidencia continua no Print, na pasta e no cofre. */
+      const { zephyr, jira } = integracoes.de(s);
       const r = await zephyr.publicar({
         caso: c.caso,
         resultado: c.resultado,
@@ -710,8 +744,8 @@ async function tratar(req, res, u, lerCorpo) {
 
     /* Mesma regra do Zephyr: a tela só sabe se está configurado, nunca a chave. */
     if (p === '/api/jira' && req.method === 'GET') {
-      exigirSessao(req);
-      json(res, 200, { configurado: jira.configurado() });
+      const s = exigirSessao(req);
+      json(res, 200, { configurado: integracoes.de(s).jira.configurado() });
       return true;
     }
 
@@ -719,7 +753,7 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
       const c = await lerCorpo(req);
-      const r = await jira.criarBug({
+      const r = await integracoes.de(s).jira.criarBug({
         titulo: c.titulo,
         esperado: c.esperado,
         observado: c.observado,
@@ -740,7 +774,7 @@ async function tratar(req, res, u, lerCorpo) {
       const s = exigirSessao(req);
       contas.podeOuErro(s, 'consultor');
       const c = await lerCorpo(req);
-      const r = await jira.anexarNaDemanda({
+      const r = await integracoes.de(s).jira.anexarNaDemanda({
         demanda: c.demanda,
         ficha: c.ficha,
         passos: c.passos,
