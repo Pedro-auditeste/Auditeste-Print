@@ -1350,19 +1350,15 @@
     $('intStReprovou').value = st.reprovou || '';
     $('intStAndamento').value = st.andamento || '';
     $('intStBloqueado').value = st.bloqueado || '';
-    /* Da configuracao do servidor o token nao e herdado: salvar para a equipe
-     * exige colar o token de novo. */
-    const guardado = d.origem === 'equipe';
-    for(const [id, tem] of [['intJiraToken', guardado && j.temToken], ['intZephyrToken', guardado && z.temToken]]){
+    /* temToken só vem true de configuração guardada da equipe; o token em si
+     * nunca volta do servidor. */
+    for(const [id, tem] of [['intJiraToken', j.temToken], ['intZephyrToken', z.temToken]]){
       $(id).value = '';
       $(id).placeholder = tem ? 'Já guardado. Preencha só para trocar.' : 'Cole o token aqui';
     }
-    $('intOrigem').innerHTML = d.origem === 'equipe'
+    $('intOrigem').textContent = d.origem === 'equipe'
       ? 'Esta equipe usa a configuração dela. Os tokens ficam cifrados no servidor e não voltam para esta tela.'
-      : d.origem === 'servidor'
-        ? '<b>Você está usando a configuração padrão do servidor.</b> Ela vale só para a sua conta. '
-          + 'Para a equipe inteira usar, cole os tokens e salve.'
-        : 'Nada configurado ainda. Sem isso, os botões do Zephyr e do Jira não aparecem no Print para esta equipe.';
+      : 'Nada configurado ainda. Sem isso, os botões do Zephyr e do Jira não aparecem no Print para esta equipe.';
     const edita = !!d.podeEditar;
     for(const id of CAMPOS_INT) $(id).disabled = !edita;
     $('btnSalvarIntegracoes').hidden = !edita;

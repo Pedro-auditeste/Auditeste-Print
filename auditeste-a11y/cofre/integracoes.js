@@ -4,12 +4,12 @@
  * e o Zephyr dele. Aqui se decide, a cada pedido, COM QUE CREDENCIAL a
  * sessão fala: a da própria equipe, guardada cifrada no cofre.
  *
- * AS VARIÁVEIS DE AMBIENTE (JIRA_*, ZEPHYR_*) deixaram de valer para todo
- * mundo. Enquanto valiam, qualquer conta nova criada no servidor abria bug e
- * lia os casos de teste do Jira de quem configurou as variáveis. Hoje elas
- * servem só ao dono delas: a sessão cujo e-mail é o JIRA_EMAIL, dentro de uma
- * equipe da qual ele é membro direto (não quando entra no cliente como
- * provedora) e que ainda não tem configuração própria.
+ * AS VARIÁVEIS DE AMBIENTE (JIRA_*, ZEPHYR_*) não configuram mais equipe
+ * nenhuma. Toda conta nasce sem Jira e sem Zephyr até o administrador da
+ * equipe configurar na tela. Antes elas valiam de padrão para a sessão cujo
+ * e-mail fosse o JIRA_EMAIL, e num servidor compartilhado com cadastro aberto
+ * o primeiro a registrar esse e-mail herdava a credencial do servidor, que é
+ * justo o que a configuração por equipe veio tirar.
  *
  * O TOKEN NUNCA VOLTA para a tela. Quem configura vê se existe token, não o
  * valor; para trocar, digita outro.
@@ -107,22 +107,12 @@ function semSegredo(cfg) {
   };
 }
 
-/* Com que configuração esta sessão fala, e de onde ela veio:
- * 'equipe' (a da própria equipe), 'servidor' (as variáveis, só para o dono
- * delas) ou null (nada configurado). */
+/* Com que configuração esta sessão fala, e de onde ela veio: 'equipe' (a da
+ * própria equipe) ou null (nada configurado). As variáveis de ambiente não
+ * entram aqui; montam só a instância do módulo (testes e linha de comando). */
 function configDe(sessao) {
   const propria = banco.integracaoDoTenant(sessao.tenantId);
   if (propria && (propria.jira || propria.zephyr)) return { cfg: propria, origem: 'equipe' };
-
-  const dono = String(process.env.JIRA_EMAIL || '').trim().toLowerCase();
-  if (dono && sessao.via === 'membro' && String(sessao.email || '').toLowerCase() === dono) {
-    const z = zephyr.doAmbiente();
-    const j = jira.doAmbiente();
-    const cfg = {};
-    if (z.token && z.projeto) cfg.zephyr = z;
-    if (j.base && j.email && j.token && j.projeto) cfg.jira = j;
-    if (cfg.zephyr || cfg.jira) return { cfg, origem: 'servidor' };
-  }
   return { cfg: {}, origem: null };
 }
 

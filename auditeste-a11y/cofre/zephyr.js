@@ -21,8 +21,8 @@
  *
  * CONFIGURAÇÃO: cada equipe informa a dela na tela do cofre (Jira e Zephyr),
  * e ela fica cifrada no banco; ver cofre/integracoes.js. As variáveis de
- * ambiente abaixo são a configuração do dono do servidor, e só valem para a
- * conta dele (nunca no git):
+ * ambiente abaixo montam só a instância do módulo (testes e linha de
+ * comando), não a credencial de nenhuma sessão (nunca no git):
  *   ZEPHYR_API_TOKEN   token gerado em Configurações pessoais > Apps >
  *                      Zephyr Essential API Access Tokens
  *   ZEPHYR_PROJETO     chave do projeto no Jira (ex.: GOV)

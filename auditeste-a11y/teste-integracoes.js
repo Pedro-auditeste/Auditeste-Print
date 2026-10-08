@@ -133,7 +133,6 @@ const configDe = (d, extra) => Object.assign({
     const a = await navegador().entrar(A.email);
     const b = await navegador().entrar(B.email);
     const dono = await navegador().entrar(DONO.email);
-    const colega = await navegador().entrar('colega@auditeste.com.br');
     const gestor = await navegador().entrar('gestor@clientea.com');
     const consultor = await navegador().entrar('consultor@clientea.com');
 
@@ -149,20 +148,16 @@ const configDe = (d, extra) => Object.assign({
       assert.strictEqual((await a.pedir('/api/integracoes')).corpo.origem, null);
     });
 
-    await caso('CRITERIO: o dono das variaveis usa o padrao do servidor na equipe dele, sem ver token', async () => {
+    await caso('CRITERIO: nem o dono do JIRA_EMAIL herda as variaveis do servidor', async () => {
       visto.length = 0;
-      const r = await dono.pedir('/api/zephyr/casos');
-      assert.strictEqual(r.status, 200, r.texto);
-      assert.deepStrictEqual(r.corpo.casos.map(c => c.chave), ['DONO-T1']);
-      const cfg = await dono.pedir('/api/integracoes');
-      assert.strictEqual(cfg.corpo.origem, 'servidor');
-      assert.strictEqual(cfg.corpo.jira.temToken, true);
-      assert.ok(!cfg.texto.includes(DONO.jira) && !cfg.texto.includes(DONO.zephyr), 'vazou token do servidor');
-    });
-
-    await caso('...e o colega da mesma equipe nao: o padrao e da conta, nao da equipe', async () => {
-      assert.deepStrictEqual((await colega.pedir('/api/zephyr')).corpo, { configurado: false });
-      assert.deepStrictEqual((await colega.pedir('/api/jira')).corpo, { configurado: false });
+      /* O servidor subiu com JIRA_* e ZEPHYR_* no ambiente, e mesmo assim a
+       * sessao do dono desse e-mail nasce sem integracao: as variaveis nao
+       * configuram sessao nenhuma, so a instancia do modulo. */
+      assert.deepStrictEqual((await dono.pedir('/api/jira')).corpo, { configurado: false });
+      assert.deepStrictEqual((await dono.pedir('/api/zephyr')).corpo, { configurado: false });
+      assert.strictEqual((await dono.pedir('/api/zephyr/casos')).status, 503);
+      assert.strictEqual((await dono.pedir('/api/integracoes')).corpo.origem, null);
+      assert.strictEqual(visto.length, 0, 'saiu pedido para o Jira ou Zephyr do servidor: ' + JSON.stringify(visto));
     });
 
     console.log('\ncada equipe com o Jira e o Zephyr dela\n');
