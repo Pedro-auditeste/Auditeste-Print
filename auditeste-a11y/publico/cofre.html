@@ -14,6 +14,9 @@
     --navy-deep:#092838;
     --green:#76c043;
     --green-dark:#5ea32f;
+    /* Verde para TEXTO sobre fundo claro (5,25:1 no branco). O --green-dark dava
+     * 3,11:1, abaixo do minimo de 4,5:1 do WCAG AA, em todo botao de contorno. */
+    --green-texto:#3d7a1e;
     --bg:#f3f4f3;
     --card:#ffffff;
     --ink:#1e2a30;
@@ -55,13 +58,14 @@
   .btn{
     font-family:inherit;font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
     border-radius:999px;padding:9px 18px;cursor:pointer;white-space:nowrap;
-    background:transparent;border:1.5px solid var(--green);color:var(--green-dark);
+    background:transparent;border:1.5px solid var(--green);color:var(--green-texto);
     transition:background .15s ease, color .15s ease, box-shadow .15s ease;
   }
   .btn:hover{background:rgba(118,192,67,.12);}
   .btn.primario{background:var(--green);border-color:var(--green);color:#fff;}
   .btn.primario:hover{background:var(--green-dark);border-color:var(--green-dark);}
-  .btn.perigo{border-color:var(--rec);color:var(--rec);}
+  .btn.primario,.btn.primario:hover{color:var(--navy-deep);}
+  .btn.perigo{border-color:var(--rec);color:#b83535;}
   .btn.perigo:hover{background:rgba(216,79,79,.1);}
   .btn:disabled{opacity:.45;cursor:not-allowed;}
   header .btn{border-color:rgba(255,255,255,.5);color:#fff;padding:5px 14px;font-size:.72rem;}
@@ -158,7 +162,7 @@
     border:1px solid var(--line);border-radius:10px;padding:11px;word-break:break-all;margin-top:8px;
   }
   .vazio{color:var(--muted);padding:22px;text-align:center;}
-  a{color:var(--green-dark);}
+  a{color:var(--green-texto);}
 
   /* Painel de segmentos ao lado dos projetos (a coluna da esquerda). */
   .colunas{display:flex;gap:16px;align-items:flex-start;margin-top:16px;}
@@ -250,6 +254,8 @@
   .entrada-lado .escudao{width:56px;height:56px;margin-bottom:22px;}
   .entrada-lado h2{font-size:2rem;margin:0 0 12px;color:#fff;font-weight:700;line-height:1.2;}
   .entrada-lado .sub{font-size:1rem;color:#b9cdd8;margin:0 0 40px;max-width:340px;line-height:1.5;}
+  /* Fundo escuro: o verde de texto (para fundo claro) dava 2,51:1 aqui. O verde da marca da 5,9:1. */
+  .entrada-lado a{color:var(--green);}
   .entrada-recursos{display:grid;gap:22px;position:relative;z-index:1;}
   .entrada-recursos .rec{display:flex;gap:15px;align-items:center;}
   .entrada-recursos .rec .ico{
@@ -288,7 +294,7 @@
   .olho:hover{color:var(--navy);background:#f2f5f3;}
   .olho svg{width:19px;height:19px;pointer-events:none;}
   .esqueci{text-align:right;margin:-6px 0 16px;}
-  .esqueci a{font-size:.83rem;color:var(--green-dark);cursor:pointer;text-decoration:none;}
+  .esqueci a{font-size:.83rem;color:var(--green-texto);cursor:pointer;text-decoration:none;}
   .esqueci a:hover{text-decoration:underline;}
 
   /* A entrada monta, em vez de aparecer seca. Roda no primeiro paint, quando
