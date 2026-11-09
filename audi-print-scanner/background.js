@@ -177,9 +177,14 @@ async function finalizar(tabId) {
         ] : []
       });
       if (sessao.passos.length > MAX_PASSOS) sessao.passos.shift();
-      sessao.pendente = null;
+      /* A proxima da fila vira o pendente. O "antes" dela e este "depois": os
+       * dois sao o instante em que ela chegou, e um print novo agora ja sairia
+       * com o efeito dela na tela. */
+      const proxima = (sessao.fila || []).shift();
+      sessao.pendente = proxima ? { ...proxima, antes: depois } : null;
       sessao.finalizando = false;
       await gravar(tabId, sessao);
+      if (proxima) agendarFinalizacao(tabId);
       /* AWAIT de proposito, nao "atire e esqueca": no service worker do
        * Manifest V3, uma chamada assincrona disparada sem await nao segura
        * o worker vivo, e o Chrome pode encerra-lo assim que finalizar()
@@ -194,6 +199,15 @@ async function finalizar(tabId) {
       await gravar(tabId, sessao);
     }
   });
+}
+
+/* Parar logo depois de preencher e clicar: fecha tambem o que esta na fila. */
+async function finalizarTudo(tabId) {
+  for (let i = 0; i <= MAX_PASSOS; i++) {
+    await finalizar(tabId);
+    const s = await obter(tabId);
+    if (!s?.pendente || s.erro) return;
+  }
 }
 
 /* Cada evento adia o print "depois" em ESPERA_DEPOIS_MS, para pegar a tela ja
@@ -337,7 +351,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       const sessoes = await todas();
       for (const [id, s] of Object.entries(sessoes)) {
         if (!s || !s.ativa) continue;
-        await finalizar(Number(id));
+        await finalizarTudo(Number(id));
         const atual = (await todas())[id];
         if (atual) {
           atual.ativa = false;
@@ -377,7 +391,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
     }
 
     if (msg.tipo === 'AUDI_PARAR') {
-      await finalizar(tabId);
+      await finalizarTudo(tabId);
       const sessao = await obter(tabId);
       if (sessao) {
         sessao.ativa = false;
@@ -398,15 +412,24 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       return comLock(tabId, async () => {
         const sessao = await obter(tabId);
         if (!sessao?.ativa || sessao.finalizando) return { ignorado: true };
-        if (sessao.pendente) return { ignorado: true };
         const tab = await chrome.tabs.get(tabId);
-        const antes = sessao.capturarPrints === false ? null : await antesDe(tab);
-        sessao.pendente = {
+        const acao = {
           ...msg.acao,
-          antes,
           timestampAntes: new Date().toISOString(),
           urlAntes: tab.url || msg.acao.urlAntes
         };
+        /* Outro passo ainda aberto: esta acao entra na fila, na ordem, em vez
+         * de ser descartada. Era assim que digitar a senha e clicar em Entrar
+         * perdia um dos dois. O aberto fecha ja (sem await: finalizar espera
+         * este lock), para o "depois" dele sair perto do instante desta acao. */
+        if (sessao.pendente) {
+          (sessao.fila ||= []).push(acao);
+          await gravar(tabId, sessao);
+          finalizar(tabId);
+          return { ok: true, naFila: true };
+        }
+        const antes = sessao.capturarPrints === false ? null : await antesDe(tab);
+        sessao.pendente = { ...acao, antes };
         sessao.erro = '';
         await gravar(tabId, sessao);
         agendarFinalizacao(tabId);

@@ -128,6 +128,12 @@ aspas o tempo todo; sem elas na lista, o primeiro uso de `esc()` dentro de um
 atributo quebra o atributo. `teste-seguranca.js` trava isso, junto com as faixas
 de IP privado (inclui `::ffff:` e CGNAT) e a comparação de token em tempo fixo.
 
+**Digitar e clicar direto grava o Preencher primeiro.** O `pointerdown` do
+botão chega antes do `change` do campo; o clique grava o campo com digitação
+pendente (`campoSujo`) e o `change` seguinte não duplica. No `background.js`,
+ação que chega com outro passo aberto entra em `sessao.fila`, nunca é
+descartada. `teste-preencher-e-clicar.js` trava isso (e-mail, senha, Entrar).
+
 **Trazer a captura nunca limpa a tela.** `acrescentarPassos` só adiciona o que
 falta, deduplicando por id. A função anterior zerava a caixa de vídeo por esperar
 um vídeo vindo do complemento — que ele nunca mandou —, e o vídeo da gravação de

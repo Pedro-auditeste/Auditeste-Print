@@ -228,7 +228,10 @@
     return bruto.replace(/\s+/g, ' ').trim().slice(0, 1200);
   }
 
-  function registrar(el, tipo, valor) {
+  /* foraDoIntervalo: o preenchimento que o clique adianta (ver pointerdown)
+   * nao e duplicata de nada, entao nao passa pelo intervalo minimo nem o
+   * reinicia -- senao o proprio clique que o adiantou seria descartado. */
+  function registrar(el, tipo, valor, foraDoIntervalo) {
     /* Fora de sessao a extensao nao le NADA da pagina.
      *
      * Antes de 09/09/2026 esta checagem nao existia: em qualquer site, com a
@@ -239,10 +242,12 @@
      * tinha acontecido, e o realce aparecia na tela de quem nao estava
      * gravando nada. A guarda fica aqui, no ponto por onde clique, tecla e
      * preenchimento passam, e nao em cada listener. */
-    if (!gravando) return;
-    const agora = Date.now();
-    if (!el || agora - ultimaAcao < 450) return;
-    ultimaAcao = agora;
+    if (!gravando || !el) return;
+    if (!foraDoIntervalo) {
+      const agora = Date.now();
+      if (agora - ultimaAcao < 450) return;
+      ultimaAcao = agora;
+    }
     const seletor = seletorDe(el);
     if (!seletor) return;
 
@@ -284,9 +289,30 @@
     } catch (_) { /* extensao recarregando: o proximo clique tenta de novo */ }
   }
 
+  /* Campo com digitacao que o 'change' ainda nao gravou.
+   *
+   * O fluxo mais comum -- digitar a senha e clicar direto em Entrar -- perdia
+   * o Preencher: o pointerdown do botao vem ANTES do blur/change do campo,
+   * o Clicar virava o passo pendente e o change chegava tarde. Agora o clique
+   * grava esse campo primeiro, e o change que vem depois e reconhecido pelo
+   * valor em jaGravado e nao duplica o passo. */
+  let campoSujo = null;
+  const jaGravado = new WeakMap();
+
+  document.addEventListener('input', (evento) => {
+    if (!gravando) return;
+    const el = evento.composedPath()[0];
+    if (el instanceof Element && ['INPUT', 'TEXTAREA'].includes(el.tagName)) campoSujo = el;
+  }, true);
+
   document.addEventListener('pointerdown', (evento) => {
     if (evento.button !== 0) return;
-    registrar(clicavel(evento.composedPath()[0]), 'Clicar');
+    const botao = clicavel(evento.composedPath()[0]);
+    const campo = campoSujo;
+    if (botao && campo && campo.isConnected && !botao.contains(campo)) {
+      jaGravado.set(campo, registrarCampo(campo, true));
+    }
+    registrar(botao, 'Clicar');
   }, true);
 
   document.addEventListener('keydown', (evento) => {
@@ -356,13 +382,24 @@
     if (el.type === 'checkbox' || el.type === 'radio') {
       return registrar(el, el.checked ? 'Marcar' : 'Desmarcar', el.value || '');
     }
-    const valor = tag === 'select'
+    // O clique ja gravou este campo com este mesmo valor: nao repete o passo.
+    const adiantado = jaGravado.get(el);
+    jaGravado.delete(el);
+    if (adiantado === el.value) return;
+    registrarCampo(el);
+  }, true);
+
+  /** Preencher ou Limpar o campo; devolve o valor lido. */
+  function registrarCampo(el, foraDoIntervalo) {
+    if (el === campoSujo) campoSujo = null;
+    const valor = el.tagName === 'SELECT'
       ? (el.selectedOptions?.[0]?.text || el.value)
       : el.value;
     // Senha nunca vai para a evidencia: o passo registra o campo, nao o segredo.
     const seguro = campoSensivel(el, valor) ? '' : valor;
-    registrar(el, String(valor).trim() ? 'Preencher' : 'Limpar', seguro);
-  }, true);
+    registrar(el, String(valor).trim() ? 'Preencher' : 'Limpar', seguro, foraDoIntervalo);
+    return el.value;
+  }
 
   /* Selecionar texto com o mouse e como o QA diz "li isto aqui": vira um passo
    * de leitura, com o trecho lido e o elemento de onde saiu. */
