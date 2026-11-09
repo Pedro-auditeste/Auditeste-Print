@@ -139,6 +139,7 @@ function montarConteudoUsuario({ ficha, passos, quadros }) {
     const linhas = [`Print ${i + 1}: ${(p.titulo || '').trim() || '(sem título)'}`];
     if ((p.obs || '').trim()) linhas.push(`O que está na aba: ${p.obs.trim()}`);
     if ((p.acao || '').trim()) linhas.push(`Ação: ${p.acao.trim()}`);
+    if ((p.rotulo || '').trim()) linhas.push(`Rótulo do elemento: ${p.rotulo.trim()}`);
     if ((p.elemento || '').trim()) linhas.push(`Elemento Web (inspecionado): ${p.elemento.trim()}`);
     if ((p.html || '').trim()) linhas.push(`HTML: ${p.html.trim().slice(0, 280)}`);
     if ((p.valor || '').trim()) linhas.push(`Valor: ${p.valor.trim()}`);
@@ -263,7 +264,10 @@ function inferirAcao(p) {
 function rotuloHumano(p) {
   const rot = textoLinha(p && p.rotulo).trim();
   if (rot) return rot;
-  const t = String((p && p.titulo) || '');
+  // Passo do complemento tem titulo "acao · rotulo"; pagina antiga em cache manda sem o rotulo.
+  const a = String((p && p.acao) || '').trim();
+  let t = String((p && p.titulo) || '');
+  if (a && t.startsWith(a + ' · ')) t = t.slice(a.length + 3);
   const q = /["“”«»]([^"“”«»]+)["“”«»]/.exec(t);
   if (q) return q[1].trim();
   const limpo = textoLinha(

@@ -119,4 +119,38 @@ caso('passo sem seletor não quebra e marca a confirmar', () => {
   assert.ok(r.mapeamento.includes('Comprar') || r.mapeamento.includes('(a confirmar)'), r.mapeamento);
 });
 
+// Passo como o complemento grava: titulo "acao · rotulo", elemento em xpath.
+const passosDoComplemento = [
+  { titulo: 'Preencher · E-mail', acao: 'Preencher', rotulo: 'E-mail',
+    elemento: '//*[@id="email"]', valor: 'ana.souza@exemplo.com' },
+  { titulo: 'Preencher · Senha', acao: 'Preencher', rotulo: 'Senha', elemento: '//*[@id="senha"]' },
+  { titulo: 'Clicar · Entrar', acao: 'Clicar', rotulo: 'Entrar', elemento: '//button[.="Entrar"]' }
+];
+
+function semPrefixoDeAcao(r) {
+  assert.match(r.cenarios, /eu preencho o campo "E-mail" com "ana\.souza@exemplo\.com"/, r.cenarios);
+  assert.match(r.cenarios, /o campo "Senha"/, r.cenarios);
+  assert.match(r.cenarios, /eu clico em "Entrar"/, r.cenarios);
+  assert.match(r.cenarios, /Cenário: \[Login\]\[Fluxo\] E-mail - sucesso/, r.cenarios);
+  assert.ok(!/"Preencher ·|"Clicar ·|Preencher · E-mail - sucesso/.test(r.cenarios),
+    'título "acao · rotulo" vazou no Gherkin: ' + r.cenarios);
+}
+
+caso('passo do complemento usa o rótulo, não o título "acao · rotulo"', () => {
+  semPrefixoDeAcao(montarCenariosDosPassos({ ficha: { modulo: 'Login' }, passos: passosDoComplemento }));
+});
+
+caso('página antiga que não manda o rótulo também sai limpa', () => {
+  const semRotulo = passosDoComplemento.map(({ rotulo, ...p }) => p);
+  semPrefixoDeAcao(montarCenariosDosPassos({ ficha: { modulo: 'Login' }, passos: semRotulo }));
+});
+
+caso('o Print manda o rótulo para /cenarios', () => {
+  const html = require('fs').readFileSync(require('path').join(__dirname, 'publico', 'index.html'), 'utf8');
+  const ini = html.indexOf('async function gerarCenariosIA');
+  const bloco = html.slice(ini, html.indexOf("'/cenarios'", ini));
+  assert.match(bloco, /const passos = passosParaEnvio\(r\);/, 'gerarCenariosIA voltou a montar lista própria');
+  assert.match(html, /function passosParaEnvio[\s\S]{0,200}rotulo: p\.rotulo/, 'passosParaEnvio perdeu o rótulo');
+});
+
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

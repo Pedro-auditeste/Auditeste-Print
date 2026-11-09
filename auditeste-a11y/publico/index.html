@@ -5521,14 +5521,9 @@
 
     try{
       dizer('Preparando as evidências do Print...');
-      const passos = (r.passos || []).map(p => ({
-        titulo: p.titulo || '',
-        obs: p.obs || '',
-        acao: p.acao || '',
-        elemento: p.elemento || '',
-        valor: p.valor || '',
-        html: p.html || ''
-      }));
+      /* A mesma lista do Jira e do Zephyr. Uma copia propria aqui deixava o
+       * rotulo de fora, e o montador caia no titulo "Preencher · E-mail". */
+      const passos = passosParaEnvio(r);
 
       dizer('Gerando cenários. Pode levar até 90 segundos...');
       const corpoCenarios = JSON.stringify({ ficha: r.ficha, passos });
