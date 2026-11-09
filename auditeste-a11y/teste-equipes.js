@@ -83,36 +83,11 @@ caso('apagar uma equipe nao derruba usuario que esta em OUTRA equipe', () => {
   assert.ok(banco.obterTenant(b.id), 'EquipeB continua');
 });
 
-caso('sub-equipe nasce com o nome prefixado pela equipe atual, dona sua e isolada', () => {
-  const mae = banco.criarTenant('Minha equipe', 90);
-  const u = banco.criarUsuario('dona@x.com', 'hash');
-  banco.vincular(mae.id, u.id, 'admin');
-  const sessao = { usuarioId: u.id, email: 'dona@x.com', tenantNome: mae.nome, tokenHash: 'nao-existe' };
-
-  const r = contas.criarEquipe(reqFalso, sessao, 'Confirmado');
-  assert.strictEqual(r.sessao.tenantNome, 'Minha equipe · Confirmado', 'nome deveria vir prefixado');
-  assert.strictEqual(r.sessao.papel, 'admin', 'quem cria vira admin');
-
-  const filha = banco.tenantPorNome('Minha equipe · Confirmado');
-  assert.ok(filha && filha.id !== mae.id, 'a sub-equipe e um tenant proprio, isolado');
-  // so o dono e membro: ninguem entra sem convite
-  const membros = banco.vinculo(filha.id, u.id);
-  assert.ok(membros && membros.papel === 'admin');
-  const estranho = banco.criarUsuario('estranho@x.com', 'hash');
-  assert.strictEqual(banco.vinculo(filha.id, estranho.id), null, 'estranho nao entra sozinho');
-});
-
-caso('criar sub-equipe a partir de uma sub-equipe nao empilha o prefixo', () => {
-  const u = banco.usuarioPorEmail('dona@x.com');
-  const filha = banco.tenantPorNome('Minha equipe · Confirmado');
-  const sessao = { usuarioId: u.id, email: u.email, tenantNome: filha.nome, tokenHash: 'nao-existe' };
-  const r = contas.criarEquipe(reqFalso, sessao, 'Rascunho');
-  assert.strictEqual(r.sessao.tenantNome, 'Minha equipe · Rascunho', 'reancora na raiz, sem A · B · C');
-});
-
 console.log('\nsegmentos da equipe\n');
 
-const sess = (u, t) => ({ usuarioId: u.id, email: u.email, tenantId: t.id, tenantNome: t.nome, tokenHash: 'sess-' + t.id, ip: '127.0.0.1' });
+/* O papel sai do mesmo portao que a sessao de verdade usa (sessaoDe). */
+const sess = (u, t) => ({ usuarioId: u.id, email: u.email, tenantId: t.id, tenantNome: t.nome, tokenHash: 'sess-' + t.id, ip: '127.0.0.1',
+  papel: (banco.acessoA(t.id, u.id) || {}).papel });
 
 caso('criar segmento nasce "Base · X", isolado, sem trocar de equipe', () => {
   const org = banco.criarTenant('OrgSeg', 90);
@@ -140,6 +115,7 @@ caso('listar segmentos traz so os da base atual', () => {
   const lista = contas.listarSegmentos(sess(dono, org));
   assert.strictEqual(lista.length, 1);
   assert.strictEqual(lista[0].sufixo, 'Alpha');
+  assert.strictEqual(lista[0].papel, 'admin');
 });
 
 caso('renomear segmento troca o sufixo e mantem a base', () => {
@@ -173,6 +149,50 @@ caso('quem NAO e admin do segmento nao exclui (403)', () => {
   banco.vincular(seg.id, outro.id, 'consultor');
   assert.ok(recusa(() => contas.excluirSegmento(reqFalso, sess(outro, org), seg.id, 'EXCLUIR'), 403));
   assert.ok(banco.obterTenant(seg.id), 'o segmento continua');
+});
+
+/* Achado de 09/11/2026: criarSegmento nao checava papel. Leitor e consultor da
+ * base criavam uma sub-equipe com o nome da empresa e viravam ADMIN dela. */
+caso('CRITERIO: leitor e consultor da base nao criam segmento (403), e nada nasce', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  for (const papel of ['leitor', 'consultor']) {
+    const u = banco.criarUsuario(papel + '-base-seg@x.com', 'h');
+    banco.vincular(org.id, u.id, papel);
+    assert.ok(recusa(() => contas.criarSegmento(reqFalso, sess(u, org), 'De ' + papel), 403), papel + ' criou segmento');
+    assert.strictEqual(banco.tenantPorNome('OrgSeg · De ' + papel), null, papel + ': o segmento nasceu mesmo recusado');
+  }
+});
+
+caso('CRITERIO: o admin da base ve, entra e administra o segmento que um gestor criou', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  const gestor = banco.criarUsuario('gestor-base-seg@x.com', 'h');
+  banco.vincular(org.id, gestor.id, 'gestor');
+  contas.criarSegmento(reqFalso, sess(gestor, org), 'DoGestor');
+  const seg = banco.tenantPorNome('OrgSeg · DoGestor');
+  assert.strictEqual(banco.vinculo(seg.id, dono.id), null, 'premissa: o dono nao tem vinculo direto');
+
+  assert.ok(contas.listarSegmentos(sess(dono, org)).some(x => x.id === seg.id), 'o admin da base nao ve o segmento');
+  assert.ok(banco.equipesAlcancaveis(dono.id).some(x => x.id === seg.id), 'nem no seletor de equipe');
+  assert.deepStrictEqual(banco.acessoA(seg.id, dono.id), { papel: 'admin', via: 'base' });
+  assert.strictEqual(contas.renomearSegmento(reqFalso, sess(dono, org), seg.id, 'Renomeado').segmento.nome, 'OrgSeg · Renomeado');
+  // o gestor da base nao ganha o mesmo alcance: so ve o que e dele
+  const outro = banco.criarTenant('OrgSeg · AlheioAoGestor', 90);
+  assert.strictEqual(banco.acessoA(outro.id, gestor.id), null, 'gestor alcancou segmento sem vinculo');
+  contas.excluirSegmento(reqFalso, sess(dono, org), outro.id, 'EXCLUIR');
+});
+
+caso('CRITERIO: consultor que criou segmento antes da trava nao renomeia nem apaga mais (403)', () => {
+  const org = banco.tenantPorNome('OrgSeg');
+  const consultor = banco.usuarioPorEmail('consultor-base-seg@x.com');
+  const velho = banco.criarTenant('OrgSeg · Antigo', 90);   // como nascia antes: ele admin do segmento
+  banco.vincular(velho.id, consultor.id, 'admin');
+  assert.ok(recusa(() => contas.renomearSegmento(reqFalso, sess(consultor, org), velho.id, 'Outro'), 403));
+  assert.ok(recusa(() => contas.excluirSegmento(reqFalso, sess(consultor, velho), velho.id, 'EXCLUIR'), 403),
+    'de dentro do segmento, como admin dele, tambem nao');
+  assert.ok(banco.obterTenant(velho.id), 'o segmento continua');
+  const dono = banco.usuarioPorEmail('dono-seg@x.com');
+  assert.ok(contas.listarSegmentos(sess(dono, org)).some(x => x.id === velho.id), 'o admin da base ve o segmento antigo');
 });
 
 caso('excluir com EXCLUIR apaga; e se estava nele, volta para a base', () => {
@@ -224,10 +244,15 @@ caso('CRITERIO: id de segmento de OUTRA empresa e recusado (404)', () => {
 });
 
 caso('CRITERIO: segmento da minha base em que NAO sou membro e recusado (403)', () => {
+  // gestor, e nao admin: o admin da base alcanca todo segmento dela
   const org = banco.tenantPorNome('OrgProj');
-  const dono = banco.usuarioPorEmail('dono-proj@x.com');
+  const gestor = banco.criarUsuario('gestor-proj@x.com', 'h');
+  banco.vincular(org.id, gestor.id, 'gestor');
   const semVinculo = banco.criarTenant('OrgProj · SemMim', 90);
-  assert.ok(recusa(() => contas.destinoDoProjeto(sess(dono, org), semVinculo.id), 403));
+  assert.ok(recusa(() => contas.destinoDoProjeto(sess(gestor, org), semVinculo.id), 403));
+  const dono = banco.usuarioPorEmail('dono-proj@x.com');
+  assert.strictEqual(contas.destinoDoProjeto(sess(dono, org), semVinculo.id), semVinculo.id,
+    'o admin da base ve o segmento no seletor, entao tem de poder criar nele');
 });
 
 caso('CRITERIO: leitor do segmento nao cria projeto la (403)', () => {
@@ -262,13 +287,16 @@ caso('provedora ve cliente real, mas NAO ve nem entra em segmento alheio', () =>
   const prov = banco.criarUsuario('provedor@x.com', 'h');
   banco.vincular(gov.id, prov.id, 'admin');
   const cliente = banco.criarTenant('ClienteX', 90);
-  const seg = banco.criarTenant('GovX · secreto', 90);
+  /* Segmento de um CLIENTE: a provedora entra no cliente, nunca no segmento.
+   * (Um "GovX · algo" seria segmento da propria provedora, e o admin dela o
+   * alcanca por ser admin da base.) */
+  const seg = banco.criarTenant('ClienteX · secreto', 90);
   const dono = banco.criarUsuario('dono-seg2@x.com', 'h');
   banco.vincular(seg.id, dono.id, 'admin');
 
   const nomes = banco.equipesAlcancaveis(prov.id).map(t => t.nome);
   assert.ok(nomes.includes('ClienteX'), 'cliente real deve aparecer para a provedora');
-  assert.ok(!nomes.includes('GovX · secreto'), 'segmento alheio NAO pode aparecer');
+  assert.ok(!nomes.includes('ClienteX · secreto'), 'segmento alheio NAO pode aparecer');
   assert.strictEqual(banco.acessoA(seg.id, prov.id), null, 'provedora nao entra no segmento alheio');
   assert.ok(banco.acessoA(seg.id, dono.id), 'o membro direto do segmento entra normal');
 });

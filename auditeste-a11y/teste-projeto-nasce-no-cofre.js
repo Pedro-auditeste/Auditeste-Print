@@ -35,6 +35,8 @@ const ok = (t) => { feitos++; console.log('  ok   ' + t); };
   // Um segmento, para existir escolha de verdade nas abas.
   const seg = banco.criarTenant('Cliente QA · Regressao', 90);
   banco.vincular(seg.id, u.id, 'admin');
+  const c = banco.criarUsuario('consultor@local.teste', contas.hashSenha('senha-bem-longa-8'));
+  banco.vincular(tenant.id, c.id, 'consultor');
   banco.fechar();
 
   const servidor = spawn(process.execPath, ['servidor.js'], {
@@ -116,6 +118,24 @@ const ok = (t) => { feitos++; console.log('  ok   ' + t); };
     assert.ok(dentro, 'o projeto tinha de estar no segmento escolhido: '
       + JSON.stringify((noSegmento.projetos || []).map((x) => x.nome)));
     ok('CRITERIO: o projeto aparece no cofre, dentro do segmento escolhido');
+
+    /* Abaixo de gestor ninguem cria segmento (o servidor recusa 403): a tela
+     * nao oferece nem o atalho do cabecalho nem o criar do painel. */
+    const ctx = await navegador.createBrowserContext();
+    const pc = await ctx.newPage();
+    await pc.goto(BASE + '/cofre.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await pc.waitForSelector('#email', { visible: true, timeout: 15000 });
+    await pc.type('#email', 'consultor@local.teste');
+    await pc.type('#senha', 'senha-bem-longa-8');
+    await pc.click('#btnEntrar');
+    await pc.waitForSelector('#painelSegmentos h3', { timeout: 15000 });
+    const tela = await pc.evaluate(() => ({
+      botao: document.getElementById('btnNovaEquipe').hidden,
+      form: !!document.getElementById('formPainelSegmento')
+    }));
+    assert.deepStrictEqual(tela, { botao: true, form: false }, 'consultor ve o criar segmento: ' + JSON.stringify(tela));
+    await ctx.close();
+    ok('CRITERIO: consultor nao ve "Novo segmento" nem o criar do painel');
 
     console.log('\n' + feitos + ' casos, tudo certo\n');
   } finally {

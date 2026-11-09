@@ -104,6 +104,14 @@ async function principal() {
   const uIsca = banco.criarUsuario('martelo@auditeste.com', contas.hashSenha('senha-bem-longa-5'));
   banco.vincular(ailos.id, uIsca.id, 'leitor');
 
+  /* Uma conta por papel numa equipe so dos segmentos, para os casos de papel
+   * nao dependerem do que os outros casos fazem com a Ailos. */
+  const segCo = banco.criarTenant('SegCo', 90);
+  for (const papel of ['leitor', 'consultor', 'gestor', 'admin']) {
+    const u = banco.criarUsuario(papel + '@segco.com', contas.hashSenha('senha-segco-' + papel));
+    banco.vincular(segCo.id, u.id, papel);
+  }
+
   proc = spawn(process.execPath, [path.join(__dirname, 'servidor.js')], {
     env: Object.assign({}, process.env, {
       /* 0.0.0.0 e nao loopback: o portao do Print so existe em servidor
@@ -459,6 +467,17 @@ async function principal() {
       email: 'semequipe@teste.com', senha: 'senha-bem-longa-x'
     }});
     assert.strictEqual(r.status, 400);
+  });
+
+  /* " · " e o separador de segmento: o admin de "Ailos" alcanca toda equipe
+   * "Ailos · X". Cadastrar uma com esse nome cairia dentro da Ailos. */
+  await caso('CRITERIO: cadastro recusa " · " no nome da equipe', async () => {
+    const n = navegador();
+    const r = await n.pedir('/api/cadastrar', { method: 'POST', json: {
+      email: 'infiltrado@teste.com', senha: 'senha-bem-longa-x', equipe: 'Ailos · Infiltrada'
+    }});
+    assert.strictEqual(r.status, 400, JSON.stringify(r.corpo));
+    assert.strictEqual(banco.tenantPorNome('Ailos · Infiltrada'), null);
   });
 
   await caso('e-mail repetido nao cria segunda conta', async () => {
@@ -947,6 +966,57 @@ async function principal() {
   await caso('/ping conta que a sessao autoriza', async () => {
     const r = await (await fetch(BASE + '/ping')).json();
     assert.strictEqual(r.sessaoAutoriza, true);
+  });
+
+  console.log('\ncofre · segmentos por papel\n');
+
+  /* Achado de 09/11/2026: POST /api/segmentos nao checava papel. Leitor e
+   * consultor criavam uma sub-equipe com o nome da empresa e viravam ADMIN
+   * dela, e o admin da empresa nao a via. */
+  const seg = {};
+  for (const papel of ['leitor', 'consultor', 'gestor', 'admin']) {
+    seg[papel] = navegador();
+    await seg[papel].pedir('/api/entrar', { method: 'POST', json: { email: papel + '@segco.com', senha: 'senha-segco-' + papel } });
+  }
+
+  await caso('CRITERIO: leitor e consultor levam 403 ao criar segmento, e nada nasce', async () => {
+    for (const papel of ['leitor', 'consultor']) {
+      const r = await seg[papel].pedir('/api/segmentos', { method: 'POST', json: { nome: 'Do ' + papel } });
+      assert.strictEqual(r.status, 403, papel + ': ' + JSON.stringify(r.corpo));
+      assert.strictEqual(banco.tenantPorNome('SegCo · Do ' + papel), null, papel + ': o segmento nasceu mesmo recusado');
+    }
+  });
+
+  await caso('CRITERIO: nem pela rota antiga /api/equipes (saiu: 404, nada nasce)', async () => {
+    const r = await seg.consultor.pedir('/api/equipes', { method: 'POST', json: { nome: 'Pela porta antiga' } });
+    assert.strictEqual(r.status, 404, JSON.stringify(r.corpo));
+    assert.strictEqual(banco.tenantPorNome('SegCo · Pela porta antiga'), null);
+  });
+
+  await caso('gestor e admin criam segmento (201)', async () => {
+    for (const papel of ['gestor', 'admin']) {
+      const r = await seg[papel].pedir('/api/segmentos', { method: 'POST', json: { nome: 'Do ' + papel } });
+      assert.strictEqual(r.status, 201, papel + ': ' + JSON.stringify(r.corpo));
+    }
+  });
+
+  await caso('CRITERIO: o admin da base ve e abre o segmento que o gestor criou', async () => {
+    const lista = await seg.admin.pedir('/api/segmentos');
+    const doGestor = lista.corpo.segmentos.find(s => s.nome === 'SegCo · Do gestor');
+    assert.ok(doGestor, 'sub-equipe invisivel: ' + JSON.stringify(lista.corpo.segmentos.map(s => s.nome)));
+    const eu = await seg.admin.pedir('/api/eu');
+    assert.ok(eu.corpo.equipes.some(t => t.id === doGestor.id), 'nem no seletor de equipe');
+    const r = await seg.admin.pedir('/api/trocar-equipe', { method: 'POST', json: { tenantId: doGestor.id } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.corpo));
+  });
+
+  await caso('CRITERIO: consultor nao renomeia nem exclui segmento (403)', async () => {
+    const alvo = banco.tenantPorNome('SegCo · Do gestor');
+    let r = await seg.consultor.pedir('/api/segmentos/renomear', { method: 'POST', json: { id: alvo.id, sufixo: 'Tomado' } });
+    assert.strictEqual(r.status, 403, JSON.stringify(r.corpo));
+    r = await seg.consultor.pedir('/api/segmentos/excluir', { method: 'POST', json: { id: alvo.id, confirmar: 'EXCLUIR' } });
+    assert.strictEqual(r.status, 403, JSON.stringify(r.corpo));
+    assert.strictEqual(banco.obterTenant(alvo.id).nome, 'SegCo · Do gestor', 'o segmento mudou');
   });
 
   console.log('\ncofre · desligado nao quebra o resto\n');

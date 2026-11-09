@@ -921,7 +921,7 @@
     if(souSegmento()){
       html += '<div class="meta">Você está no segmento <b>' + esc(eu.tenantNome.slice((base + SEP).length))
         + '</b>. Um segmento não cria outro; volte para <b>' + esc(base) + '</b> para criar ou gerenciar.</div>';
-    } else {
+    } else if(pode('gestor')){
       html += '<form class="seg-criar" id="formPainelSegmento">'
         + '<input type="text" id="painelNomeSegmento" placeholder="Novo segmento" maxlength="120" aria-label="Nome do novo segmento">'
         + '<button class="btn primario" type="submit">Criar</button></form>';
@@ -990,8 +990,9 @@
     $('btnAuditoria').hidden = !pode('gestor');
     $('btnIntegracoes').hidden = !pode('gestor');
     $('btnConvidar').hidden = !pode('gestor');
-    /* Um segmento nao gerencia segmentos: some o atalho do cabecalho. */
-    $('btnNovaEquipe').hidden = souSegmento();
+    /* Um segmento nao gerencia segmentos, e abaixo de gestor ninguem cria:
+     * some o atalho do cabecalho (o servidor recusa 403 do mesmo jeito). */
+    $('btnNovaEquipe').hidden = souSegmento() || !pode('gestor');
     await renderPainelSegmentos();
 
     const { projetos } = await api('/api/projetos');

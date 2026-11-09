@@ -256,15 +256,9 @@ async function tratar(req, res, u, lerCorpo) {
       return true;
     }
 
-    if (p === '/api/equipes' && req.method === 'POST') {
-      const s = exigirSessao(req);
-      const c = await lerCorpo(req);
-      const r = contas.criarEquipe(req, s, texto(c.nome, 'Nome da equipe', 120, true));
-      json(res, 201, { ok: true, sessao: r.sessao }, { 'Set-Cookie': r.cookie });
-      return true;
-    }
-
-    /* ---------- segmentos da equipe ---------- */
+    /* ---------- segmentos da equipe ----------
+     * POST /api/equipes saiu em 09/11/2026: criava o mesmo "Base · X" sem
+     * exigir papel, ate de dentro de um segmento. Nenhuma tela o chamava. */
     if (p === '/api/segmentos' && req.method === 'GET') {
       const s = exigirSessao(req);
       json(res, 200, { base: contas.baseDe(s.tenantNome), segmentos: contas.listarSegmentos(s) });

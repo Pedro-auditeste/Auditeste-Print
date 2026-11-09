@@ -313,6 +313,9 @@ function marcarProvedor(tenantId, ligado) {
   return obterTenant(tenantId);
 }
 
+/** "Base · X" -> "Base". Um segmento e a sub-equipe "Base · X" da equipe base. */
+const baseDe = nome => String(nome || '').split(' · ')[0].trim();
+
 /** O vinculo do usuario numa equipe provedora, se houver. */
 const vinculoProvedor = usuarioId => (exigir(), db.prepare(
   `SELECT m.tenant_id, m.papel, t.nome AS tenant_nome
@@ -328,6 +331,17 @@ function equipesAlcancaveis(usuarioId) {
   const proprias = vinculosDoUsuario(usuarioId).map(v => ({
     id: v.tenant_id, nome: v.tenant_nome, papel: v.papel, via: 'membro'
   }));
+  /* Os segmentos das bases que administro, mesma regra do acessoA. */
+  const administro = new Set(proprias.filter(t => t.papel === 'admin' && !t.nome.includes(' · ')).map(t => t.nome));
+  if (administro.size) {
+    const jaTem = new Set(proprias.map(t => t.id));
+    // ponytail: varre todas as equipes; filtro no SQL se passar de alguns milhares
+    for (const t of listarTenants()) {
+      if (!jaTem.has(t.id) && t.nome.includes(' · ') && administro.has(baseDe(t.nome))) {
+        proprias.push({ id: t.id, nome: t.nome, papel: 'admin', via: 'base' });
+      }
+    }
+  }
   const prov = vinculoProvedor(usuarioId);
   if (!prov) return proprias;
   /* Mesma regra do portao, no mesmo lugar conceitual. O teste pegou os dois
@@ -357,17 +371,27 @@ function acessoA(tenantId, usuarioId) {
   const direto = vinculo(tenantId, usuarioId);
   if (direto) return { papel: direto.papel, via: 'membro' };
 
+  const alvo = obterTenant(tenantId);
+  /* Segmento e sub-equipe privada: entra quem tem vinculo direto (tratado
+   * acima) e o ADMIN DA BASE dele. Sem o admin da base, um segmento criado
+   * por outra pessoa vira uma sub-equipe com o nome da empresa que a empresa
+   * nao enxerga. Nem a provedora alcanca o segmento de outra pessoa. Tem que
+   * casar com equipesAlcancaveis, senao a equipe some da lista mas ainda
+   * deixa entrar, ou aparece na lista e recusa a entrada.
+   *
+   * O nome "Base · X" so serve de chave porque " · " e reservado: o cadastro
+   * recusa, e quem cria esse nome e criarSegmento, a partir da base. */
+  if (alvo && alvo.nome.includes(' · ')) {
+    const base = tenantPorNome(baseDe(alvo.nome));
+    const v = base && base.nome === baseDe(alvo.nome) && vinculo(base.id, usuarioId);
+    return v && v.papel === 'admin' ? { papel: 'admin', via: 'base' } : null;
+  }
+
   const prov = vinculoProvedor(usuarioId);
   if (!prov) return null;
-  const alvo = obterTenant(tenantId);
   /* Provedora nao entra em outra provedora: sao pares, nao cliente uma da
    * outra, e permitir isso seria escalonamento lateral. */
   if (!alvo || alvo.provedor) return null;
-  /* Segmento e sub-equipe privada: so entra quem tem vinculo direto (tratado
-   * acima). Nem a provedora alcanca o segmento de outra pessoa. Tem que casar
-   * com equipesAlcancaveis, senao a equipe some da lista mas ainda deixa
-   * entrar, ou aparece na lista e recusa a entrada. */
-  if (alvo.nome.includes(' · ')) return null;
   /* Leitor da provedora fica na provedora: papel mais fraco nao sai visitando
    * cliente. */
   if (prov.papel === 'leitor') return null;
@@ -1085,7 +1109,7 @@ module.exports = {
   exigirNomeDeProjetoLivre, criarTenant, obterTenant, listarTenants, renomearTenant, tenantPorNome, apagarTenant,
   criarUsuario, usuarioPorEmail, usuarioPorId, trocarSenha, marcarAcesso,
   vincular, vinculosDoUsuario, vinculo,
-  marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA,
+  marcarProvedor, vinculoProvedor, equipesAlcancaveis, acessoA, baseDe,
   configurarSso, removerSso, ssoPorDominio, ssoDoTenant, ssoSegredo, listarSso,
   salvarIntegracao, integracaoDoTenant, removerIntegracao,
   criarSessao, obterSessao, revogarSessao, revogarSessoesDoUsuario,

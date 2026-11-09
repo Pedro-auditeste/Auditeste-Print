@@ -179,7 +179,6 @@ const PROTEGIDAS = [
   ['GET', '/api/convites'],
   ['POST', '/api/convites'],
   ['POST', '/api/trocar-equipe'],
-  ['POST', '/api/equipes'],
   ['GET', '/api/segmentos'],
   ['POST', '/api/segmentos'],
   ['POST', '/api/segmentos/renomear'],

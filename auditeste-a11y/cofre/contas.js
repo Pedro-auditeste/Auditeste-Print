@@ -229,6 +229,14 @@ function cadastrar(req, dados) {
       e.status = 400;
       throw e;
     }
+    /* " · " e o separador de segmento, e o admin de "X" alcanca toda equipe
+     * "X · algo" (banco.acessoA). Uma equipe cadastrada com esse nome cairia
+     * dentro de outra empresa. */
+    if (String(dados.equipe).includes(' · ')) {
+      const e = new Error('O nome da equipe não pode ter " · ": esse separador é dos segmentos.');
+      e.status = 400;
+      throw e;
+    }
   }
 
   /* E-mail repetido responde igual a qualquer outro erro de cadastro? Nao:
@@ -264,60 +272,32 @@ function cadastrar(req, dados) {
   };
 }
 
-/* Uma SUB-EQUIPE da equipe atual: uma variante dela, com nome proprio.
- *
- * Nao e uma equipe solta nascida do zero: o nome nasce prefixado com o da
- * equipe de origem ("Minha equipe · Confirmado"), para deixar visivel que e
- * uma variacao da mesma equipe, e nao outra coisa sem relacao. No mais, e uma
- * equipe como qualquer outra: fica isolada (so quem for convidado entra), quem
- * cria vira admin, e a sessao ja passa para ela. O nome cheio e unico
- * (criarTenant lanca 409 se repetir). */
-function criarEquipe(req, sessaoAtual, nome) {
-  const n = String(nome || '').trim();
-  if (n.length < 2) {
-    const e = new Error('O nome da sub-equipe precisa de pelo menos 2 caracteres.');
-    e.status = 400;
-    throw e;
-  }
-  /* Reancora na raiz: criar a partir de uma sub-equipe nao empilha
-   * "A · B · C", vira sempre "A · nome". */
-  const base = String(sessaoAtual.tenantNome || '').split(' · ')[0].trim();
-  const nomeCheio = base ? base + ' · ' + n : n;
-
-  const t = banco.criarTenant(nomeCheio, 90);
-  banco.vincular(t.id, sessaoAtual.usuarioId, 'admin');
-  banco.auditar(t.id, sessaoAtual.usuarioId, 'subequipe.criada', nomeCheio, ipDe(req));
-
-  banco.revogarSessao(sessaoAtual.tokenHash);
-  const token = novoToken();
-  banco.criarSessao(hashToken(token), sessaoAtual.usuarioId, t.id, DURACAO_MS);
-  return {
-    cookie: cookieSessao(req, token, DURACAO_MS),
-    sessao: { email: sessaoAtual.email, tenantId: t.id, tenantNome: t.nome, papel: 'admin' }
-  };
-}
-
 /* ---------- segmentos da equipe ----------
  *
  * Um "segmento" e uma sub-equipe isolada, nomeada "Base · X". Nasce, se
  * renomeia e se apaga por aqui, sem a pessoa sair da equipe base.
  *
- * Apagar exige digitar EXCLUIR, e so vale para segmento que a pessoa
- * ADMINISTRA. A equipe base e a de um cliente ficam de fora de proposito: a
- * base nao tem " · " no nome, e um cliente a pessoa alcanca por ser da
- * provedora, nao por vinculo direto, entao vinculo() volta null e trava. */
-const baseDe = nome => String(nome || '').split(' · ')[0].trim();
+ * Criar, renomear e apagar exigem GESTOR na equipe base: o segmento leva o
+ * nome da empresa, e quem o cria vira admin dele (convida gente, liga Jira).
+ * Ate 09/11/2026 qualquer membro, leitor inclusive, criava. O admin da base
+ * enxerga e administra todo segmento dela (banco.acessoA), com ou sem
+ * vinculo direto, para nao existir sub-equipe da empresa que a empresa nao ve.
+ *
+ * Apagar exige digitar EXCLUIR. A equipe base e a de um cliente ficam de fora
+ * de proposito: a base nao tem " · " no nome, e a provedora nao alcanca
+ * segmento nenhum. */
+const baseDe = banco.baseDe;
 
 function listarSegmentos(sessao) {
   const base = baseDe(sessao.tenantNome);
-  return banco.vinculosDoUsuario(sessao.usuarioId)
-    .filter(v => v.tenant_nome.includes(' · ') && baseDe(v.tenant_nome) === base)
-    .map(v => ({
-      id: v.tenant_id,
-      nome: v.tenant_nome,
-      sufixo: v.tenant_nome.split(' · ').slice(1).join(' · '),
-      papel: v.papel,
-      atual: v.tenant_id === sessao.tenantId
+  return banco.equipesAlcancaveis(sessao.usuarioId)
+    .filter(t => t.nome.includes(' · ') && baseDe(t.nome) === base)
+    .map(t => ({
+      id: t.id,
+      nome: t.nome,
+      sufixo: t.nome.split(' · ').slice(1).join(' · '),
+      papel: t.papel,
+      atual: t.id === sessao.tenantId
     }));
 }
 
@@ -329,6 +309,7 @@ function criarSegmento(req, sessao, nome) {
     const e = new Error('Um segmento não pode criar outro segmento. Volte para a equipe base.');
     e.status = 400; throw e;
   }
+  podeOuErro(sessao, 'gestor');
   const n = String(nome || '').trim();
   if (n.length < 2) {
     const e = new Error('O nome do segmento precisa de pelo menos 2 caracteres.');
@@ -349,7 +330,7 @@ function criarSegmento(req, sessao, nome) {
  *
  * As duas travas que fazem isso nao virar um buraco: o destino tem de ser um
  * segmento DA MINHA BASE (nao serve o segmento de outra empresa, mesmo que
- * alguem descubra o id), e eu tenho de ser membro dele com papel que grava.
+ * alguem descubra o id), e eu tenho de alcancar ele (membro, ou admin da base) com papel que grava.
  * Sem a primeira, um id vazado escreveria dentro de outro cliente; sem a
  * segunda, um leitor criaria projeto onde nao pode. */
 function destinoDoProjeto(sessao, segmentoId) {
@@ -362,7 +343,7 @@ function destinoDoProjeto(sessao, segmentoId) {
     const e = new Error('Este segmento nao pertence a esta equipe.');
     e.status = 404; throw e;
   }
-  const v = banco.vinculo(alvo, sessao.usuarioId);
+  const v = banco.acessoA(alvo, sessao.usuarioId);
   if (!v || (PAPEIS[v.papel] || 0) < PAPEIS.consultor) {
     const e = new Error('Voce nao pode criar dentro deste segmento.');
     e.status = 403; throw e;
@@ -375,9 +356,14 @@ function segmentoDoUsuario(sessao, tenantId) {
   if (!t || !t.nome.includes(' · ')) {
     const e = new Error('Isto não é um segmento.'); e.status = 404; throw e;
   }
-  const v = banco.vinculo(tenantId, sessao.usuarioId);
-  if (!v || v.papel !== 'admin') {
-    const e = new Error('Só quem administra o segmento pode alterá-lo.'); e.status = 403; throw e;
+  /* Admin do segmento (direto, ou por ser admin da base) E gestor na base.
+   * So o primeiro deixava o consultor que criou um segmento antes da trava
+   * seguir renomeando e apagando o que leva o nome da empresa. */
+  const a = banco.acessoA(tenantId, sessao.usuarioId);
+  const base = banco.tenantPorNome(baseDe(t.nome));
+  const vb = base && banco.vinculo(base.id, sessao.usuarioId);
+  if (!a || a.papel !== 'admin' || !vb || (PAPEIS[vb.papel] || 0) < PAPEIS.gestor) {
+    const e = new Error('Só gestor ou admin da equipe base, administrando o segmento, pode alterá-lo.'); e.status = 403; throw e;
   }
   return t;
 }
@@ -553,7 +539,7 @@ function podeOuErro(sessao, papelMinimo) {
 const HASH_ISCA = hashSenha(crypto.randomBytes(32).toString('hex'));
 
 module.exports = {
-  hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, criarEquipe, trocarEquipe, sair, sessaoDe, podeOuErro,
+  hashSenha, conferirSenha, entrar, cadastrar, entrarPorProvedor, trocarEquipe, sair, sessaoDe, podeOuErro,
   baseDe, listarSegmentos, criarSegmento, renomearSegmento, excluirSegmento, destinoDoProjeto,
   novoCodigo, SENHA_MINIMA, CADASTRO_ABERTO, MAX_EQUIPES_POR_IP,
   lerCookie, cookieLimpo, ipDe, hashToken, novoToken,
