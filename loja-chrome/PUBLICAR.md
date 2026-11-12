@@ -14,7 +14,7 @@ aceite dos termos, e nada disso pode ser feito no seu lugar.
 
 ## O pacote
 
-Baixe o .zip pronto em https://auditeste-print-production.up.railway.app/extensao.zip
+Baixe o .zip pronto em https://audiprint.up.railway.app/extensao.zip
 Ele já tem o `manifest.json` na raiz, os ícones e a versão atual do complemento (a mesma do `manifest.json` do repositório). É o arquivo que
 você envia em **Novo item → Escolher arquivo**.
 
@@ -66,17 +66,17 @@ extensão não tem servidor e não envia nada por conta própria.
 
 **URL da política de privacidade**
 ```
-https://auditeste-print-production.up.railway.app/privacidade.html
+https://audiprint.up.railway.app/privacidade.html
 ```
 
 **Site oficial**
 ```
-https://auditeste-print-production.up.railway.app
+https://audiprint.up.railway.app
 ```
 
 **URL de suporte** (não use o mesmo da página inicial, e não cole duas vezes)
 ```
-https://auditeste-print-production.up.railway.app/inicio.html
+https://audiprint.up.railway.app/inicio.html
 ```
 
 ## Imagens

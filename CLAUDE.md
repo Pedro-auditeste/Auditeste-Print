@@ -6,9 +6,12 @@ Pacote de acessibilidade: grava evidências de clique (Antes/Depois), roda scans
 Repo: https://github.com/Pedro-auditeste/Auditeste-Print (público, branch `main`)
 Deploy: Railway da Auditeste (workspace Governança, projeto `cf00171c-f68c-4b48-a6f8-f0fa71d13e33`),
 ligado a este repo (`Pedro-auditeste/Auditeste-Print`, branch `main`), build pelo `Dockerfile` da raiz,
-volume em `/dados`. Endereço: https://auditeste-print-production.up.railway.app. Migrado em 12/11/2026
+volume em `/dados`. Endereço principal: https://audiprint.up.railway.app (também responde em auditeste-print-production.up.railway.app). Migrado em 12/11/2026
 do projeto `gov-auditeste` (repo carvalh), cujo deploy travava em "in_progress" sem ninguém com acesso
-ao painel; o complemento ainda reconhece o endereço antigo `audi-print-production` durante a troca.
+ao painel. O endereço principal é `audiprint` de propósito: é o único que o complemento da
+Chrome Web Store (2.3.1) já reconhece, então quem entra por ele grava id, xpath e HTML sem
+atualizar nada. Esse domínio estava preso ao projeto pessoal antigo "attractive-analysis",
+apagado em 12/11/2026 para liberar.
 
 ## Onde fica o quê
 
@@ -87,7 +90,7 @@ Sem rede: `teste-texto`, `teste-cenarios`, `teste-agendamento`, `teste-marca`,
 `teste-inspecao`. Os três últimos abrem um Chrome headless mas não usam a NVIDIA.
 
 Contra a ponte local não precisa de token (o servidor libera loopback). Contra a
-hospedada, passe as duas: `PONTE_URL=https://auditeste-print-production.up.railway.app/
+hospedada, passe as duas: `PONTE_URL=https://audiprint.up.railway.app/
 PONTE_TOKEN=... node teste-pares-ui.js`. Os testes de Chrome semeiam o
 `localStorage.ponte_token` antes do `goto` — sem isso a página sobe mas a ponte
 devolve 401 (só faz diferença se `PONTE_TOKEN` estiver definido na Railway).

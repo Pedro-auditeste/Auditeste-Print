@@ -14,7 +14,7 @@ audi-print/           recebe o JSON e vira relatório de evidência
 ## 1. auditeste-a11y/publico/index.html — o gravador de evidências (Print)
 
 Hospedado na Railway, com login e cofre por cliente:
-https://auditeste-print-production.up.railway.app/. Guarda a gravação no navegador
+https://audiprint.up.railway.app/. Guarda a gravação no navegador
 (IndexedDB) até você mandar para o cofre.
 
 **Novidades desta entrega**

@@ -50,7 +50,7 @@ Ou dê duplo clique em `auditeste-a11y/ponte.cmd`.
 
 ## Audi Print
 
-Hospedado na Railway, com login e cofre por cliente: https://auditeste-print-production.up.railway.app/
+Hospedado na Railway, com login e cofre por cliente: https://audiprint.up.railway.app/
 
 Para rodar localmente, veja "Uso local (ponte)" acima: `npm run servidor` serve
 o Print em `http://localhost:8900/`.

@@ -9,7 +9,7 @@
  * não servir para nenhuma.
  *
  * As amostras abaixo são recortes REAIS, capturados da ponte local rodando
- * contra https://auditeste-print-production.up.railway.app/cofre.html. Inventar o
+ * contra https://audiprint.up.railway.app/cofre.html. Inventar o
  * formato aqui seria testar a minha suposição, não o que o motor devolve.
  */
 const assert = require('assert');
