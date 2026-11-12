@@ -506,6 +506,7 @@
   /* Endereço comprido (uma busca do Google na observação, por exemplo) não tem
    * espaço para quebrar: sem isto ele esticava a coluna e vazava do cartão. */
   .ficha > div{min-width:0;}
+  .linha-print-auto{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--navy);margin-bottom:4px;}
   .val{min-height:22px;border-bottom:1px solid var(--line);padding-bottom:2px;font-size:.85rem;overflow-wrap:anywhere;}
   select.escolha{
     font-family:inherit;color:var(--ink);background:#fff;width:100%;
@@ -1227,6 +1228,8 @@
     <details class="caixa">
       <summary>Opções de captura</summary>
       <div class="corpo">
+        <label class="linha-print-auto"><input type="checkbox" id="printAutomatico"> Tirar print da tela sozinho (a cada mudança de tela ou por intervalo)</label>
+        <p class="dica-captura">Desligado, o passo sai só com xpath, id e HTML. Para um print avulso, use <b>Capturar agora</b>.</p>
         <div class="abas-captura" role="tablist">
           <button type="button" class="aba-captura ativa" data-modo="alteracao" role="tab" aria-selected="true">Por alteração na tela</button>
           <button type="button" class="aba-captura" data-modo="intervalo" role="tab" aria-selected="false">Por intervalo</button>
@@ -1279,9 +1282,9 @@
 
     <div class="dica">
       <b>Como gravar</b>
-      Clique em <b>Iniciar gravação</b> e escolha a aba do site. Um print sai a cada mudança de tela, e cada par ganha descrição.
-      Para registrar também o <b>id e o HTML</b> do que foi clicado, use a extensão Chrome e importe o JSON aqui.
-      Depois salve e use <b>Gerar cenários</b>.
+      Clique em <b>Iniciar gravação</b> e escolha a aba do site. Com o complemento instalado, cada clique e preenchimento
+      vira um passo com o <b>xpath, o id e o HTML</b> do elemento. Print só entra quando você pede: <b>Capturar agora</b>,
+      ou as opções de captura. Depois salve e use <b>Gerar cenários</b>.
     </div>
 
     <details class="caixa" open>
@@ -1539,7 +1542,6 @@
    * contador anterior deixava dois jobs passarem no mesmo tick (checar e
    * incrementar nao era atomico) e acordava fora de ordem: o passo 4 saia
    * descrito antes do 1, e o excedente levava 429 da ponte. */
-  let filaDescricao = Promise.resolve();
   let telaEstavel=null, amostraEstavel=null, capturaEmAndamento=false, capturaPendente=null;
   let anelFrames=[], quietTicks=0;
   let gravadorVideo=null, pedacos=[], videoBlob=null, urls=[];
@@ -2319,7 +2321,7 @@
   /* ============ TELA GRAVADOR ============ */
   async function abrirGravador(){
     document.getElementById('alvoGravacao').textContent =
-      'Gravando no projeto ' + projetoAtual.nome + '. Cada mudança de tela vira um print.';
+      'Gravando no projeto ' + projetoAtual.nome + '. Cada interação vira um passo; print só quando você pedir.';
     const campoNum = document.querySelector('[data-campo="registro"]');
     if(!campoNum.textContent.trim()){
       const regs = await listarRegistros(projetoAtual.id);
@@ -2366,19 +2368,14 @@
     return Number.isFinite(fim) && (Date.now() - fim) < JANELA_AUTO_MS;
   }
 
-  /* Recolhe do complemento o que ainda não está na lista e descreve o que falta.
+  /* Recolhe do complemento o que ainda não está na lista.
    *
    * Chamada ao abrir a gravação e ao encerrá-la. Os dois casos fazem a mesma
    * coisa, e manter duas versões disso já custou caro: correção numa não chegava
-   * na outra.
-   *
-   * A descrição roda SEMPRE no fim, mesmo sem passo novo. Antes ela vinha depois
-   * de um `if(!novos) return`, então quando todos os passos já tinham chegado ao
-   * vivo — que é o caso normal — a gravação terminava e nenhum cenário era
-   * gerado: os passos ficavam com o aviso na tela para sempre. */
+   * na outra. */
   async function completarComONavegador(){
     if(!lista) return;
-    try{
+    {
       const resumo = await pedirAoNavegador(null, 3000);
       if(!resumo || resumo.erro) return;
       const evid = (resumo.evidencias || []).filter(e => e.passos);
@@ -2392,9 +2389,6 @@
       const novos = acrescentarPassos(dados);
       await pedirAoNavegador(escolhida.tabId, 5000, true);
       if(novos) avisar(novos + ' interação(ões) com xpath trazidas da gravação.');
-    } finally {
-      // Descrever agora não disputa mais com a captura de tela.
-      await gerarDescricoesPendentes();
     }
   }
 
@@ -2696,8 +2690,12 @@
     return vsEstavel;
   }
 
+  /* Print automático só com a opção marcada. Ele vinha ligado sempre: sem o
+   * complemento respondendo, cada mudança de tela virava um passo com print,
+   * e o cliente recebia evidência cheia de imagem que não tinha pedido. */
   function observar(){
     if(estado !== 'gravando' || !video.videoWidth) return;
+    if(!document.getElementById('printAutomatico')?.checked) return;
     const pct = atualizarTelaEstavel();
     const modo = modoCaptura();
     const minMs = modo === 'alteracao' ? 1600 : Number(document.getElementById('intervalo').value)*1000;
@@ -2759,13 +2757,6 @@
     const desc = manual
       ? { titulo: 'Captura manual', obs: 'Print disparado pelo analista às ' + hora() + '.' }
       : descreverMudancaLocal(pctMudanca || 0, primeiro);
-    if(antesSnap){
-      desc.titulo = /início/i.test(desc.titulo || '') ? desc.titulo : 'Analisando onde clicou e para onde entrou...';
-      desc.obs = 'Aguarde: lendo o print 1 (clique) e o print 2 (destino).';
-    } else {
-      desc.titulo = desc.titulo || 'Analisando a tela atual';
-      desc.obs = desc.obs || 'Lendo o print: em qual tela o cliente está...';
-    }
     const passo = novoPasso(desc.titulo, desc.obs);
     passo.classList.add('passo-auto');
     marcarQa(passo, {
@@ -2774,8 +2765,6 @@
     });
     const caixaImgs = passo.querySelector('.imagens');
     if(antesSnap) caixaImgs.classList.add('par-antes-depois');
-    const statusIA = document.getElementById('statusIA');
-    if(statusIA) statusIA.textContent = 'Descrevendo o passo ' + lista.querySelectorAll('.passo').length + '...';
     Promise.resolve()
       .then(async () => {
         if(antesSnap){
@@ -2786,10 +2775,6 @@
         if(bDepois) juntarImagem(passo, bDepois, antesSnap
           ? '2 — tela que abriu'
           : `Captura às ${hora()}`);
-        const figs = [...passo.querySelectorAll('figure')].filter(f => f._blob);
-        const blobAntes = figs.length > 1 ? figs[0]._blob : null;
-        const blobDepois = figs.length ? figs[figs.length-1]._blob : null;
-        await descreverTelaIA(passo, blobAntes, blobDepois);
       });
   }
 
@@ -3006,130 +2991,6 @@
   }
 
   function lerJson(v){ try{ return v ? JSON.parse(v) : null; }catch(_){ return null; } }
-
-  async function descreverTelaIA(passo, blobAntes, blobDepois){
-    if(!blobDepois) return;
-    const tit = passo.querySelector('.titulo');
-    const obs = passo.querySelector('.obs');
-    const botao = passo.querySelector('.gerar-desc');
-    const statusIA = document.getElementById('statusIA');
-    if(!tit) return;
-    const tituloAnterior = tit.textContent.trim();
-    tit.dataset.auto = '1';
-    if(obs) obs.dataset.auto = '1';
-    if(!tit.textContent.trim()) tit.textContent = 'Lendo o print...';
-    if(obs) obs.textContent = 'Gerando descrição do antes e depois...';
-    if(botao){ botao.hidden = true; botao.disabled = true; }
-    passo.dataset.descricaoEstado = 'gerando';
-    const tarefa = async () => {
-      try{
-        /* Antes de qualquer coisa: este projeto autorizou sair da máquina?
-         * A checagem fica aqui, no único ponto por onde a evidência
-         * atravessa, e não no botão: assim vale também para o caminho
-         * automático que dispara sozinho no fim da gravação. */
-        if(!iaLiberada(projetoAtual)){
-          const e = new Error(MOTIVO_IA_BLOQUEADA);
-          e.bloqueado = true;
-          throw e;
-        }
-        const alvo = await resolverPonteIA();
-        if(!alvo.info || !alvo.info.cenarios){
-          throw new Error('Serviço de descrição indisponível. Abra http://127.0.0.1:8900 ou confira a ponte.');
-        }
-        const depois = await encolherLeve(blobDepois, 1000, 0.78, 280000);
-        const antes = blobAntes ? await encolherLeve(blobAntes, 1000, 0.78, 280000) : null;
-        // Sem encolherLeve aqui: o par ja sai dentro do orcamento e reamostrar
-        // de novo borraria os rotulos ANTES/DEPOIS que orientam a IA.
-        const par = blobAntes ? await montarParAntesDepois(blobAntes, blobDepois) : null;
-        if(!depois) throw new Error('não consegui reduzir a captura');
-        const corpo = JSON.stringify({
-          imagem: depois,
-          antes: antes || undefined,
-          par: par || undefined,
-          elemento: passo.dataset.elemento || '',
-          rotulo: passo.dataset.rotulo || '',
-          acao: passo.dataset.acao || '',
-          valor: passo.dataset.valor || '',
-          html: passo.dataset.html || '',
-          textoAntes: lerJson(passo.dataset.textoAntes) || undefined,
-          textoDepois: lerJson(passo.dataset.textoDepois) || undefined,
-          urlAntes: passo.dataset.urlAntes || '',
-          urlDepois: passo.dataset.urlDepois || '',
-          modulo: passo.dataset.modulo || document.querySelector('[data-campo="modulo"]')?.textContent.trim() || '',
-          tipoTeste: passo.dataset.tipoTeste || document.querySelector('[data-campo="tipo"]')?.value || ''
-        });
-        const cab = Object.assign({ 'Content-Type': 'application/json' }, ponteCabecalho());
-        await registrarEnvio('/descrever', alvo.url, 1, corpo.length);
-        let resp = await fetch(alvo.url + '/descrever', {
-          method: 'POST', headers: cab, body: corpo,
-          signal: AbortSignal.timeout(170000)
-        });
-        if(resp.status === 429 || resp.status >= 500){
-          await new Promise(r => setTimeout(r, 1200));
-          resp = await fetch(alvo.url + '/descrever', {
-            method: 'POST', headers: cab, body: corpo,
-            signal: AbortSignal.timeout(170000)
-          });
-        }
-        const dados = await resp.json().catch(() => ({}));
-        if(!resp.ok){
-          const e = new Error(dados.erro || ('HTTP ' + resp.status));
-          e.status = resp.status;
-          throw e;
-        }
-        const analise = normalizarAnaliseQa(dados);
-        let titulo = String(analise.legenda_curta || dados.titulo || '').replace(/\s+/g, ' ').trim();
-        let observ = String(analise.descricao_detalhada || dados.obs || '').replace(/\s+/g, ' ').trim();
-        const recusa = /não posso ajudar|cannot help|can't help|i am unable|unable to (help|assist)/i.test(titulo + ' ' + observ);
-        if(recusa || !titulo){
-          titulo = 'Ação na tela';
-          observ = 'O cliente avançou da tela anterior para a tela seguinte.';
-        }
-        if(tit.dataset.auto === '1') tit.textContent = titulo;
-        if(obs && obs.dataset.auto === '1') obs.textContent = observ;
-        /* Veio id de verdade do DOM: grava no passo, para a caixa do elemento
-         * mostrar seletor e HTML reais em vez de so o localizador por texto. */
-        if(analise.elemento){
-          marcarQa(passo, {
-            acao: passo.dataset.acao || 'Clicar',
-            elemento: analise.elemento,
-            rotulo: passo.dataset.rotulo || '',
-            valor: passo.dataset.valor || '',
-            html: analise.html || '',
-            timestampAntes: passo.dataset.timestampAntes || '',
-            timestampDepois: passo.dataset.timestampDepois || '',
-            urlAntes: passo.dataset.urlAntes || '',
-            urlDepois: passo.dataset.urlDepois || '',
-            modulo: passo.dataset.modulo || '',
-            tipoTeste: passo.dataset.tipoTeste || ''
-          });
-        }
-        aplicarAnaliseQa(passo, { ...analise, legenda_curta: titulo, descricao_detalhada: observ });
-        passo.dataset.descricaoEstado = 'pronta';
-        if(botao) botao.hidden = true;
-        if(statusIA) statusIA.textContent = 'Passo descrito: ' + titulo;
-      }catch(err){
-        const msg = (err && err.message) || 'falha na ponte. Rode npm run servidor em auditeste-a11y.';
-        if(tit.dataset.auto === '1') tit.textContent = tituloAnterior || 'Ação registrada';
-        // O motivo ficava só no tooltip: o QA lia "indisponível" e não sabia o que fazer.
-        if(obs && obs.dataset.auto === '1') obs.textContent = motivoDescricao(err, msg);
-        passo.dataset.descricaoEstado = 'falhou';
-        if(botao){ botao.hidden = false; botao.title = msg; }
-        if(statusIA) statusIA.textContent = 'Não descreveu: ' + msg;
-      }finally{
-        if(botao) botao.disabled = false;
-      }
-    };
-    const job = filaDescricao.then(tarefa, tarefa);
-    filaDescricao = job.catch(() => {});
-    return job;
-  }
-
-  async function gerarDescricaoPasso(passo){
-    const figs = [...passo.querySelectorAll('figure')].filter(f => f._blob);
-    if(figs.length < 2){ avisar('Este passo precisa do par Antes e Depois.'); return; }
-    await descreverTelaIA(passo, figs[0]._blob, figs[1]._blob);
-  }
 
   function juntarImagem(passo, blob, legenda){
     const fig = document.createElement('figure');
@@ -3672,15 +3533,6 @@
     if(origem) preencherCabecalho(origem);
     atualizar();
     if(typeof avisar === 'function') avisar(tituloCurto(p) + ' · chegou do navegador');
-    /* Os outros dois caminhos de trazer passo (botão "Trazer captura" e
-     * "Importar arquivo") já disparam a descrição sozinhos. Este é o
-     * caminho ao vivo -- o passo chega sem ninguém clicar em nada -- e por
-     * isso é o que mais precisa disso: sem a chamada aqui, o passo ficava
-     * parado em "Descrição pendente." até alguém notar e clicar no botão
-     * manual, um por um. gerarDescricoesPendentes() já tem fila própria
-     * (uma rodada por vez), então chamar de novo a cada passo que chega é
-     * seguro, mesmo em pushes rápidos e seguidos. */
-    gerarDescricoesPendentes();
   }
 
   function tituloCurto(p){
@@ -3745,36 +3597,6 @@
 
   /* Descreve tudo que ainda não foi descrito. A fila de descrição já garante uma
    * por vez, então aqui é só disparar na ordem dos passos. */
-  let gerandoTudo = null;
-
-  async function gerarDescricoesPendentes(){
-    /* Uma rodada por vez. Sem isto, pedir a geração enquanto a anterior ainda
-     * está na fila descrevia o mesmo passo duas vezes: quem espera na fila
-     * continua "pendente", e a segunda rodada o pegava de novo. */
-    if(gerandoTudo) return gerandoTudo;
-    gerandoTudo = (async () => {
-      try{ return await gerarAgora(); }
-      finally{ gerandoTudo = null; }
-    })();
-    return gerandoTudo;
-  }
-
-  async function gerarAgora(){
-    const pendentes = [...lista.querySelectorAll('.passo')].filter((el) => {
-      if(el.dataset.descricaoEstado === 'pronta' || el.dataset.descricaoEstado === 'gerando') return false;
-      return [...el.querySelectorAll('figure')].filter(f => f._blob).length >= 2;
-    });
-    if(!pendentes.length) return 0;
-    avisar('Gerando os cenários de ' + pendentes.length + ' passo(s)...');
-    let feitos = 0;
-    for(const el of pendentes){
-      const figs = [...el.querySelectorAll('figure')].filter(f => f._blob);
-      await descreverTelaIA(el, figs[0]._blob, figs[1]._blob);
-      feitos++;
-    }
-    avisar(feitos + ' cenário(s) gerados.');
-    return feitos;
-  }
   pedirAoNavegador(null, 2500).then((r) => { if(r) mostrarBotaoCaptura(); });
 
   async function puxarDaExtensao(){
@@ -3785,7 +3607,6 @@
        * Recarregar a lista aqui apagaria o que você já revisou ou editou. */
       if(lista.querySelector('.passo')){
         await completarComONavegador();
-        await gerarDescricoesPendentes();
         return;
       }
       const resumo = await pedirAoNavegador(null, 3000);
@@ -3828,7 +3649,6 @@
       const novos = acrescentarPassos(dados);
       await pedirAoNavegador(escolhida.tabId, 5000, true);
       avisar(novos + ' interação(ões) trazidas com o xpath do elemento.');
-      await gerarDescricoesPendentes();
     }catch(err){
       informar('Não consegui trazer a captura: ' + ((err && err.message) || 'erro'), 'Falha ao trazer');
     }finally{
@@ -3883,7 +3703,6 @@
       const novos = acrescentarPassos(dados);
       if(!novos){ avisar('Estes passos já estavam na tela.'); return; }
       avisar(novos + ' interação(ões) importada(s) do arquivo.');
-      await gerarDescricoesPendentes();
     }catch(err){
       avisar('Não consegui ler o arquivo: ' + ((err && err.message) || 'formato inválido'), true);
     }
@@ -4148,7 +3967,6 @@
       <div class="carimbo">${dataHora()} &nbsp;·&nbsp; ${mmss(segundos)} de gravação</div>
       <div class="titulo" contenteditable data-vazio="Ação executada nesta tela"></div>
       <div class="obs" contenteditable data-vazio="Resultado observado, dado utilizado ou observação relevante."></div>
-      <button type="button" class="gerar-desc" data-acao="gerarDescricao" hidden>Gerar descrição</button>
       <div class="meta-evento" hidden></div>
       <div class="meta-qa" hidden></div>
       <div class="imagens"></div>
@@ -5606,31 +5424,6 @@
     }
   }
 
-  async function gerarDescricaoRegistro(indice, botao){
-    const p = registroAberto && registroAberto.passos && registroAberto.passos[indice];
-    if(!p || !p.imagens || p.imagens.length < 2){ avisar('Este passo não possui o par Antes e Depois.'); return; }
-    if(botao) botao.disabled = true;
-    const temporario = document.createElement('article');
-    temporario.innerHTML = '<div class="titulo"></div><div class="obs"></div><button class="gerar-desc" hidden></button><div class="meta-evento"></div><div class="meta-qa"></div><div class="legenda-ia"></div><div class="analise-qa"></div>';
-    temporario.querySelector('.titulo').textContent = p.titulo || '';
-    temporario.querySelector('.obs').textContent = p.obs || '';
-    marcarQa(temporario, p);
-    temporario.dataset.modulo = registroAberto.ficha?.modulo || '';
-    temporario.dataset.tipoTeste = registroAberto.ficha?.tipo || '';
-    await descreverTelaIA(temporario, p.imagens[0].blob, p.imagens[1].blob);
-    if(temporario.dataset.descricaoEstado === 'pronta'){
-      p.titulo = temporario.querySelector('.titulo').textContent.trim();
-      p.obs = temporario.querySelector('.obs').textContent.trim();
-      p.analiseQa = analiseDoPasso(temporario);
-      await gravarRegistroDB(registroAberto);
-      await abrirRegistro(registroAberto.id);
-      avisar('Descrição atualizada.');
-    } else {
-      if(botao) botao.disabled = false;
-      avisar('Não foi possível gerar a descrição. Os prints continuam salvos.');
-    }
-  }
-
   async function adicionarAlternativoRegistro(indicePasso, indiceAlternativo){
     const origem = registroAberto?.passos?.[indicePasso];
     const ideia = normalizarAnaliseQa(origem?.analiseQa).cenarios_alternativos[indiceAlternativo];
@@ -5717,7 +5510,6 @@
           ${obsUtil ? `<div class="obs">${esc(p.obs)}</div>` : ''}
           <div class="carimbo">${esc(p.carimbo)}</div>
           ${datas}
-          ${(p.imagens || []).length >= 2 ? `<button class="gerar-desc" data-acao="gerarDescricaoRegistro" data-passo="${i}">Gerar descrição novamente</button>` : ''}
           <div class="imagens ${(p.imagens || []).length >= 2 ? 'par-antes-depois' : ''}">${(p.imagens || []).map(im=>`<figure style="margin:0 0 10px">
             <img src="${url(im.blob)}" alt="Evidência" title="Clique para ampliar">
             <figcaption class="legenda">${esc(im.legenda)}</figcaption></figure>`).join('')}</div>
@@ -5746,7 +5538,6 @@
     if(b.dataset.acao === 'publicarZephyr') publicarNoZephyr(registroAberto, b);
     if(b.dataset.acao === 'abrirBugJira') abrirBugNoJira(registroAberto, b);
     if(b.dataset.acao === 'anexarDemandaJira') anexarNaDemanda(registroAberto, b);
-    if(b.dataset.acao === 'gerarDescricaoRegistro') gerarDescricaoRegistro(Number(b.dataset.passo), b);
     if(b.dataset.acao === 'copiarGherkinRegistro') copiarTextoQa(normalizarAnaliseQa(registroAberto?.passos?.[Number(b.dataset.passo)]?.analiseQa).gherkin, 'Gherkin copiado.');
     if(b.dataset.acao === 'copiarCapturaRegistro') copiarCapturaDe(registroAberto?.passos?.[Number(b.dataset.passo)]);
     if(b.dataset.acao === 'adicionarAlternativoRegistro') adicionarAlternativoRegistro(Number(b.dataset.passo), Number(b.dataset.alternativo));
@@ -5783,7 +5574,6 @@
     if(acao === 'novoProjeto') novoProjeto();
     if(acao === 'restaurarBackup') document.getElementById('arqBackup').click();
     if(acao === 'remover'){ a.closest('.passo').remove(); atualizar(); }
-    if(acao === 'gerarDescricao') gerarDescricaoPasso(a.closest('.passo'));
     if(acao === 'copiarGherkin') copiarTextoQa(analiseDoPasso(a.closest('.passo')).gherkin, 'Gherkin copiado.');
     if(acao === 'copiarCaptura') copiarCapturaDe(a.closest('.passo')?.dataset);
     if(acao === 'adicionarAlternativo') adicionarAlternativoPasso(a.closest('.passo'), Number(a.dataset.alternativo));

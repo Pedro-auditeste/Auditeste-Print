@@ -383,7 +383,7 @@ function tratarErroAgente(err) {
     throw e;
   }
   if (status === 410 || /end of life|reached its end/i.test(msg)) {
-    throw new Error('O modelo de descrição foi desligado pela NVIDIA. Atualize o servidor ou troque AGENTE_MODELO.');
+    throw new Error('O serviço de cenários está fora do ar agora. Tente de novo mais tarde ou avise o suporte.');
   }
   if (status === 404 || /model.?not.?found|does not exist|unknown.?model/i.test(msg)) {
     throw new Error('Modelo não disponível (' + MODELO + '). Defina AGENTE_MODELO com um modelo válido da sua conta NVIDIA.');

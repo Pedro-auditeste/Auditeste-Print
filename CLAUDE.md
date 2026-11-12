@@ -206,3 +206,17 @@ descompacta e carrega o pacote num Chrome de verdade: zip que abre não prova na
 
 Código, commits e UI em **português**. Mensagens de commit descrevem o efeito para
 o usuário, não o arquivo mexido (ver `git log`).
+
+## Sem descrição automática, print só quando pedem (12/11/2026)
+
+A pedido do QA, o Print não descreve mais os prints sozinho: saíram o botão
+"Gerar descrição", a fila `gerarDescricoesPendentes` e `descreverTelaIA`. O passo
+vale pelo xpath, id e HTML do complemento. A rota `/descrever` continua no servidor,
+mas o Print não chama: se voltar a chamar, `teste-privacidade.js` reprova até ter
+bloqueio e registro de envio. **Gerar cenários** (Gherkin) continua.
+
+O print automático da tela (por alteração ou intervalo) só roda com
+`#printAutomatico` marcado em Opções de captura; vem desligado. Antes ele rodava
+sempre que o complemento não respondia, e a evidência saía cheia de imagem que
+ninguém pediu. Print avulso: **Capturar agora**. `teste-ux-retorno.js` grava com a
+tela mudando e cobra zero passos sem a opção, e algum passo com ela.

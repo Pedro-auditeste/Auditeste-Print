@@ -260,6 +260,46 @@ const BACKUP = {
       assert.ok(m.campo <= m.ficha + 1, 'o campo passou da borda da ficha');
     });
 
+    /* ---------- retorno de 12/11/2026: sem descricao automatica, print so se pedir ---------- */
+
+    await caso('CRITERIO: nao existe mais "Gerar descricao" no Print', () => {
+      const html = fs.readFileSync(path.join(__dirname, 'publico', 'index.html'), 'utf8');
+      assert.ok(!/Gerar descrição/.test(html), 'o botao Gerar descricao voltou');
+      assert.ok(!/descreverTelaIA|gerarDescricoesPendentes/.test(html), 'a descricao automatica voltou');
+      assert.ok(!/Analisando onde clicou/.test(html), 'o passo voltou a dizer que esta analisando a tela');
+    });
+
+    await caso('CRITERIO: gravar com a tela mudando nao tira print sozinho; so com a opcao marcada', async () => {
+      await pg.goto(BASE + '/index.html', { waitUntil: 'domcontentloaded' });
+      await pg.click('#entrarSite').catch(() => {});
+      await pg.waitForSelector('#gradeProjetos .cartao[data-projeto]', { visible: true });
+      await pg.click('#gradeProjetos .cartao[data-projeto]');
+      await pg.waitForSelector('[data-acao="novaGravacao"]', { visible: true });
+      await pg.click('[data-acao="novaGravacao"]');
+      await pg.waitForSelector('#btnIniciar', { visible: true });
+      /* A "tela compartilhada" troca de cor a cada 700 ms: mudanca de sobra para
+       * a captura por alteracao disparar, se estiver ligada. */
+      await pg.evaluate(() => {
+        const c = document.createElement('canvas'); c.width = 640; c.height = 360;
+        const g = c.getContext('2d'); let n = 0;
+        setInterval(() => { g.fillStyle = ['#ffffff', '#0d3446', '#76c043', '#d84f4f'][n++ % 4]; g.fillRect(0, 0, 640, 360); }, 700);
+        navigator.mediaDevices.getDisplayMedia = async () => c.captureStream(10);
+      });
+      const gravar = async () => {
+        await pg.click('#btnIniciar');
+        await pg.waitForFunction(() => document.getElementById('barraRec').dataset.estado === 'gravando', { timeout: 8000 });
+        await delay(7000);
+        const n = await pg.$$eval('#lista .passo', els => els.length);
+        await pg.click('#btnParar');
+        await delay(2500);
+        return n;
+      };
+      assert.strictEqual(await pg.$eval('#printAutomatico', el => el.checked), false, 'o print automatico ja vem ligado');
+      assert.strictEqual(await gravar(), 0, 'sem marcar a opcao, a gravacao tirou print sozinha');
+      await pg.evaluate(() => { document.getElementById('printAutomatico').checked = true; });
+      assert.ok(await gravar() > 0, 'com a opcao marcada, nenhum print saiu: a captura quebrou, nao so foi desligada');
+    });
+
     await caso('nenhum erro de script', () => assert.deepStrictEqual(erros, []));
   } finally {
     if (nav) await nav.close();

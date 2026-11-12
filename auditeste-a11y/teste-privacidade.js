@@ -68,15 +68,15 @@ caso('a caixa do consentimento nasce desmarcada', () => {
   assert.ok(!/\bchecked\b/.test(m[1]), 'a caixa não pode nascer marcada: o envio é opt-in');
 });
 
-caso('o bloqueio fica antes do fetch, nao depois', () => {
-  const i = pagina.indexOf('const e = new Error(MOTIVO_IA_BLOQUEADA)');
-  const j = pagina.indexOf("fetch(alvo.url + '/descrever'");
-  assert.ok(i > 0 && j > 0, 'não achei o bloqueio ou o envio');
-  assert.ok(i < j, 'o bloqueio precisa vir antes do envio, senão a evidência já saiu');
+/* Desde 12/11/2026 o Print nao manda print nenhum para /descrever: a descricao
+ * automatica saiu. Se uma chamada voltar, ela tem de voltar com bloqueio e
+ * registro, e este caso avisa antes. */
+caso('o Print nao envia print para /descrever', () => {
+  assert.ok(pagina.indexOf("'/descrever'") === -1, 'voltou um envio para /descrever: precisa de bloqueio e registro antes');
 });
 
 caso('todo envio passa por registrarEnvio', () => {
-  for (const rota of ['/descrever', '/cenarios']) {
+  for (const rota of ['/cenarios']) {
     const re = new RegExp("registrarEnvio\\('" + rota + "'");
     assert.ok(re.test(pagina), 'nada registra o envio para ' + rota);
   }

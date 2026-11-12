@@ -97,13 +97,14 @@ caso('nenhuma funcao do Print declarada duas vezes', () => {
   assert.deepStrictEqual(repetidas, [], 'declaradas mais de uma vez: ' + repetidas.join(', '));
 });
 
-caso('a descricao roda mesmo sem passo novo', () => {
+/* Ate 12/11/2026 este caso cobrava a descricao automatica no fim da gravacao.
+ * Ela saiu a pedido do QA: o passo vale pelo xpath, id e HTML, e print so entra
+ * quando a pessoa pede. Agora o caso cobra que ela nao volte por esse caminho. */
+caso('recolher a captura nao dispara descricao automatica', () => {
   const fn = html.slice(html.indexOf('async function completarComONavegador'),
                         html.indexOf('const trazerSozinho'));
-  assert.ok(/finally[\s\S]*gerarDescricoesPendentes/.test(fn),
-    'gerarDescricoesPendentes precisa rodar no finally: com todos os passos ja '
-    + 'chegados ao vivo, um return antecipado deixava a gravacao sem cenario');
-  assert.ok(fn.indexOf('if(!novos) return;') === -1, 'o return que pulava a descricao voltou');
+  assert.ok(fn.length > 50, 'nao achei completarComONavegador');
+  assert.ok(!/gerarDescricoesPendentes|descreverTelaIA/.test(fn), 'a descricao automatica voltou');
 });
 
 console.log('\nRESULTADO: PASSOU (' + n + ' casos)');

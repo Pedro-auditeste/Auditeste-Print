@@ -157,7 +157,7 @@ async function finalizar(tabId) {
       sessao.passos.push({
         id: p.id,
         titulo: tituloDo(p),
-        obs: comPrints ? 'Descrição pendente.' : 'Sem print: captura desligada nesta gravação.',
+        obs: '',
         acao: p.tipo || 'Clicar',
         elemento: p.seletor,
         elementoId: p.elementoId || '',
