@@ -502,6 +502,7 @@
    * Print esta no ar agora, e sem ele aqui a pagina do proprio Print nao era
    * reconhecida como Print. */
   const ORIGENS_PRINT = ['https://audiprint.up.railway.app',
+    'https://auditeste-print-production.up.railway.app',
     'https://audi-print-production.up.railway.app'];
 
   /* Local e a maquina do proprio usuario, entao qualquer porta serve.

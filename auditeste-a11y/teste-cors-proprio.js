@@ -14,7 +14,7 @@ const { spawn } = require('child_process');
 
 const PORTA = 8993;
 const BASE = 'http://127.0.0.1:' + PORTA;
-const HOST_DAQUI = 'audi-print-production.up.railway.app';   // quem esta respondendo
+const HOST_DAQUI = 'auditeste-print-production.up.railway.app';   // quem esta respondendo
 const ORIGEM_ANTIGA = 'https://audiprint.up.railway.app';    // o que ficou esquecido em PONTE_ORIGENS
 const ORIGEM_HOSTIL = 'https://site-qualquer.example';       // terceiro nao relacionado
 

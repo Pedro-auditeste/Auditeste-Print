@@ -30,7 +30,7 @@ console.log('\norigens do Print na extensao\n');
 // tambem -- e' o mesmo teste que vai lembrar da proxima vez.
 const OBRIGATORIAS = [
   'https://audiprint.up.railway.app',
-  'https://audi-print-production.up.railway.app',
+  'https://auditeste-print-production.up.railway.app',
 ];
 
 caso('CRITERIO: background.js > ABAS_PRINT tem as duas URLs do Print', () => {

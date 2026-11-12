@@ -232,6 +232,8 @@ function agendarFinalizacao(tabId) {
  * segundo aqui, a extensao gravava certinho mas nunca achava a aba do Print
  * para empurrar o passo -- a gravacao "sumia" sem erro nenhum na tela. */
 const ABAS_PRINT = ['https://audiprint.up.railway.app/*',
+  'https://auditeste-print-production.up.railway.app/*',
+  // Endereco antigo, ate todo mundo trocar de favorito (migrado em 12/11/2026).
   'https://audi-print-production.up.railway.app/*',
   'http://localhost/*', 'http://127.0.0.1/*'];
 
@@ -298,6 +300,7 @@ function ehAbaDePrint(url, origemQueArmou) {
   return ORIGENS_PRINT_URL.includes(o) || (!!origemQueArmou && o === origemQueArmou);
 }
 const ORIGENS_PRINT_URL = ['https://audiprint.up.railway.app',
+  'https://auditeste-print-production.up.railway.app',
   'https://audi-print-production.up.railway.app'];
 
 async function comecarSeArmado(tabId) {
