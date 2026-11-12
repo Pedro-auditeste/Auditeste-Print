@@ -141,11 +141,16 @@ caso('o outerHTML tambem perde o value quando o campo e sensivel', () => {
 /* ---------- fora de sessao a extensao nao le a pagina ---------- */
 
 caso('sem gravacao ativa, registrar() sai antes de ler qualquer coisa', () => {
-  const m = /function registrar\(el, tipo, valor\)\s*\{([\s\S]*?)\n  \}/.exec(content);
+  /* A assinatura e a guarda ganharam companhia em 09/11/2026 (foraDoIntervalo,
+   * "|| !el"), e este caso, que casava o texto exato, passou a reprovar a
+   * esteira sem que a proteção tivesse mudado: o deploy ficou dois dias parado
+   * por isso. O que importa cobrar é a guarda sair quando NÃO está gravando,
+   * antes de qualquer leitura; "||" só acrescenta saída, "&&" a enfraqueceria. */
+  const m = /function registrar\(el, tipo, valor[^)]*\)\s*\{([\s\S]*?)\n  \}/.exec(content);
   assert.ok(m, 'registrar() não encontrada');
   const corpo = m[1];
 
-  const guarda = corpo.indexOf('if (!gravando) return;');
+  const guarda = corpo.search(/if \(!gravando(?: \|\| [^)&]+)?\) return;/);
   assert.ok(guarda !== -1,
     'registrar() voltou a capturar sem conferir a sessão: em QUALQUER site, só de estar '
     + 'instalada, a extensão passa a ler xpath, outerHTML e texto da tela a cada clique');
