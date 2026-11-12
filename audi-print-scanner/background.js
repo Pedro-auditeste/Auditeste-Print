@@ -315,6 +315,28 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'audi-keepalive') return;
 });
 
+/* Instalar ou atualizar alcanca as abas que ja estavam abertas.
+ *
+ * O Chrome so injeta o content script do manifesto em pagina carregada DEPOIS
+ * da instalacao. Quem instalava o complemento e ia direto para a aba do
+ * sistema, ja aberta, testava sem ninguem ouvindo: nenhuma interacao virava
+ * passo, o Print caia calado para o print da tela e a evidencia saia sem
+ * xpath, sem id e sem HTML. Funcionava na maquina de quem ja tinha o
+ * complemento e falhava na de quem acabara de instalar. Na atualizacao pela
+ * loja acontece o mesmo: a copia antiga fica orfa na aba ate o proximo F5.
+ *
+ * Aba que recusa (loja do Chrome, PDF, aba descartada) fica de fora sem erro:
+ * ela recebe o content script do manifesto quando for recarregada. A copia
+ * que por acaso ja estivesse la se aposenta sozinha (ver TROCA no content). */
+chrome.runtime.onInstalled.addListener(async () => {
+  let abas = [];
+  try { abas = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] }); } catch (_) { return; }
+  await Promise.allSettled(abas.map((aba) => chrome.scripting.executeScript({
+    target: { tabId: aba.id, allFrames: true },
+    files: ['content.js']
+  })));
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, responder) => {
   /* O alvo explicito vence o remetente: o popup manda tabId dizendo qual aba
    * gravar, e content script nao manda tabId nenhum. Ao contrario, uma pagina

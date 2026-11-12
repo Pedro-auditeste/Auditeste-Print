@@ -1211,6 +1211,13 @@
       </div>
     </div>
     <p id="statusIA" class="dica-captura" style="margin:6px 0 0" role="status"></p>
+    <div class="aviso" id="avisoSemComplemento" role="alert" hidden>
+      <b>O complemento não respondeu nesta página</b>
+      Esta gravação sai só com o print da tela: sem xpath, sem id e sem o HTML do elemento.
+      Clique em Parar, recarregue esta página e a aba do sistema testado (F5) e inicie de novo.
+      Se continuar, abra chrome://extensions e confira se o Audi Print está instalado e ativado.
+      Em janela anônima, ele precisa da opção Permitir no modo de navegação anônima.
+    </div>
 
     <details class="caixa">
       <summary>Opções de captura</summary>
@@ -2417,8 +2424,11 @@
     /* Gravar a tela e gravar as interações começam juntos. A sessão não pode
      * nascer na aba do Print, então o complemento fica armado e começa sozinho
      * na aba do site assim que você for para ela. */
+    faltaComplemento = false;
     pedirAoNavegador(null, 3000, false, true).then((r) => {
       sessaoDoComplemento = !!(r && !r.erro && r.ok !== false);
+      faltaComplemento = !sessaoDoComplemento;
+      mostrarEstadoDoComplemento();
     });
     await video.play();
     stream.getVideoTracks()[0].addEventListener('ended', ()=>{ if(estado !== 'parado') parar(true); });
@@ -2444,8 +2454,7 @@
     if(capturaPendente){ clearTimeout(capturaPendente); capturaPendente = null; }
     pingPonte();
     mudarEstado('gravando');
-    const st = document.getElementById('statusIA');
-    if(st) st.textContent = 'Gravando: cada interação vira um passo com xpath e id. O print só entra se você marcar a opção.';
+    mostrarEstadoDoComplemento();
     vigiaBuffer = setInterval(() => atualizarTelaEstavel(), 120);
     /* Nao capturar mais a tela de abertura sozinho.
      *
@@ -2462,6 +2471,22 @@
 
   function iniciar(){
     return iniciarManual();
+  }
+
+  /* Sem o complemento respondendo, a gravação cai para o print da tela, e
+   * imagem não tem DOM: o passo sai sem xpath, sem id e sem HTML. Até
+   * 11/11/2026 isso acontecia calado, com a tela ainda dizendo "cada interação
+   * vira um passo com xpath e id". Na máquina de quem acabou de instalar o
+   * complemento (ou abriu em janela anônima) a evidência saía pela metade e
+   * ninguém sabia por quê. */
+  let faltaComplemento = false;
+  function mostrarEstadoDoComplemento(){
+    const a = document.getElementById('avisoSemComplemento');
+    if(a) a.hidden = !faltaComplemento;
+    const st = document.getElementById('statusIA');
+    if(st && estado === 'gravando') st.textContent = faltaComplemento
+      ? 'Gravando só a tela: sem o complemento, o passo sai sem xpath, id e HTML.'
+      : 'Gravando: cada interação vira um passo com xpath e id. O print só entra se você marcar a opção.';
   }
 
   function parar(externo, silencioso){
@@ -3512,14 +3537,22 @@
   function pedirAoNavegador(deTab, msTimeout, marcar, armar, pararTudo, descartar){
     return new Promise((ok) => {
       const pedido = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
-      const fim = setTimeout(() => { window.removeEventListener('message', ouvir); ok(null); }, msTimeout || 2500);
+      /* Complemento atualizado com esta aba aberta deixa duas cópias na página:
+       * a antiga, que só sabe responder com erro, e a nova. A antiga costuma
+       * responder primeiro, então resposta com erro espera um instante pela
+       * boa antes de valer. */
+      let comErro = null;
+      const fechar = (d) => { clearTimeout(fim); window.removeEventListener('message', ouvir); ok(d); };
+      const fim = setTimeout(() => fechar(comErro), msTimeout || 2500);
       function ouvir(ev){
         if(ev.source !== window) return;
         const d = ev.data;
         if(!d || d.tipo !== 'AUDI_PRINT_RESPONDE' || d.pedido !== pedido) return;
-        clearTimeout(fim);
-        window.removeEventListener('message', ouvir);
-        ok(d);
+        if(d.erro){
+          if(!comErro){ comErro = d; setTimeout(() => fechar(comErro), 600); }
+          return;
+        }
+        fechar(d);
       }
       window.addEventListener('message', ouvir);
       /* A escolha de capturar print viaja junto com o "armar": e' aqui, na
@@ -3617,6 +3650,7 @@
     if(ev.source !== window || !ev.data || ev.data.tipo !== 'AUDI_PRINT_PASSO') return;
     mostrarBotaoCaptura();
     sessaoDoComplemento = true;   // chegou passo: a gravação de interações está viva
+    if(faltaComplemento){ faltaComplemento = false; mostrarEstadoDoComplemento(); }
     receberPassoDaExtensao(ev.data.passo, ev.data.origem);
   });
 

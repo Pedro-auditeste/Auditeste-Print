@@ -134,6 +134,19 @@ pendente (`campoSujo`) e o `change` seguinte não duplica. No `background.js`,
 ação que chega com outro passo aberto entra em `sessao.fila`, nunca é
 descartada. `teste-preencher-e-clicar.js` trava isso (e-mail, senha, Entrar).
 
+**Passo sem xpath, sem id e sem HTML quer dizer complemento fora do ar, não
+defeito na captura.** Sem ele respondendo, a gravação cai para o print da tela,
+que é imagem e não tem DOM. Foi o "funciona na minha máquina e não na da
+colega": o Chrome só põe o content script em página carregada depois da
+instalação, então quem instalava e ia direto testar na aba já aberta não gravava
+nada. Duas travas: o `onInstalled` do `background.js` injeta o `content.js` nas
+abas abertas (e a cópia antiga, que sobra na atualização, se aposenta pelo evento
+`TROCA`), e o Print mostra `#avisoSemComplemento` quando o pedido de armar não é
+respondido. `teste-complemento-instalado-depois.js` instala o complemento com a
+aba aberta e recarrega ele no meio; `teste-aviso-sem-complemento.js` cobre o
+aviso. Janela anônima continua dependendo de o usuário permitir o complemento
+nela: isso o código não alcança, só o aviso.
+
 **Trazer a captura nunca limpa a tela.** `acrescentarPassos` só adiciona o que
 falta, deduplicando por id. A função anterior zerava a caixa de vídeo por esperar
 um vídeo vindo do complemento — que ele nunca mandou —, e o vídeo da gravação de

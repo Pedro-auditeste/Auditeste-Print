@@ -2,6 +2,20 @@
   let ultimaAcao = 0;
   let gravando = false;
 
+  /* Uma copia viva por documento.
+   *
+   * Instalar ou atualizar o complemento injeta este arquivo nas abas que ja
+   * estavam abertas (onInstalled, no background): sem isso, quem instalava e
+   * ia direto testar nao gravava nada ate dar F5. Na atualizacao, porem, a
+   * copia antiga continua na pagina, ouvindo os mesmos eventos, sem conseguir
+   * falar com o complemento novo. Cada copia que chega avisa pelo DOM, que e
+   * o unico canal que as duas enxergam, e a mais velha se aposenta: para de
+   * gravar, de realcar e de responder ao Print. */
+  const TROCA = 'audi-print-complemento-novo';
+  let aposentado = false;
+  document.dispatchEvent(new Event(TROCA));
+  document.addEventListener(TROCA, () => { aposentado = true; ligarRealce(false); }, { once: true });
+
   /* Xpath sempre: e o unico seletor que o script de automacao le igual em
    * Selenium, Playwright e Cypress, e o QA pediu um formato so. */
   function aspas(v) {
@@ -447,7 +461,7 @@
   addEventListener('resize', pedirReposicao);
 
   function ligarRealce(ativo) {
-    gravando = !!ativo;
+    gravando = !!ativo && !aposentado;
     if (!gravando) {
       travado = false;
       alvoAtual = null;
@@ -469,6 +483,7 @@
     .catch(() => { /* service worker dormindo ou extensao recarregando */ });
 
   chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
+    if (aposentado) return;
     if (msg && msg.tipo === 'AUDI_TEXTO') { responder(resumoDaTela()); return true; }
     if (msg && msg.tipo === 'AUDI_SESSAO') ligarRealce(msg.ativa);
     // Passo novo chegando do background: repassa para a pagina do Print.
@@ -504,7 +519,7 @@
 
   if (window === window.top && paginaDoPrint()) {
     window.addEventListener('message', async (ev) => {
-      if (ev.source !== window) return;
+      if (aposentado || ev.source !== window) return;
       const d = ev.data;
       if (!d || d.tipo !== 'AUDI_PRINT_PEDE') return;
       const responder = (corpo) => window.postMessage(
