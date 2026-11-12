@@ -26,11 +26,15 @@ async function caso(nome, fn) {
 }
 
 /* O que um backup de projeto traz: o mesmo formato que "Backup" baixa. */
+/* O que o Print anota sozinho quando o teste comeca numa busca do Google: um
+ * endereco de centenas de caracteres sem um espaco para quebrar. */
+const URL_COMPRIDA = 'Teste em https://www.google.com/search?q=casas+bahia&' + 'sca_esv=2ae1172c4ad4d1ca&sxsrf='.repeat(18);
+
 const BACKUP = {
   formato: 'audi-print-backup', versao: 1, geradoEm: 1,
   projeto: { nome: 'Projeto do backup', cliente: 'Cliente X', logo: null, iaPermitida: false, pasta: null, criadoEm: 1 },
   registros: [{ projetoNome: 'Projeto do backup', criadoEm: 2, video: null,
-    ficha: { registro: 'EVD-1', resultado: 'Aprovado', modulo: 'Login' },
+    ficha: { registro: 'EVD-1', resultado: 'Aprovado', modulo: 'Login', observacoes: URL_COMPRIDA },
     passos: [{ titulo: 'a', imagens: [] }, { titulo: 'b', imagens: [] }] }]
 };
 
@@ -83,6 +87,9 @@ const BACKUP = {
     });
 
     await caso('CRITERIO: sem projeto, o convite tem outro rotulo que o botao do topo', async () => {
+      /* O convite so entra depois que a lista de projetos volta do banco do
+       * navegador: sem esperar, este caso reprovava de vez em quando por medir cedo. */
+      await pg.waitForSelector('#gradeProjetos .cartao.novo', { visible: true, timeout: 8000 });
       assert.strictEqual(await visiveisCom('Novo projeto'), 1, 'Novo projeto aparece mais de uma vez');
       assert.strictEqual(await visiveisCom('Criar primeiro projeto'), 1);
     });
@@ -180,6 +187,77 @@ const BACKUP = {
     await caso('salvar uma evidencia avisa que ela fica so no navegador', () => {
       const html = fs.readFileSync(path.join(__dirname, 'publico', 'index.html'), 'utf8');
       assert.ok(/Ela fica só neste navegador: exporte o HTML para compartilhar/.test(html));
+    });
+
+    /* ---------- retorno de 12/11/2026: aviso em cima do Salvar, URL vazando do cartao ---------- */
+
+    const cruza = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const medirAviso = () => pg.evaluate(() => {
+      const r = el => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; };
+      const aviso = document.querySelector('.aviso-toast.visivel');
+      return aviso ? { aviso: r(aviso), rodape: r(document.querySelector('#telaGravador .rodape-fixo')),
+        topo: r(document.querySelector('.topo')), largura: innerWidth } : null;
+    });
+    /* Um passo chegando do complemento e o aviso mais comum da tela de gravacao. */
+    const chegarPasso = n => pg.evaluate(i => window.postMessage({ tipo: 'AUDI_PRINT_PASSO', origem: {},
+      passo: { id: 'ux-' + i, titulo: 'Clicou em "Salvar"', acao: 'Clicar', rotulo: 'Salvar', elemento: '//*[@id="salvar"]',
+        elementoId: 'salvar', html: '<button id="salvar">Salvar</button>', imagens: [] } }, location.origin), n);
+
+    await caso('CRITERIO: o aviso flutuante nao cobre "Salvar no projeto", nem em janela estreita', async () => {
+      await pg.click('#gradeProjetos .cartao[data-projeto]');
+      await pg.waitForSelector('[data-acao="novaGravacao"]', { visible: true });
+      await pg.click('[data-acao="novaGravacao"]');
+      await pg.waitForSelector('#btnIniciar', { visible: true });
+      for (const [i, largura] of [1280, 600].entries()) {
+        await pg.setViewport({ width: largura, height: 720 });
+        await delay(300);
+        await chegarPasso(i);
+        await pg.waitForSelector('.aviso-toast.visivel', { timeout: 4000 });
+        await delay(500);   // o aviso entra deslizando
+        /* No fim da pagina a barra de botoes descola da borda de baixo e sobe:
+         * era ali que o aviso antigo, preso a 92px do rodape, caia em cima dela. */
+        for (const onde of ['topo', 'fim']) {
+          await pg.evaluate(o => window.scrollTo(0, o === 'fim' ? document.body.scrollHeight : 0), onde);
+          await delay(150);
+          const m = await medirAviso();
+          assert.ok(m, 'o aviso nao apareceu em ' + largura + 'px');
+          const lugar = 'em ' + largura + 'px, no ' + onde + ' da pagina, ';
+          assert.ok(!cruza(m.aviso, m.rodape), lugar + 'o aviso ficou em cima da barra de Salvar no projeto');
+          assert.ok(m.aviso.top >= m.topo.bottom, lugar + 'o aviso ficou em cima do cabecalho');
+          assert.ok(m.aviso.left >= 0 && m.aviso.right <= m.largura, lugar + 'o aviso saiu da tela');
+          /* A metade de baixo da tela e onde moram os botoes de acao: a barra
+           * de Salvar e os botoes das janelas de confirmacao. O aviso fica fora dela. */
+          assert.ok(m.aviso.bottom < 360, lugar + 'o aviso voltou para a metade de baixo da tela, em cima dos botoes de acao');
+        }
+        await pg.keyboard.press('Escape');
+        await delay(400);
+      }
+      await pg.setViewport({ width: 1280, height: 720 });
+    });
+
+    await caso('CRITERIO: endereco comprido na observacao quebra linha, nao vaza do cartao', async () => {
+      /* Na evidencia salva, que e onde o cliente le: o campo da tela de gravacao
+       * ja quebrava, o da evidencia nao. */
+      // Sair da gravacao aberta pergunta antes: aqui a resposta e sempre sim.
+      pg.on('dialog', d => d.accept().catch(() => {}));
+      await pg.goto(BASE + '/index.html', { waitUntil: 'domcontentloaded' });
+      await pg.click('#entrarSite').catch(() => {});
+      await pg.waitForSelector('#gradeProjetos .cartao[data-projeto]', { visible: true });
+      await pg.evaluate(() => [...document.querySelectorAll('#gradeProjetos .cartao[data-projeto]')]
+        .find(c => c.querySelector('h3').textContent.trim() === 'Projeto do backup').click());
+      await pg.waitForSelector('[data-abrir]', { visible: true });
+      await pg.click('[data-abrir]');
+      await pg.waitForSelector('#conteudoRegistro .ficha .largo .val', { visible: true });
+      const m = await pg.evaluate(() => {
+        const campo = document.querySelector('#conteudoRegistro .ficha .largo .val');
+        /* A caixa do campo nao cresce: quem vaza e o texto. scrollWidth maior
+         * que a largura visivel e o sinal de que ele passou da borda. */
+        return { texto: campo.scrollWidth, caixa: campo.clientWidth, tem: campo.textContent.length,
+          campo: campo.getBoundingClientRect().right, ficha: campo.closest('.ficha').getBoundingClientRect().right };
+      });
+      assert.ok(m.tem > 300, 'a observacao comprida nao chegou na evidencia');
+      assert.ok(m.texto <= m.caixa + 1, 'o texto vazou do campo: ' + m.texto + 'px de texto em ' + m.caixa + 'px de campo');
+      assert.ok(m.campo <= m.ficha + 1, 'o campo passou da borda da ficha');
     });
 
     await caso('nenhum erro de script', () => assert.deepStrictEqual(erros, []));
