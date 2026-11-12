@@ -147,6 +147,21 @@ aba aberta e recarrega ele no meio; `teste-aviso-sem-complemento.js` cobre o
 aviso. Janela anônima continua dependendo de o usuário permitir o complemento
 nela: isso o código não alcança, só o aviso.
 
+**Iniciar gravação arma o complemento, e o "armado" não pode morar em variável.**
+O Print não grava a si mesmo: ao iniciar ele manda `AUDI_ARMAR`, e a sessão
+começa na primeira aba de sistema que a pessoa focar. Esse caminho falhava calado
+de dois jeitos, e nenhum teste passava por ele (todos iniciavam pelo popup, com
+`AUDI_INICIAR`): o prazo ficava num `let` do service worker, que o Chrome encerra
+depois de uns 30 s parado, então quem demorava para ir ao sistema encontrava o
+complemento desarmado (com o painel do worker aberto ele nunca dorme, por isso
+funcionava para quem desenvolve); e qualquer `localhost`/`127.0.0.1` contava como
+"é o Print", então sistema rodando na própria máquina nunca gravava. Hoje o
+armado fica em `chrome.storage.session` (com a aba e a origem de quem armou), e
+endereço local só é Print quando é a mesma origem que armou.
+`teste-iniciar-gravacao-arma.js` cobre os dois, derrubando o worker no meio.
+Estado do complemento que precisa sobreviver a 30 s vai para storage, nunca para
+variável de módulo.
+
 **Trazer a captura nunca limpa a tela.** `acrescentarPassos` só adiciona o que
 falta, deduplicando por id. A função anterior zerava a caixa de vídeo por esperar
 um vídeo vindo do complemento — que ele nunca mandou —, e o vídeo da gravação de

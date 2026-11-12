@@ -254,33 +254,67 @@ async function empurrarParaPrint(passo, sessao) {
  * na aba do Print, entao ela comeca na primeira aba de site que voce abrir ou
  * focar depois disso — que e exatamente a aba que voce vai testar. */
 const ARMADO_VALE_MS = 5 * 60 * 1000;
-let armadoAte = 0;
-// Escolha feita no popup ao armar/iniciar: vale para a sessao que comeca a
-// seguir, ate o proximo AUDI_ARMAR/AUDI_INICIAR trocar de novo.
-let armarComPrints = true;
 
-function ehAbaDePrint(url) {
-  const u = String(url || '');
-  return ORIGENS_PRINT_URL.some((o) => u.startsWith(o));
+/* O "armado" mora no storage da sessao do navegador, nao em variavel.
+ *
+ * Ate 11/11/2026 era um `let armadoAte` aqui em cima. O Chrome encerra o
+ * service worker de Manifest V3 depois de uns 30 s sem evento, e a memoria
+ * dele some junto: quem clicava em Iniciar gravacao, preenchia a ficha e so
+ * entao ia para o sistema encontrava o complemento desarmado. Nenhuma
+ * interacao virava passo, e a evidencia saia so com o print da tela, sem id
+ * e sem HTML. Com o painel do service worker aberto (quem desenvolve) ele
+ * nunca dorme, e por isso o defeito nao aparecia na maquina de quem testava.
+ * storage.session sobrevive ao sono do worker e some ao fechar o navegador,
+ * que e exatamente a vida que um "armado" deve ter.
+ *
+ * Guarda: ate quando vale, se a sessao leva print, e de qual aba e endereco
+ * veio o pedido (o Print), para a sessao nunca comecar nele. */
+const ARMADO = 'audiPrintArmado';
+let armadoNaMemoria = null;   // so para Chrome sem storage.session
+async function lerArmado() {
+  try { return (await chrome.storage.session.get(ARMADO))[ARMADO] || null; }
+  catch (_) { return armadoNaMemoria; }
+}
+async function gravarArmado(valor) {
+  armadoNaMemoria = valor || null;
+  try {
+    if (valor) await chrome.storage.session.set({ [ARMADO]: valor });
+    else await chrome.storage.session.remove(ARMADO);
+  } catch (_) { /* fica so na memoria */ }
+}
+
+const origemDe = (url) => { try { return new URL(url).origin; } catch (_) { return ''; } };
+
+/* Endereco local so e "o Print" quando e o mesmo de onde a gravacao foi armada.
+ *
+ * Antes, qualquer http://localhost ou http://127.0.0.1 contava como Print, em
+ * qualquer porta. Quem testava um sistema rodando na propria maquina (o caso
+ * de todo time que sobe o produto local) clicava em Iniciar gravacao e a
+ * sessao nunca comecava na aba do sistema. Os dominios publicados continuam
+ * sendo Print sempre. */
+function ehAbaDePrint(url, origemQueArmou) {
+  const o = origemDe(url);
+  if (!o) return false;
+  return ORIGENS_PRINT_URL.includes(o) || (!!origemQueArmou && o === origemQueArmou);
 }
 const ORIGENS_PRINT_URL = ['https://audiprint.up.railway.app',
-  'https://audi-print-production.up.railway.app',
-  'http://localhost', 'http://127.0.0.1'];
+  'https://audi-print-production.up.railway.app'];
 
 async function comecarSeArmado(tabId) {
-  if (Date.now() > armadoAte) return;
+  const armado = await lerArmado();
+  if (!armado || Date.now() > armado.ate) return;
   let tab;
   try { tab = await chrome.tabs.get(tabId); } catch (_) { return; }
-  if (!/^https?:/.test(tab.url || '') || ehAbaDePrint(tab.url)) return;
+  if (!/^https?:/.test(tab.url || '') || tabId === armado.tabId || ehAbaDePrint(tab.url, armado.origem)) return;
   const jaTem = await obter(tabId);
   if (jaTem?.ativa) return;
-  armadoAte = 0;
+  await gravarArmado(null);
   await gravar(tabId, {
     ativa: true,
     inicio: new Date().toISOString(),
     url: tab.url,
     titulo: tab.title || '',
-    capturarPrints: armarComPrints,
+    capturarPrints: armado.comPrints !== false,
     passos: [],
     pendente: null,
     erro: ''
@@ -348,7 +382,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
     if (msg.tipo === 'AUDI_STATUS') return { sessao: await obter(tabId) };
 
     if (msg.tipo === 'AUDI_INICIAR') {
-      armarComPrints = msg.capturarPrints !== false;
+      const armarComPrints = msg.capturarPrints !== false;
       const tab = await chrome.tabs.get(tabId);
       const sessao = {
         ativa: true,
@@ -369,7 +403,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
      * para quem esta testando. Nao sabemos qual aba, entao para todas as ativas
      * e desarma o que ainda nao comecou. */
     if (msg.tipo === 'AUDI_PARAR_TUDO') {
-      armadoAte = 0;
+      await gravarArmado(null);
       const sessoes = await todas();
       for (const [id, s] of Object.entries(sessoes)) {
         if (!s || !s.ativa) continue;
@@ -404,8 +438,12 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
 
     /* Armar: a proxima aba de site que voce focar vira a sessao gravando. */
     if (msg.tipo === 'AUDI_ARMAR') {
-      armadoAte = Date.now() + ARMADO_VALE_MS;
-      armarComPrints = msg.capturarPrints !== false;
+      await gravarArmado({
+        ate: Date.now() + ARMADO_VALE_MS,
+        comPrints: msg.capturarPrints !== false,
+        tabId: sender.tab?.id ?? null,
+        origem: origemDe(sender.tab?.url)
+      });
       // Ja esta numa aba de site? entao comeca nela agora mesmo.
       const [ativa] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (ativa) await comecarSeArmado(ativa.id);
