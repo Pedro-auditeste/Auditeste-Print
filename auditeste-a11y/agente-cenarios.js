@@ -6,7 +6,7 @@
  *
  *   AGENTE_API_KEY      chave NVIDIA (nvapi-...) ou OpenAI (sk-...)
  *   AGENTE_BASE_URL     padrão https://integrate.api.nvidia.com/v1
- *   AGENTE_MODELO       padrão meta/llama-3.2-11b-vision-instruct
+ *   AGENTE_MODELO       padrão nvidia/nemotron-3.5-super-vl-120b-a12b
  */
 const injecao = require('./cofre/injecao.js');
 const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/$/, '');
@@ -15,9 +15,19 @@ const BASE_URL = String(process.env.AGENTE_BASE_URL || 'https://integrate.api.nv
  *   nemotron-nano-12b-vl . 200 em 1s, mas devolve 500 com o par grande
  *   90b .................. timeout em 70s, e 504 no gateway, sempre
  * Por isso o padrao volta para o 11b: e o unico que atende de ponta a ponta.
- * Trocar de novo so depois de medir, nunca so pelo tamanho do modelo. */
-const MODELO = String(process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct').trim();
-const MODELO_FALLBACK = String(process.env.AGENTE_MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct').trim();
+ * Trocar de novo so depois de medir, nunca so pelo tamanho do modelo.
+ *
+ * Medido de novo em 12/11/2026, depois que toda descricao passou a falhar:
+ *   11b .................. 410: a NVIDIA aposentou o modelo em 05/11/2026
+ *   nemotron-3.5-super-vl  200 em 2s, com o raciocinio desligado (ligado, gasta
+ *                          a resposta pensando e devolve o texto vazio)
+ *   90b .................. 200 em 11s, descricao pior
+ *   gemma-3, phi-3-vision, vila, kimi: 404 nesta conta
+ * O padrao passa a ser o nemotron, com o 90b atras. */
+const PADRAO = 'nvidia/nemotron-3.5-super-vl-120b-a12b';
+const PADRAO_FALLBACK = 'meta/llama-3.2-90b-vision-instruct';
+const MODELO = String(process.env.AGENTE_MODELO || PADRAO).trim();
+const MODELO_FALLBACK = String(process.env.AGENTE_MODELO_FALLBACK || PADRAO_FALLBACK).trim();
 const MAX_IMAGENS = /llama-3\.2-.*vision|integrate\.api\.nvidia/i.test(MODELO + BASE_URL)
   ? 0
   : (Number(process.env.AGENTE_MAX_IMAGENS) || 8);
@@ -372,19 +382,24 @@ function tratarErroAgente(err) {
     e.semChave = true;
     throw e;
   }
+  if (status === 410 || /end of life|reached its end/i.test(msg)) {
+    throw new Error('O modelo de descrição foi desligado pela NVIDIA. Atualize o servidor ou troque AGENTE_MODELO.');
+  }
   if (status === 404 || /model.?not.?found|does not exist|unknown.?model/i.test(msg)) {
     throw new Error('Modelo não disponível (' + MODELO + '). Defina AGENTE_MODELO com um modelo válido da sua conta NVIDIA.');
   }
   throw err;
 }
 
+/* Os padroes do codigo entram sempre no fim da fila. Variavel de ambiente
+ * apontando para modelo aposentado (o 11b ficou gravado na Railway) fazia toda
+ * descricao falhar ate alguem trocar a variavel: agora ela falha em 0,3 s com
+ * 410 e a chamada segue para o padrao. */
 function modelosTentativa() {
   const principal = MODELO;
-  const fallback = MODELO_FALLBACK || 'meta/llama-3.2-11b-vision-instruct';
-  if (/90b/i.test(principal)) {
-    return [fallback, principal].filter((m, i, a) => m && a.indexOf(m) === i);
-  }
-  return [principal, fallback].filter((m, i, a) => m && a.indexOf(m) === i);
+  const fallback = MODELO_FALLBACK || PADRAO_FALLBACK;
+  const fila = /90b/i.test(principal) ? [fallback, principal] : [principal, fallback];
+  return fila.concat([PADRAO, PADRAO_FALLBACK]).filter((m, i, a) => m && a.indexOf(m) === i);
 }
 
 /** Chamada no formato oficial NVIDIA (chat/completions), sem SDK. */
@@ -413,7 +428,10 @@ async function chamarNvidia({ messages, maxTokens, temperature, timeoutMs, prazo
           presence_penalty: 0,
           stream: false,
           temperature: temperature == null ? 0.2 : temperature,
-          top_p: 1
+          top_p: 1,
+          /* Nemotron raciocina antes de responder e gasta os tokens nisso:
+           * sem desligar, o texto volta vazio. Os outros modelos ignoram. */
+          ...(/nemotron/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : {})
         }),
         signal: AbortSignal.timeout(espera)
       });

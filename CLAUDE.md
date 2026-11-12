@@ -50,9 +50,16 @@ em ~0,03 s. A IA é enriquecimento com prazo curto, não dependência.
 `AGENTE_ORCAMENTO_CENARIOS_MS` limita a **soma** das tentativas de IA (padrão 25000).
 Ponha **0** para pular a IA e devolver sempre o montado, instantâneo e sem cota.
 
-Medições reais (14/08/2026): `llama-3.2-11b-vision` responde em ~17 s;
-`llama-3.2-90b-vision` **não respondeu nem em 120 s** — evite o 90B em `AGENTE_MODELO`.
-Da Railway a NVIDIA é mais lenta que da máquina local (`/descrever` levou 102 s).
+**Modelo padrão: `nvidia/nemotron-3.5-super-vl-120b-a12b`, com o 90B atrás.** A NVIDIA
+aposentou o `llama-3.2-11b-vision` em 05/11/2026 (responde HTTP 410), e toda descrição
+passou a falhar com "Falha interna ao processar". Medido em 12/11/2026: Nemotron 2 s por
+imagem (8,7 s o par completo), 90B 11 s e descrição pior; gemma-3, phi-3-vision, vila e
+kimi dão 404 nesta conta. O Nemotron precisa de `chat_template_kwargs.enable_thinking:
+false`, senão gasta os tokens raciocinando e devolve texto vazio (`chamarNvidia` já manda).
+Os padrões do código entram sempre no fim da fila de modelos: variável `AGENTE_MODELO`
+apontando para modelo aposentado falha em 0,3 s e a chamada segue sozinha. Antes de trocar
+de modelo, medir com imagem de verdade; a lista pública fica em
+`https://integrate.api.nvidia.com/v1/models`, mas estar na lista não garante acesso da conta.
 
 ## Variáveis de ambiente
 

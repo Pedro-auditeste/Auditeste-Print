@@ -15,7 +15,7 @@ const { caminhoChrome } = require('./a11y.js');
 
 const CHAVE = process.env.AGENTE_API_KEY;
 const BASE = (process.env.AGENTE_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '');
-const MODELO = process.env.AGENTE_MODELO || 'meta/llama-3.2-11b-vision-instruct';
+const MODELO = process.env.AGENTE_MODELO || 'nvidia/nemotron-3.5-super-vl-120b-a12b';
 
 /* Texto miúdo e específico: é o primeiro a sumir quando a imagem encolhe. */
 const tela = (titulo, cor) => `<body style="margin:0;font:14px system-ui;background:${cor};width:1366px">

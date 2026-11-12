@@ -16,7 +16,7 @@
  *   PONTE_TOKEN         obrigatório quando HOST não é loopback (para scans)
  *   AGENTE_API_KEY      habilita Gerar cenários (NVIDIA nvapi-...)
  *   AGENTE_BASE_URL     endpoint (padrão https://integrate.api.nvidia.com/v1)
- *   AGENTE_MODELO       modelo (padrão meta/llama-3.2-11b-vision-instruct)
+ *   AGENTE_MODELO       modelo (padrão nvidia/nemotron-3.5-super-vl-120b-a12b)
  *   PONTE_DOMINIOS      allowlist de domínios (o controle mais forte)
  *   PONTE_PRIVADO=1     libera IP privado (só para uso local)
  *   PONTE_MAX           scans simultâneos, padrão 2

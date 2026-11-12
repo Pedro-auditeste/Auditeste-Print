@@ -17,7 +17,7 @@ Documentação completa em [LEIA-ME.md](LEIA-ME.md).
 3. Variáveis no **card do serviço** (não só em Shared/projeto), com Runtime/Deploy ligado:
    - `NVIDIA_NIM_API_KEY` — **obrigatória para descrições e cenários** (NVIDIA `nvapi-...`; `AGENTE_API_KEY` continua aceito)
    - `AGENTE_BASE_URL` — opcional (`https://integrate.api.nvidia.com/v1`)
-   - `AGENTE_MODELO` — opcional (`meta/llama-3.2-90b-vision-instruct`)
+   - `AGENTE_MODELO` — opcional (`nvidia/nemotron-3.5-super-vl-120b-a12b`)
    - `PONTE_TOKEN` — para proteger scans
    - `PONTE_DOMINIOS` — opcional (allowlist)
 4. Depois de salvar, faça **Redeploy**. Confira em `/ping`: `"cenarios": true`.

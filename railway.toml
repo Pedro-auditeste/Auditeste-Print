@@ -4,8 +4,8 @@
 #   PONTE_TOKEN        obrigatório para habilitar scans
 #   NVIDIA_NIM_API_KEY obrigatória para descrições + Gherkin (AGENTE_API_KEY também é aceito)
 #   AGENTE_BASE_URL    opcional — padrão https://integrate.api.nvidia.com/v1
-#   AGENTE_MODELO      opcional — padrão meta/llama-3.2-11b-vision-instruct
-#   AGENTE_MODELO_FALLBACK  opcional — padrão meta/llama-3.2-11b-vision-instruct
+#   AGENTE_MODELO      opcional, padrão nvidia/nemotron-3.5-super-vl-120b-a12b
+#   AGENTE_MODELO_FALLBACK  opcional, padrão meta/llama-3.2-90b-vision-instruct
 #   PONTE_DOMINIOS     opcional — allowlist (ex: cliente.com.br)
 #   PONTE_MAX          opcional — scans simultâneos (padrão 2)
 
